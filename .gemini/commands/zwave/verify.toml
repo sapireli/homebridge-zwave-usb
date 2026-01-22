@@ -1,0 +1,38 @@
+description="Verify correctness: tests, build, and a quick behavior checklist."
+prompt = """
+Verify the project meets GEMINI.md acceptance criteria, including Dual Mode (Local/Remote) support.
+
+Do:
+- Run unit tests, lint, and build:
+  !{npm test}
+  !{npm run lint}
+  !{npm run build}
+- Grep for Remote Mode support:
+  !{grep -R "ZWaveRemoteController" src/platform/ZWaveUsbPlatform.ts}
+- Verify Interfaces are used (Decoupling):
+  !{grep -R "IZWaveController" src/platform/ZWaveUsbPlatform.ts}
+  !{grep -R "IZWaveNode" src/accessories/AccessoryFactory.ts}
+- Verify Config Schema update:
+  !{grep -R "WebSocket URL" config.schema.json}
+  !{grep -R "enableServer" config.schema.json}
+  !{grep -R "customUi" config.schema.json}
+- Verify Critical Files & Dependencies:
+  !{ls tests/zwave/ZWaveRemoteController.test.ts}
+  !{ls homebridge-ui/public/index.html}
+  !{grep '"ws":' package.json}
+  !{grep '"@zwave-js/server":' package.json}
+- Verify Platform Naming Consistency:
+  !{grep "ZWaveUSB" src/platform/settings.ts}
+  !{grep "ZWaveUSB" package.json}
+  !{grep '"platform": "ZWaveUSB"' config.schema.json}
+- Grep for accidental secrets logging (keys):
+  !{grep -R "s2" -n src || true}
+  !{grep -R "securityKey" -n src || true}
+
+Then produce:
+1) A checklist against 'Definition of done'
+2) Any gaps and exact next steps to close them
+3) A short manual test script for a Raspberry Pi/Homebridge host
+
+Task: {{args}}
+"""

@@ -1,0 +1,128 @@
+{
+  "pluginAlias": "ZWaveUSB",
+  "pluginType": "platform",
+  "customUi": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "required": true,
+        "default": "Z-Wave USB"
+      },
+      "platform": {
+        "title": "Platform",
+        "type": "string",
+        "required": true,
+        "default": "ZWaveUSB",
+        "const": "ZWaveUSB"
+      },
+    "serialPort": {
+      "title": "Serial Port or WebSocket URL",
+      "type": "string",
+      "required": true,
+      "description": "Path to the serial port (e.g., /dev/ttyACM0) or WebSocket URL (e.g., ws://localhost:3000)."
+    },
+      "securityKeys": {
+        "title": "Security Keys",
+        "type": "object",
+        "properties": {
+          "S0_Legacy": {
+            "title": "S0 Legacy Key",
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 32,
+            "pattern": "^[0-9a-fA-F]+$",
+            "description": "16-byte hex string (32 characters). REQUIRED for legacy secure devices."
+          },
+          "S2_Unauthenticated": {
+            "title": "S2 Unauthenticated Key",
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 32,
+            "pattern": "^[0-9a-fA-F]+$",
+            "description": "16-byte hex string (32 characters)."
+          },
+          "S2_Authenticated": {
+            "title": "S2 Authenticated Key",
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 32,
+            "pattern": "^[0-9a-fA-F]+$",
+            "description": "16-byte hex string (32 characters)."
+          },
+          "S2_AccessControl": {
+            "title": "S2 Access Control Key",
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 32,
+            "pattern": "^[0-9a-fA-F]+$",
+            "description": "16-byte hex string (32 characters)."
+          }
+        }
+      },
+    "inclusionTimeoutSeconds": {
+      "title": "Inclusion Timeout (Seconds)",
+      "type": "integer",
+      "default": 60,
+      "minimum": 30,
+      "maximum": 300,
+      "description": "How long the inclusion mode stays active."
+    },
+    "enableServer": {
+      "title": "Enable Z-Wave Server (Host Mode)",
+      "type": "boolean",
+      "default": false,
+      "description": "Expose the Z-Wave Driver via WebSocket. Allows Z-Wave JS UI to connect to this plugin."
+    },
+    "serverPort": {
+      "title": "Server Port",
+      "type": "integer",
+      "default": 3000,
+      "minimum": 1024,
+      "maximum": 65535,
+      "description": "Port for the Z-Wave WebSocket Server (only if enabled).",
+      "condition": {
+        "function": {
+          "enableServer": true
+        }
+      }
+    },
+    "debug": {
+        "title": "Enable Debug Logging",
+        "type": "boolean",
+        "default": false,
+        "description": "If true, enables verbose logging for troubleshooting."
+      }
+    }
+  },
+  "layout": [
+    "name",
+    {
+      "key": "serialPort",
+      "description": "WARNING: Do not use /dev/ttyUSBX or /dev/ttyACMX serial devices, as those mappings can change over time. Instead, use the /dev/serial/by-id/X persistent path for your Z-Wave stick. On macOS, use /dev/tty.usbmodem..."
+    },
+    {
+      "type": "fieldset",
+      "title": "Z-Wave Security Keys",
+      "expandable": true,
+      "description": "These keys are used to connect securely to compatible devices. \n\nDirect/Host Mode: Use the 'Auto-Generate Keys' button in the settings UI.\n\nRemote Mode: These keys are IGNORED (set them in Z-Wave JS UI instead).\n\nWARNING: Backup your keys! If you lose them, you will have to factory reset your devices to re-pair them.",
+      "items": [
+        "securityKeys.S0_Legacy",
+        "securityKeys.S2_Unauthenticated",
+        "securityKeys.S2_Authenticated",
+        "securityKeys.S2_AccessControl"
+      ]
+    },
+    {
+      "type": "fieldset",
+      "title": "Advanced",
+      "expandable": true,
+      "items": [
+        "inclusionTimeoutSeconds",
+        "debug"
+      ]
+    }
+  ]
+}

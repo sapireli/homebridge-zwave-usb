@@ -1,0 +1,165 @@
+<div class="card card-body">
+    <form id="configForm">
+        <div class="form-group">
+            <label for="name">Name</label>
+            <input type="text" class="form-control" id="name" placeholder="Z-Wave USB">
+        </div>
+        <div class="form-group">
+            <label for="serialPort">Serial Port or WebSocket URL</label>
+            <input type="text" class="form-control" id="serialPort" placeholder="/dev/ttyACM0 or ws://localhost:3000" required>
+            <small class="form-text text-muted">
+                WARNING: Do not use /dev/ttyUSB0. Use /dev/serial/by-id/...
+            </small>
+        </div>
+
+        <fieldset>
+            <legend>Z-Wave Security Keys</legend>
+            <p class="text-muted small">
+                Required for Direct/Host Mode. Ignored for Remote Mode.
+            </p>
+            <button type="button" class="btn btn-outline-primary btn-sm mb-3" id="generateKeys">
+                Auto-Generate Keys
+            </button>
+
+            <div class="form-group">
+                <label for="S0_Legacy">S0 Legacy</label>
+                <input type="text" class="form-control" id="S0_Legacy" maxlength="32">
+            </div>
+            <div class="form-group">
+                <label for="S2_Unauthenticated">S2 Unauthenticated</label>
+                <input type="text" class="form-control" id="S2_Unauthenticated" maxlength="32">
+            </div>
+            <div class="form-group">
+                <label for="S2_Authenticated">S2 Authenticated</label>
+                <input type="text" class="form-control" id="S2_Authenticated" maxlength="32">
+            </div>
+            <div class="form-group">
+                <label for="S2_AccessControl">S2 Access Control</label>
+                <input type="text" class="form-control" id="S2_AccessControl" maxlength="32">
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>Advanced</legend>
+            <div class="form-group">
+                <label for="inclusionTimeoutSeconds">Inclusion Timeout (Seconds)</label>
+                <input type="number" class="form-control" id="inclusionTimeoutSeconds" placeholder="60">
+            </div>
+            
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" id="enableServer">
+                <label class="form-check-label" for="enableServer">Enable Z-Wave Server (Host Mode)</label>
+            </div>
+            
+            <div class="form-group mt-2" id="serverPortGroup" style="display:none;">
+                <label for="serverPort">Server Port</label>
+                <input type="number" class="form-control" id="serverPort" placeholder="3000">
+            </div>
+
+            <div class="form-check mt-3">
+                <input type="checkbox" class="form-check-input" id="debug">
+                <label class="form-check-label" for="debug">Enable Debug Logging</label>
+            </div>
+        </fieldset>
+    </form>
+</div>
+
+<script>
+    (async () => {
+        // Load Config
+        const pluginConfig = await homebridge.getPluginConfig();
+        const config = pluginConfig[0] || {};
+
+        // Populate Form
+        document.getElementById('name').value = config.name || 'Z-Wave USB';
+        document.getElementById('serialPort').value = config.serialPort || '';
+        
+        // Keys
+        const keys = config.securityKeys || {};
+        document.getElementById('S0_Legacy').value = keys.S0_Legacy || '';
+        document.getElementById('S2_Unauthenticated').value = keys.S2_Unauthenticated || '';
+        document.getElementById('S2_Authenticated').value = keys.S2_Authenticated || '';
+        document.getElementById('S2_AccessControl').value = keys.S2_AccessControl || '';
+
+        // Advanced
+        document.getElementById('inclusionTimeoutSeconds').value = config.inclusionTimeoutSeconds || 60;
+        document.getElementById('enableServer').checked = config.enableServer || false;
+        document.getElementById('serverPort').value = config.serverPort || 3000;
+        document.getElementById('debug').checked = config.debug || false;
+
+        // UI Logic
+        function toggleServerPort() {
+            const enabled = document.getElementById('enableServer').checked;
+            document.getElementById('serverPortGroup').style.display = enabled ? 'block' : 'none';
+        }
+        document.getElementById('enableServer').addEventListener('change', toggleServerPort);
+        toggleServerPort();
+
+        // Generate Keys
+        document.getElementById('generateKeys').addEventListener('click', () => {
+            if (document.getElementById('S0_Legacy').value && !confirm('Overwrite existing keys?')) return;
+
+            const gen = () => {
+                const arr = new Uint8Array(16);
+                window.crypto.getRandomValues(arr);
+                return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+            };
+
+            document.getElementById('S0_Legacy').value = gen();
+            document.getElementById('S2_Unauthenticated').value = gen();
+            document.getElementById('S2_Authenticated').value = gen();
+            document.getElementById('S2_AccessControl').value = gen();
+            
+            homebridge.toast.success('Keys generated!');
+        });
+
+        // Save
+        // Homebridge UI calls this when the user clicks "Save" in the modal footer
+        // We need to listen to the event or just return data?
+        // Actually, for Custom UI, we typically need to use `homebridge.updatePluginConfig`.
+        // BUT, usually Homebridge Config UI X expects us to send the config back?
+        // No, we rely on the user clicking the main Save button?
+        // Wait, standard Custom UI takes over the footer buttons? No.
+        
+        // Docs say: "When the user clicks save, the `customUi` implementation is responsible for saving the config."
+        // Wait, no. "The `homebridge.getPluginConfig()` returns an array... you must save the array back using `homebridge.updatePluginConfig(newConfigArray)`."
+        
+        // So I need to hook into the UI somehow?
+        // Actually, standard behavior: I can add my OWN Save button or rely on an event.
+        // There isn't a standard "OnSave" event exposed to the iframe that blocks closing.
+        
+        // Common pattern:
+        // Update the config via API whenever fields change? No, too chatty.
+        // Listen for a custom event?
+        // Most plugins using Custom UI add their OWN "Save" button inside the iframe?
+        // Or they assume the user will interact with the form and we push updates?
+        
+        // Let's look at the `homebridge-ui-x` expectations.
+        // "Events: `submitting` - emitted when the user clicks save."
+        
+        // Perfect.
+        homebridge.addEventListener('submitting', async () => {
+            const newConfig = {
+                name: document.getElementById('name').value,
+                platform: 'ZWaveUSB',
+                serialPort: document.getElementById('serialPort').value,
+                securityKeys: {
+                    S0_Legacy: document.getElementById('S0_Legacy').value,
+                    S2_Unauthenticated: document.getElementById('S2_Unauthenticated').value,
+                    S2_Authenticated: document.getElementById('S2_Authenticated').value,
+                    S2_AccessControl: document.getElementById('S2_AccessControl').value
+                },
+                inclusionTimeoutSeconds: parseInt(document.getElementById('inclusionTimeoutSeconds').value, 10),
+                enableServer: document.getElementById('enableServer').checked,
+                serverPort: parseInt(document.getElementById('serverPort').value, 10),
+                debug: document.getElementById('debug').checked
+            };
+
+            // Remove empty keys object if empty (optional, but clean)
+            if (!newConfig.securityKeys.S0_Legacy) delete newConfig.securityKeys;
+
+            await homebridge.updatePluginConfig([newConfig]);
+        });
+        
+    })();
+</script>
