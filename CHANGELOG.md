@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.9] - 2026-02-13
+
+### Fixed
+- Improved battery reporting reliability and silenced HomeKit out-of-range warnings.
+
 ## [1.7.8] - 2026-02-13
 
 ### Added
