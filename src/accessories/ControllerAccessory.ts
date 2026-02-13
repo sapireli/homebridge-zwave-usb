@@ -261,7 +261,18 @@ export class ControllerAccessory {
 
     // We expose a read-only Name characteristic and intentionally omit writable ConfiguredName.
     const configuredName = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
-    service.removeCharacteristic(configuredName);
+    const mutableService = service as Service & {
+      removeCharacteristic?: (characteristic: unknown) => void;
+      characteristics?: unknown[];
+    };
+    if (typeof mutableService.removeCharacteristic === 'function') {
+      mutableService.removeCharacteristic(configuredName);
+      return;
+    }
+
+    if (Array.isArray(mutableService.characteristics)) {
+      mutableService.characteristics = mutableService.characteristics.filter((c) => c !== configuredName);
+    }
   }
 
   private async handleSetInclusion(value: CharacteristicValue) {
