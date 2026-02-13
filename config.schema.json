@@ -83,20 +83,21 @@
         "maximum": 300,
         "description": "How long the inclusion mode stays active."
       },
-              "debug": {
-              "title": "Enable Verbose Driver Logging",
-              "type": "boolean",
-              "default": false,
-              "description": "If true, redirects all Z-Wave JS driver logs to Homebridge."
-            }
-          },
-          "required": [
-            "name",
-            "platform",
-            "serialPort"
-          ]
-        },
-        "layout": [    "name",
+      "debug": {
+        "title": "Enable Verbose Driver Logging",
+        "type": "boolean",
+        "default": false,
+        "description": "If true, redirects all Z-Wave JS driver logs to Homebridge."
+      }
+    },
+    "required": [
+      "name",
+      "platform",
+      "serialPort"
+    ]
+  },
+  "layout": [
+    "name",
     {
       "key": "serialPort",
       "description": "WARNING: Use persistent paths like /dev/serial/by-id/... on Linux or /dev/tty.usbmodem... on macOS."
@@ -110,7 +111,9 @@
         "securityKeys.S0_Legacy",
         "securityKeys.S2_Unauthenticated",
         "securityKeys.S2_Authenticated",
-        "securityKeys.S2_AccessControl"
+        "securityKeys.S2_AccessControl",
+        "securityKeys.S2_Authenticated_LR",
+        "securityKeys.S2_AccessControl_LR"
       ]
     },
     {

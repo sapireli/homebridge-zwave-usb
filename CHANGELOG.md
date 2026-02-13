@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.1] - 2026-02-13
+
+### Changed
+- Standardized `config.schema.json` to strictly follow JSON Schema draft-07 requirements (using `required` array at the object level).
+- Refined `package.json` dependencies to exclude `homebridge` and `hap-nodejs` from runtime dependencies, ensuring compliance with Homebridge Verified standards.
+
 ## [1.8.0] - 2026-02-13
 
 ### Changed

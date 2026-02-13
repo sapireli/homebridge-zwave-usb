@@ -1,4 +1,4 @@
-import { PlatformAccessory, Service, CharacteristicValue } from 'homebridge';
+import { PlatformAccessory, Service, CharacteristicValue, Characteristic } from 'homebridge';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { IZWaveController } from '../zwave/interfaces';
 import { STATUS_CHAR_UUID, PIN_CHAR_UUID } from '../platform/settings';
@@ -11,6 +11,8 @@ export class ControllerAccessory {
   public readonly platformAccessory: PlatformAccessory;
   private inclusionTimer?: NodeJS.Timeout;
   private exclusionTimer?: NodeJS.Timeout;
+  private statusChar!: Characteristic;
+  private pinChar!: Characteristic;
 
   constructor(
     private readonly platform: ZWaveUsbPlatform,
@@ -48,8 +50,6 @@ export class ControllerAccessory {
       .setCharacteristic(this.platform.Characteristic.SerialNumber, homeId.toString());
 
     // --- 1. Z-Wave Manager Service ---
-    // We use a Switch service to host our custom characteristics.
-    // This ensures they are visible and writeable in 3rd party apps.
     this.managerService = 
         this.platformAccessory.getService('Z-Wave Manager') ||
         this.platformAccessory.addService(this.platform.Service.Switch, 'Z-Wave Manager', 'manager');
@@ -57,45 +57,27 @@ export class ControllerAccessory {
     this.managerService.setCharacteristic(this.platform.Characteristic.Name, 'Z-Wave Manager');
 
     // System Status Characteristic
-    let statusChar = this.managerService.getCharacteristic(STATUS_CHAR_UUID);
-    if (!statusChar || !this.managerService.characteristics.some(c => c.UUID === STATUS_CHAR_UUID)) {
-        statusChar = this.managerService.addCharacteristic(
-            new this.platform.api.hap.Characteristic('System Status', STATUS_CHAR_UUID, {
-                format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-                perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
-            })
-        );
-    }
-    statusChar.setProps({
+    this.statusChar = this.managerService.getCharacteristic(STATUS_CHAR_UUID)!;
+    this.statusChar.setProps({
         format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
     });
-    statusChar.updateValue('Driver Ready');
+    this.statusChar.updateValue('Driver Ready');
 
     // S2 PIN Input Characteristic
-    let pinChar = this.managerService.getCharacteristic(PIN_CHAR_UUID);
-    if (!pinChar || !this.managerService.characteristics.some(c => c.UUID === PIN_CHAR_UUID)) {
-        pinChar = this.managerService.addCharacteristic(
-            new this.platform.api.hap.Characteristic('S2 PIN Input', PIN_CHAR_UUID, {
-                format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-                perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
-            })
-        );
-    }
-    
-    // Force write permissions even if cached
-    pinChar.setProps({
+    this.pinChar = this.managerService.getCharacteristic(PIN_CHAR_UUID)!;
+    this.pinChar.setProps({
         format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
     });
 
-    pinChar.onSet((value: CharacteristicValue) => {
+    this.pinChar.onSet((value: CharacteristicValue) => {
         this.platform.log.info(`HomeKit S2 PIN Received: ${value}`);
         this.controller.setS2Pin(value as string);
         // Clear the value after a short delay so the UI doesn't keep the PIN visible
-        setTimeout(() => pinChar.updateValue(''), 1000);
+        setTimeout(() => this.pinChar.updateValue(''), 1000);
     });
-    pinChar.updateValue('');
+    this.pinChar.updateValue('');
 
     // Manager Switch logic: Turning it ON does nothing, turning it OFF stops all active processes
     this.managerService.getCharacteristic(this.platform.Characteristic.On)
@@ -148,7 +130,7 @@ export class ControllerAccessory {
 
     // --- Listen for controller events to sync state ---
     this.controller.on('status updated', (status: string) => {
-        statusChar.updateValue(status);
+        this.statusChar.updateValue(status);
     });
 
     this.controller.on('inclusion started', () => {
