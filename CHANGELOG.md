@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.6] - 2026-02-13
+
+### Fixed
+- Fixed a critical "Duplicate Characteristic" crash by implementing a case-insensitive check for existing characteristics in the Homebridge cache.
+- Migrated the **Z-Wave Manager** to a custom Service UUID to ensure correct naming and characteristic visibility in third-party HomeKit apps.
+- Guaranteed the **S2 PIN Input** field is writable by explicitly forcing permissions and using a dedicated management service.
+- Fixed a regression where switch names were missing in the Controller app.
+
 ## [1.8.5] - 2026-02-13
 
 ### Changed

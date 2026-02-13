@@ -1,7 +1,7 @@
 import { PlatformAccessory, Service, CharacteristicValue, Characteristic } from 'homebridge';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { IZWaveController } from '../zwave/interfaces';
-import { STATUS_CHAR_UUID, PIN_CHAR_UUID } from '../platform/settings';
+import { STATUS_CHAR_UUID, PIN_CHAR_UUID, MANAGER_SERVICE_UUID, OBSOLETE_STATUS_UUID, OBSOLETE_PIN_UUID } from '../platform/settings';
 
 export class ControllerAccessory {
   private managerService: Service;
@@ -49,16 +49,27 @@ export class ControllerAccessory {
       .setCharacteristic(this.platform.Characteristic.Model, 'Z-Wave USB Controller')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, homeId.toString());
 
-    // --- 1. Z-Wave Manager Service ---
+    // --- 1. Z-Wave Manager Service (Custom Service) ---
+    // Using a custom Service UUID ensures third-party apps treat this as a specialized management container.
     this.managerService = 
-        this.platformAccessory.getService('Z-Wave Manager') ||
-        this.platformAccessory.addService(this.platform.Service.Switch, 'Z-Wave Manager', 'manager');
+        this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
+        this.platformAccessory.addService(new this.platform.api.hap.Service('Z-Wave Manager', MANAGER_SERVICE_UUID, 'manager'));
     
+    // Ensure Name is set correctly
     this.managerService.setCharacteristic(this.platform.Characteristic.Name, 'Z-Wave Manager');
 
+    // Cleanup: Remove obsolete characteristics from previous versions to prevent UUID collisions
+    [OBSOLETE_STATUS_UUID, OBSOLETE_PIN_UUID].forEach(obsoleteUuid => {
+        const found = this.managerService.characteristics.find(c => c.UUID.toUpperCase() === obsoleteUuid.toUpperCase());
+        if (found) {
+            this.platform.log.info(`Cleaning up obsolete characteristic: ${obsoleteUuid}`);
+            this.managerService.removeCharacteristic(found);
+        }
+    });
+
     // System Status Characteristic
-    // Robust check: Look through all characteristics manually to avoid UUID collision errors
-    const statusCharacteristic = this.managerService.characteristics.find(c => c.UUID === STATUS_CHAR_UUID);
+    // Case-insensitive lookup to be absolutely safe against HAP variations
+    const statusCharacteristic = this.managerService.characteristics.find(c => c.UUID.toUpperCase() === STATUS_CHAR_UUID.toUpperCase());
     
     if (statusCharacteristic) {
         this.statusChar = statusCharacteristic;
@@ -79,7 +90,7 @@ export class ControllerAccessory {
     this.statusChar.updateValue('Driver Ready');
 
     // S2 PIN Input Characteristic
-    const pinCharacteristic = this.managerService.characteristics.find(c => c.UUID === PIN_CHAR_UUID);
+    const pinCharacteristic = this.managerService.characteristics.find(c => c.UUID.toUpperCase() === PIN_CHAR_UUID.toUpperCase());
     
     if (pinCharacteristic) {
         this.pinChar = pinCharacteristic;
@@ -106,54 +117,33 @@ export class ControllerAccessory {
     });
     this.pinChar.updateValue('');
 
-    // Manager Switch logic: Turning it ON does nothing, turning it OFF stops all active processes
-    this.managerService.getCharacteristic(this.platform.Characteristic.On)
-        .onGet(() => false)
-        .onSet(async (value: CharacteristicValue) => {
-            if (!value) {
-                this.platform.log.info('Manager: Stopping all active processes...');
-                await this.controller.stopInclusion();
-                await this.controller.stopExclusion();
-                await this.controller.stopHealing();
-            }
-        });
-
     // --- 2. Inclusion Mode Service ---
     this.inclusionService =
       this.platformAccessory.getService('Inclusion Mode') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
 
-    this.inclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Inclusion Mode');
+    this.inclusionService.updateCharacteristic(this.platform.Characteristic.Name, 'Inclusion Mode');
 
     // --- 3. Exclusion Mode Service ---
     this.exclusionService =
       this.platformAccessory.getService('Exclusion Mode') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
 
-    this.exclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Exclusion Mode');
+    this.exclusionService.updateCharacteristic(this.platform.Characteristic.Name, 'Exclusion Mode');
 
     // --- 4. Heal Network Service ---
     this.healService =
       this.platformAccessory.getService('Heal Network') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
 
-    this.healService.setCharacteristic(this.platform.Characteristic.Name, 'Heal Network');
+    this.healService.updateCharacteristic(this.platform.Characteristic.Name, 'Heal Network');
 
-    // --- Setup Characteristic Handlers ---
-    this.inclusionService
-      .getCharacteristic(this.platform.Characteristic.On)
-      .onSet(this.handleSetInclusion.bind(this))
-      .onGet(this.handleGetInclusion.bind(this));
-
-    this.exclusionService
-      .getCharacteristic(this.platform.Characteristic.On)
-      .onSet(this.handleSetExclusion.bind(this))
-      .onGet(this.handleGetExclusion.bind(this));
-
-    this.healService
-      .getCharacteristic(this.platform.Characteristic.On)
-      .onSet(this.handleSetHeal.bind(this))
-      .onGet(this.handleGetHeal.bind(this));
+    // Cleanup: Remove old "Z-Wave Manager" Switch if it was cached from previous version
+    const oldSwitchManager = this.platformAccessory.getService('Z-Wave Manager');
+    if (oldSwitchManager && oldSwitchManager.UUID !== MANAGER_SERVICE_UUID) {
+        this.platform.log.info('Cleaning up obsolete Z-Wave Manager switch service');
+        this.platformAccessory.removeService(oldSwitchManager);
+    }
 
     // --- Listen for controller events to sync state ---
     this.controller.on('status updated', (status: string) => {
