@@ -73,12 +73,7 @@ export class ControllerAccessory {
             }
         });
         
-        // Clean up ConfiguredName from previous beta versions
-        const configuredName = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
-        if (configuredName) {
-             // We are removing ConfiguredName support to fix the writable bug
-             service.removeCharacteristic(configuredName);
-        }
+        this.removeConfiguredNameIfPresent(service);
     });
 
     // Add ServiceLabelNamespace to AccessoryInformation to help with naming multi-service accessories
@@ -93,6 +88,7 @@ export class ControllerAccessory {
     this.statusService = this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         this.platformAccessory.addService(new (this.platform.Service as any).ZWaveManager('System Status', 'Status'));
+    this.removeConfiguredNameIfPresent(this.statusService);
     
     // Naming Identity - Strictly Name only
     this.statusService.getCharacteristic(this.platform.Characteristic.Name)
@@ -125,9 +121,12 @@ export class ControllerAccessory {
     // S2 PIN Entry Characteristic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pinCharType = (this.platform.Characteristic as any).S2PinEntry;
-    if (!this.statusService.testCharacteristic(pinCharType)) {
-        this.statusService.addOptionalCharacteristic(pinCharType);
+    if (this.statusService.testCharacteristic(pinCharType)) {
+        const cachedPinChar = this.statusService.getCharacteristic(pinCharType);
+        this.platform.log.debug('Re-registering S2 PIN Entry characteristic with writable perms');
+        this.statusService.removeCharacteristic(cachedPinChar);
     }
+    this.statusService.addOptionalCharacteristic(pinCharType);
     this.pinChar = this.statusService.getCharacteristic(pinCharType);
     
     // FORCE WRITABLE PROPS: Explicitly define perms and format. Removed maxLen to avoid validation issues.
@@ -150,6 +149,7 @@ export class ControllerAccessory {
     this.inclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Inclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
+    this.removeConfiguredNameIfPresent(this.inclusionService);
     
     this.inclusionService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -166,6 +166,7 @@ export class ControllerAccessory {
     this.exclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Exclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
+    this.removeConfiguredNameIfPresent(this.exclusionService);
     
     this.exclusionService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -181,6 +182,7 @@ export class ControllerAccessory {
     this.healService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Heal') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
+    this.removeConfiguredNameIfPresent(this.healService);
     
     this.healService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -250,6 +252,16 @@ export class ControllerAccessory {
       this.platform.log.info('Controller event: Heal Network Done');
       this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
     });
+  }
+
+  private removeConfiguredNameIfPresent(service: Service) {
+    if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+      return;
+    }
+
+    // We expose a read-only Name characteristic and intentionally omit writable ConfiguredName.
+    const configuredName = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
+    service.removeCharacteristic(configuredName);
   }
 
   private async handleSetInclusion(value: CharacteristicValue) {

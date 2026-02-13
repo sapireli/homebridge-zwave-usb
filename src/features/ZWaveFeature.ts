@@ -44,13 +44,15 @@ export abstract class BaseFeature implements ZWaveFeature {
     const addedService = this.accessory.addService(service);
     
     // Explicitly set the name characteristic to ensure it's displayed correctly
-    addedService.getCharacteristic(this.platform.Characteristic.Name)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
+    const nameChar = addedService.getCharacteristic(this.platform.Characteristic.Name);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    nameChar.setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
         .updateValue(serviceName);
-    
-    // We removed ConfiguredName to prevent it from being writable. 
-    // HomeKit will fallback to Name for the tile label.
+
+    if (addedService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+        const configuredNameChar = addedService.getCharacteristic(this.platform.Characteristic.ConfiguredName);
+        addedService.removeCharacteristic(configuredNameChar);
+    }
 
     // Add Service Label Index for multi-endpoint devices to help with ordering/naming
     if (this.endpoint.index > 0) {
