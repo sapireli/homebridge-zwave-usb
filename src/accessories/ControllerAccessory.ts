@@ -49,23 +49,22 @@ export class ControllerAccessory {
       .setCharacteristic(this.platform.Characteristic.Model, 'Z-Wave USB Controller')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, homeId.toString());
 
-    // --- AGGRESSIVE CLEANUP: Remove obsolete or duplicate services ---
-    const currentManagerUuid = MANAGER_SERVICE_UUID.toUpperCase();
-
+    // --- AGGRESSIVE CLEANUP: Remove obsolete services and characteristics ---
     this.platformAccessory.services.slice().forEach(service => {
         const serviceUuid = service.UUID.toUpperCase();
         
-        // Remove obsolete services or duplicate current managers
-        const isObsolete = OBSOLETE_MANAGER_UUIDS.map(u => u.toUpperCase()).includes(serviceUuid);
-        const isDuplicateManager = serviceUuid === currentManagerUuid && 
+        // Remove obsolete services
+        const isObsoleteManager = OBSOLETE_MANAGER_UUIDS.some(u => u.toUpperCase() === serviceUuid);
+        const isDuplicateCurrent = serviceUuid === MANAGER_SERVICE_UUID.toUpperCase() && 
                                    service !== this.platformAccessory.getService(MANAGER_SERVICE_UUID);
 
-        if (isObsolete || isDuplicateManager) {
+        if (isObsoleteManager || isDuplicateCurrent) {
             this.platform.log.info(`Pruning obsolete or duplicate service: ${service.displayName} (${service.UUID})`);
             this.platformAccessory.removeService(service);
+            return; // Service gone
         }
 
-        // Clean up obsolete characteristics from RETAINED services (like Switch)
+        // Clean up obsolete characteristics from retained services (like Switch)
         OBSOLETE_CHAR_UUIDS.forEach(charUuid => {
             const found = service.characteristics.find(c => c.UUID.toUpperCase() === charUuid.toUpperCase());
             if (found) {
@@ -75,12 +74,20 @@ export class ControllerAccessory {
         });
     });
 
+    // Add ServiceLabelNamespace to AccessoryInformation to help with naming multi-service accessories
+    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
+    if (!infoService.testCharacteristic(this.platform.Characteristic.ServiceLabelNamespace)) {
+        infoService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelNamespace);
+    }
+    // 1 = Arabic numerals (1, 2, 3...)
+    infoService.getCharacteristic(this.platform.Characteristic.ServiceLabelNamespace).updateValue(1);
+
     // --- 1. System Status Service (Custom Service) ---
     this.statusService = this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         this.platformAccessory.addService(new (this.platform.Service as any).ZWaveManager('System Status', 'Status'));
     
-    // Identity Enforcement
+    // Naming Identity
     this.setupServiceName(this.statusService, 'System Status', 1);
 
     // System Status Characteristic
@@ -106,6 +113,8 @@ export class ControllerAccessory {
         this.statusService.addOptionalCharacteristic(pinCharType);
     }
     this.pinChar = this.statusService.getCharacteristic(pinCharType);
+    
+    // FORCE WRITABLE PROPS: Critical fix for virgin installs
     this.pinChar.setProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         format: HAPFormat.STRING as any,

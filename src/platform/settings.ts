@@ -28,11 +28,14 @@ export enum HAPPerm {
   HIDDEN = 'hd',
 }
 
-// Obsolete UUIDs for cleanup
+// Obsolete UUIDs for cleanup (Aggressive Pruning)
 export const OBSOLETE_MANAGER_UUIDS = [
     '00000001-0000-1000-8000-0026BB765291',
     '00000001-0000-1000-8000-0026BB765292',
-    '9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c'
+    '9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c',
+    'manager',
+    'Status',
+    'System Status'
 ];
 
 export const OBSOLETE_CHAR_UUIDS = [

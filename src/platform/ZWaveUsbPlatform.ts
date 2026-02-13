@@ -84,7 +84,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
             });
-            this.value = this.getDefaultValue();
+            this.value = 'Initializing...';
         }
     };
 
@@ -99,7 +99,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 perms: [HAPPerm.PAIRED_READ as any, HAPPerm.PAIRED_WRITE as any, HAPPerm.NOTIFY as any],
             });
-            this.value = this.getDefaultValue();
+            this.value = '';
         }
     };
 
@@ -114,6 +114,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             this.addOptionalCharacteristic((Characteristic as any).S2PinEntry);
             this.addOptionalCharacteristic(Characteristic.ConfiguredName);
+            this.addOptionalCharacteristic(Characteristic.ServiceLabelIndex);
         }
     };
   }

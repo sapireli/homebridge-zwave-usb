@@ -21,8 +21,12 @@ describe('ContactSensorFeature', () => {
         on: jest.fn().mockReturnThis(),
         onGet: jest.fn().mockReturnThis(),
         updateValue: jest.fn(),
+        setProps: jest.fn().mockReturnThis(),
       }),
       updateCharacteristic: jest.fn(),
+      testCharacteristic: jest.fn().mockReturnValue(true),
+      addOptionalCharacteristic: jest.fn(),
+      setCharacteristic: jest.fn().mockReturnThis(),
     };
 
     hap = {
@@ -34,6 +38,8 @@ describe('ContactSensorFeature', () => {
             CONTACT_DETECTED: 0,
             CONTACT_NOT_DETECTED: 1,
         },
+        Name: 'Name',
+        ConfiguredName: 'ConfiguredName',
       } as any,
       uuid: {
         generate: jest.fn().mockReturnValue('test-uuid'),

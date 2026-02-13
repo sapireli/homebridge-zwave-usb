@@ -20,8 +20,12 @@ describe('BatteryFeature', () => {
         on: jest.fn().mockReturnThis(),
         onGet: jest.fn().mockReturnThis(),
         updateValue: jest.fn(),
+        setProps: jest.fn().mockReturnThis(),
       }),
       updateCharacteristic: jest.fn(),
+      testCharacteristic: jest.fn().mockReturnValue(true),
+      addOptionalCharacteristic: jest.fn(),
+      setCharacteristic: jest.fn().mockReturnThis(),
     };
 
     hap = {
@@ -34,6 +38,8 @@ describe('BatteryFeature', () => {
             BATTERY_LEVEL_NORMAL: 0,
             BATTERY_LEVEL_LOW: 1,
         },
+        Name: 'Name',
+        ConfiguredName: 'ConfiguredName',
       } as any,
       uuid: {
         generate: jest.fn().mockReturnValue('test-uuid'),

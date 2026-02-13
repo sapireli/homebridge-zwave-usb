@@ -21,8 +21,12 @@ describe('MotionSensorFeature', () => {
         on: jest.fn().mockReturnThis(),
         onGet: jest.fn().mockReturnThis(),
         updateValue: jest.fn(),
+        setProps: jest.fn().mockReturnThis(),
       }),
       updateCharacteristic: jest.fn(),
+      testCharacteristic: jest.fn().mockReturnValue(true),
+      addOptionalCharacteristic: jest.fn(),
+      setCharacteristic: jest.fn().mockReturnThis(),
     };
 
     hap = {
@@ -31,6 +35,8 @@ describe('MotionSensorFeature', () => {
       } as any,
       Characteristic: {
         MotionDetected: 'MotionDetected',
+        Name: 'Name',
+        ConfiguredName: 'ConfiguredName',
       } as any,
       uuid: {
         generate: jest.fn().mockReturnValue('test-uuid'),
@@ -48,6 +54,9 @@ describe('MotionSensorFeature', () => {
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
       on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      user: {
+        storagePath: jest.fn().mockReturnValue('/tmp'),
+      },
       platformAccessory: jest.fn().mockImplementation(() => accessory),
     } as any;
 

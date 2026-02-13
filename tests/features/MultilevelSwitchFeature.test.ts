@@ -1,4 +1,4 @@
-import { API, HAP, PlatformConfig } from 'homebridge';
+import { API, HAP, PlatformConfig, Service, CharacteristicValue } from 'homebridge';
 import { ZWaveNode, Endpoint } from 'zwave-js';
 import { CommandClasses } from '@zwave-js/core';
 import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
@@ -22,8 +22,12 @@ describe('MultilevelSwitchFeature', () => {
         onGet: jest.fn().mockReturnThis(),
         onSet: jest.fn().mockReturnThis(),
         updateValue: jest.fn(),
+        setProps: jest.fn().mockReturnThis(),
       }),
       updateCharacteristic: jest.fn(),
+      testCharacteristic: jest.fn().mockReturnValue(true),
+      addOptionalCharacteristic: jest.fn(),
+      setCharacteristic: jest.fn().mockReturnThis(),
     };
 
     hap = {
@@ -33,6 +37,8 @@ describe('MultilevelSwitchFeature', () => {
       Characteristic: {
         On: 'On',
         Brightness: 'Brightness',
+        Name: 'Name',
+        ConfiguredName: 'ConfiguredName',
       } as any,
       uuid: {
         generate: jest.fn().mockReturnValue('test-uuid'),
@@ -50,9 +56,6 @@ describe('MultilevelSwitchFeature', () => {
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
       on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
-      user: {
-        storagePath: jest.fn().mockReturnValue('/tmp'),
-      },
       platformAccessory: jest.fn().mockImplementation(() => accessory),
     } as any;
 
