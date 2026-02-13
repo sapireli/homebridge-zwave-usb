@@ -99,7 +99,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 perms: [HAPPerm.PAIRED_READ as any, HAPPerm.PAIRED_WRITE as any, HAPPerm.NOTIFY as any],
             });
-            this.value = '';
+            this.value = 'Enter PIN';
         }
     };
 

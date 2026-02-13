@@ -142,9 +142,9 @@ export class ControllerAccessory {
     this.pinChar.onSet((value: CharacteristicValue) => {
         this.platform.log.info(`HomeKit S2 PIN Received: ${value}`);
         this.controller.setS2Pin(value as string);
-        setTimeout(() => this.pinChar.updateValue(''), 2000);
+        setTimeout(() => this.pinChar.updateValue('Enter PIN'), 2000);
     });
-    this.pinChar.updateValue('');
+    this.pinChar.updateValue('Enter PIN');
 
     // --- 2. Inclusion Mode Switch ---
     this.inclusionService =

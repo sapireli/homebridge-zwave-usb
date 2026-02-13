@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.4-beta.6] - 2026-02-13
+
+### Fixed
+- **Scorched Earth Fix:** Removed `ConfiguredName` entirely from the Z-Wave Manager and Controller services. This is the only way to prevent HomeKit from treating the service label as writable.
+- Fixed **Read-Only S2 PIN Entry** by initializing the field with a placeholder string (`"Enter PIN"`) and removing complex length validation constraints that caused HomeKit to disable the input.
+- Incremented to **Version 7 UUIDs** to forcefully clear any lingering metadata cache on the HomeKit controller side.
+
 ## [1.9.4-beta.5] - 2026-02-13
 
 ### Fixed
