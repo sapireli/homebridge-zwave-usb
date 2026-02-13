@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.2] - 2026-02-13
+
+### Fixed
+- Fixed a potential crash during plugin initialization when provided with invalid configuration (e.g., malformed serial port or security keys).
+- Improved security key validation to ensure keys are valid hexadecimal strings.
+- Wrapped critical initialization code in try/catch blocks to log errors gracefully instead of crashing Homebridge.
+
 ## [1.9.1] - 2026-02-13
 
 ### Fixed

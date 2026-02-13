@@ -47,8 +47,16 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     if (this.options.securityKeys) {
       const keys = this.options.securityKeys;
       
-      // Helper to parse key
-      const parse = (val: string | undefined) => (val && val.length === 32) ? Buffer.from(val, 'hex') : undefined;
+      // Helper to parse key - must be 32 hex characters
+      const parse = (val: string | undefined) => {
+          if (val && val.length === 32 && /^[0-9a-fA-F]+$/.test(val)) {
+              return Buffer.from(val, 'hex');
+          }
+          if (val && val.length > 0) {
+              this.log.warn(`Security key "${val.substring(0, 5)}..." is invalid (must be 32 hex characters). Skipping.`);
+          }
+          return undefined;
+      };
 
       // Classic Keys
       const s0 = parse(keys.S0_Legacy);
@@ -81,85 +89,90 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
 
     const storagePath = this.options.storagePath || process.cwd();
 
-    this.driver = new Driver(this.serialPort, {
-      securityKeys: Object.keys(securityKeys).length > 0 ? securityKeys : undefined,
-      securityKeysLongRange: Object.keys(securityKeysLongRange).length > 0 ? securityKeysLongRange : undefined,
-      logConfig,
-      storage: {
-          cacheDir: path.join(storagePath, 'zwave-js-cache'),
-          deviceConfigPriorityDir: path.join(storagePath, 'zwave-js-config'),
-      },
-      features: {
-        softReset: false,
-      },
-      emitValueUpdateAfterSetValue: true,
-      inclusionUserCallbacks: {
-        grantSecurityClasses: async (request) => {
-          this.log.info(`[S2] Granting security classes: ${request.securityClasses.join(', ')}`);
-          return request;
-        },
-        validateDSKAndEnterPIN: async (dsk) => {
-          this.pendingS2Pin = undefined; // Reset
-          this.emit('status updated', 'S2 PIN REQUIRED - Check App or Logs');
-          this.log.warn('**********************************************************');
-          this.log.warn('[S2] SECURITY PIN REQUIRED FOR INCLUSION');
-          this.log.warn(`[S2] DEVICE DSK: ${dsk}`);
-          this.log.warn('[S2] Please enter the 5-digit PIN from the device label.');
-          this.log.warn(' ');
-          this.log.warn('[S2] OPTION 1: Enter PIN in HomeKit App (Controller/Eve)');
-          this.log.warn('[S2] OPTION 2: Terminal Instruction:');
-          this.log.warn(`     echo "12345" > ${path.join(storagePath, 's2_pin.txt')}`);
-          this.log.warn(' ');
-          this.log.warn('[S2] Waiting 3 minutes for PIN...');
-          this.log.warn('**********************************************************');
+    try {
+        this.driver = new Driver(this.serialPort, {
+          securityKeys: Object.keys(securityKeys).length > 0 ? securityKeys : undefined,
+          securityKeysLongRange: Object.keys(securityKeysLongRange).length > 0 ? securityKeysLongRange : undefined,
+          logConfig,
+          storage: {
+              cacheDir: path.join(storagePath, 'zwave-js-cache'),
+              deviceConfigPriorityDir: path.join(storagePath, 'zwave-js-config'),
+          },
+          features: {
+            softReset: false,
+          },
+          emitValueUpdateAfterSetValue: true,
+          inclusionUserCallbacks: {
+            grantSecurityClasses: async (request) => {
+              this.log.info(`[S2] Granting security classes: ${request.securityClasses.join(', ')}`);
+              return request;
+            },
+            validateDSKAndEnterPIN: async (dsk) => {
+              this.pendingS2Pin = undefined; // Reset
+              this.emit('status updated', 'S2 PIN REQUIRED - Check App or Logs');
+              this.log.warn('**********************************************************');
+              this.log.warn('[S2] SECURITY PIN REQUIRED FOR INCLUSION');
+              this.log.warn(`[S2] DEVICE DSK: ${dsk}`);
+              this.log.warn('[S2] Please enter the 5-digit PIN from the device label.');
+              this.log.warn(' ');
+              this.log.warn('[S2] OPTION 1: Enter PIN in HomeKit App (Controller/Eve)');
+              this.log.warn('[S2] OPTION 2: Terminal Instruction:');
+              this.log.warn(`     echo "12345" > ${path.join(storagePath, 's2_pin.txt')}`);
+              this.log.warn(' ');
+              this.log.warn('[S2] Waiting 3 minutes for PIN...');
+              this.log.warn('**********************************************************');
 
-          const pinFilePath = path.join(storagePath, 's2_pin.txt');
-          const startTime = Date.now();
-          const timeout = 180000; // 3 minutes
+              const pinFilePath = path.join(storagePath, 's2_pin.txt');
+              const startTime = Date.now();
+              const timeout = 180000; // 3 minutes
 
-          while (Date.now() - startTime < timeout) {
-              // Check for terminal file
-              if (fs.existsSync(pinFilePath)) {
-                  try {
-                      const pin = fs.readFileSync(pinFilePath, 'utf8').trim();
-                      fs.unlinkSync(pinFilePath); 
-                      if (/^\d{5}$/.test(pin)) {
-                          this.log.info('[S2] PIN received from terminal! Proceeding...');
-                          this.emit('status updated', 'PIN Received - Pairing...');
-                          return pin;
+              while (Date.now() - startTime < timeout) {
+                  // Check for terminal file
+                  if (fs.existsSync(pinFilePath)) {
+                      try {
+                          const pin = fs.readFileSync(pinFilePath, 'utf8').trim();
+                          fs.unlinkSync(pinFilePath); 
+                          if (/^\d{5}$/.test(pin)) {
+                              this.log.info('[S2] PIN received from terminal! Proceeding...');
+                              this.emit('status updated', 'PIN Received - Pairing...');
+                              return pin;
+                          }
+                      } catch (err) {
+                          this.log.error('[S2] Error reading PIN file:', err);
                       }
-                  } catch (err) {
-                      this.log.error('[S2] Error reading PIN file:', err);
                   }
+
+                  // Check for characteristic input
+                  if (this.pendingS2Pin && /^\d{5}$/.test(this.pendingS2Pin)) {
+                      const pin = this.pendingS2Pin;
+                      this.pendingS2Pin = undefined;
+                      this.log.info('[S2] PIN received from HomeKit! Proceeding...');
+                      this.emit('status updated', 'PIN Received - Pairing...');
+                      return pin;
+                  }
+
+                  await new Promise(resolve => setTimeout(resolve, 1000));
               }
 
-              // Check for characteristic input
-              if (this.pendingS2Pin && /^\d{5}$/.test(this.pendingS2Pin)) {
-                  const pin = this.pendingS2Pin;
-                  this.pendingS2Pin = undefined;
-                  this.log.info('[S2] PIN received from HomeKit! Proceeding...');
-                  this.emit('status updated', 'PIN Received - Pairing...');
-                  return pin;
-              }
+              this.log.error('[S2] PIN entry timed out. Inclusion aborted.');
+              this.emit('status updated', 'PIN Entry Timed Out');
+              return false;
+            },
+            abort: () => {
+              this.log.warn('[S2] Inclusion aborted.');
+            },
+          },
+        });
 
-              await new Promise(resolve => setTimeout(resolve, 1000));
-          }
+        this.driver.on('error', (err: Error) => {
+          this.log.error('Z-Wave driver error:', err);
+        });
 
-          this.log.error('[S2] PIN entry timed out. Inclusion aborted.');
-          this.emit('status updated', 'PIN Entry Timed Out');
-          return false;
-        },
-        abort: () => {
-          this.log.warn('[S2] Inclusion aborted.');
-        },
-      },
-    });
-
-    this.driver.on('error', (err: Error) => {
-      this.log.error('Z-Wave driver error:', err);
-    });
-
-    this.setupControllerListeners();
+        this.setupControllerListeners();
+    } catch (err) {
+        this.log.error('Failed to initialize Z-Wave Driver:', err);
+        throw err;
+    }
   }
 
   public setS2Pin(pin: string): void {

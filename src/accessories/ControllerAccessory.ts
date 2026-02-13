@@ -58,13 +58,17 @@ export class ControllerAccessory {
     this.statusService.setCharacteristic(this.platform.Characteristic.Name, 'System Status');
 
     // System Status Characteristic
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.statusChar = this.statusService.getCharacteristic((this.platform.Characteristic as any).ZWaveStatus) ||
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       this.statusService.addCharacteristic((this.platform.Characteristic as any).ZWaveStatus);
     
     this.statusChar.updateValue('Driver Ready');
 
     // S2 PIN Entry Characteristic
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.pinChar = this.statusService.getCharacteristic((this.platform.Characteristic as any).S2PinEntry) ||
+                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                    this.statusService.addCharacteristic((this.platform.Characteristic as any).S2PinEntry);
     
     this.pinChar.onSet((value: CharacteristicValue) => {

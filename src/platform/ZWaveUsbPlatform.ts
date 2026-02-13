@@ -24,40 +24,49 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     this.Service = this.api.hap.Service;
     this.Characteristic = this.api.hap.Characteristic;
 
-    // Register Custom Characteristics for S2 PIN and Status
-    this.registerCustomCharacteristics();
+    try {
+      // Register Custom Characteristics for S2 PIN and Status
+      this.registerCustomCharacteristics();
 
-    this.log.info(`Initializing Homebridge Z-Wave USB v${packageJson.version}`);
-    this.log.debug('Finished initializing platform:', this.config.name);
+      this.log.info(`Initializing Homebridge Z-Wave USB v${packageJson.version}`);
+      this.log.debug('Finished initializing platform:', this.config.name);
 
-    if (!this.config.serialPort) {
-      this.log.error('No serial port configured. Please set "serialPort" in your configuration.');
-      return;
+      if (!this.config.serialPort || typeof this.config.serialPort !== 'string' || this.config.serialPort.trim() === '') {
+        this.log.error('Invalid or missing "serialPort" configuration. Plugin will not start.');
+        return;
+      }
+
+      this.log.info(`Initializing Z-Wave Local Driver on ${this.config.serialPort}`);
+      this.zwaveController = new ZWaveController(this.log, this.config.serialPort, {
+        securityKeys: this.config.securityKeys,
+        debug: this.config.debug,
+        storagePath: this.api.user.storagePath(),
+      });
+
+      // Setup listeners
+      this.zwaveController.on('node added', (node) => this.handleNodeAdded(node));
+      this.zwaveController.on('node ready', (node) => this.handleNodeReady(node));
+      this.zwaveController.on('node removed', (node) => this.handleNodeRemoved(node));
+      this.zwaveController.on('value updated', (node) => this.handleValueUpdated(node));
+
+      this.api.on('didFinishLaunching', async () => {
+        try {
+          this.log.debug('Executed didFinishLaunching callback');
+          await this.connectToZWaveController();
+        } catch (err) {
+          this.log.error('Error during didFinishLaunching:', err);
+        }
+      });
+
+      this.api.on('shutdown', async () => {
+        this.log.info('Shutting down Z-Wave controller...');
+        this.controllerAccessory?.stop();
+        await this.zwaveController?.stop();
+      });
+    } catch (err) {
+      this.log.error('Critical error during plugin initialization. Plugin will be disabled.');
+      this.log.error(err instanceof Error ? err.message : String(err));
     }
-
-    this.log.info(`Initializing Z-Wave Local Driver on ${this.config.serialPort}`);
-    this.zwaveController = new ZWaveController(this.log, this.config.serialPort, {
-      securityKeys: this.config.securityKeys,
-      debug: this.config.debug,
-      storagePath: this.api.user.storagePath(),
-    });
-
-    // Setup listeners
-    this.zwaveController.on('node added', (node) => this.handleNodeAdded(node));
-    this.zwaveController.on('node ready', (node) => this.handleNodeReady(node));
-    this.zwaveController.on('node removed', (node) => this.handleNodeRemoved(node));
-    this.zwaveController.on('value updated', (node) => this.handleValueUpdated(node));
-
-    this.api.on('didFinishLaunching', async () => {
-      this.log.debug('Executed didFinishLaunching callback');
-      await this.connectToZWaveController();
-    });
-
-    this.api.on('shutdown', async () => {
-      this.log.info('Shutting down Z-Wave controller...');
-      this.controllerAccessory?.stop();
-      await this.zwaveController?.stop();
-    });
   }
 
   private registerCustomCharacteristics() {
@@ -68,7 +77,6 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     (this.Characteristic as any).ZWaveStatus = class extends this.Characteristic {
         static readonly UUID = STATUS_CHAR_UUID;
         constructor() {
-            // @ts-ignore
             super('System Status', STATUS_CHAR_UUID, {
                 format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
                 perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -82,7 +90,6 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     (this.Characteristic as any).S2PinEntry = class extends this.Characteristic {
         static readonly UUID = PIN_CHAR_UUID;
         constructor() {
-            // @ts-ignore
             super('S2 PIN Entry', PIN_CHAR_UUID, {
                 format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
                 perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
