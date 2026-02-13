@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.4-beta.2] - 2026-02-13
+
+### Fixed
+- Fixed Homebridge warnings regarding `Configured Name` characteristic not being in the required or optional section for services.
+- Formally registered `ConfiguredName` as an optional characteristic for the `ZWaveManager` service and standard services.
+
 ## [1.9.4-beta.1] - 2026-02-13
 
 ### Fixed
