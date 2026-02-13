@@ -1,11 +1,11 @@
 export const PLUGIN_NAME = 'homebridge-zwave-usb';
 export const PLATFORM_NAME = 'ZWaveUSB';
 
-// Custom UUIDs - Generated to be unique and consistent
-// Version 2 UUIDs to break HomeKit cache and resolve "stuck" read-only issues
-export const MANAGER_SERVICE_UUID = '00000001-0000-1000-8000-0026BB765292';
-export const STATUS_CHAR_UUID = '00000002-0000-1000-8000-0026BB765292';
-export const PIN_CHAR_UUID = '00000003-0000-1000-8000-0026BB765292';
+// Custom UUIDs - Version 3
+// Iterating UUIDs is the most robust way to overcome HomeKit's persistent metadata cache
+export const MANAGER_SERVICE_UUID = '00000001-0000-1000-8000-0026BB765293';
+export const STATUS_CHAR_UUID = '00000002-0000-1000-8000-0026BB765293';
+export const PIN_CHAR_UUID = '00000003-0000-1000-8000-0026BB765293';
 
 // HAP Constants - Local copies to avoid isolatedModules const enum issues
 export enum HAPFormat {
@@ -29,12 +29,19 @@ export enum HAPPerm {
 }
 
 // Obsolete UUIDs for cleanup
-export const OBSOLETE_STATUS_UUID = '00000002-0000-1000-8000-0026BB765291';
-export const OBSOLETE_PIN_UUID = '00000003-0000-1000-8000-0026BB765291';
-export const OBSOLETE_MANAGER_SERVICE_UUID = '00000001-0000-1000-8000-0026BB765291';
+export const OBSOLETE_MANAGER_UUIDS = [
+    '00000001-0000-1000-8000-0026BB765291',
+    '00000001-0000-1000-8000-0026BB765292',
+    '9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c'
+];
 
-export const OBSOLETE_LEGACY_STATUS_UUID = '7f8e9d0a-1b2c-4d3e-8f9a-0b1c2d3e4f5a';
-export const OBSOLETE_LEGACY_PIN_UUID = '8a9b0c1d-2e3f-4a5b-9c6d-7e8f9a0b1c2d';
-export const OBSOLETE_LEGACY_MANAGER_SERVICE_UUID = '9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c';
-export const OBSOLETE_EVE_STATUS_UUID = 'E863F108-079E-48FF-8F25-9C2566232931';
-export const OBSOLETE_EVE_PIN_UUID = 'E863F109-079E-48FF-8F25-9C2566232931';
+export const OBSOLETE_CHAR_UUIDS = [
+    '00000002-0000-1000-8000-0026BB765291',
+    '00000003-0000-1000-8000-0026BB765291',
+    '00000002-0000-1000-8000-0026BB765292',
+    '00000003-0000-1000-8000-0026BB765292',
+    '7f8e9d0a-1b2c-4d3e-8f9a-0b1c2d3e4f5a',
+    '8a9b0c1d-2e3f-4a5b-9c6d-7e8f9a0b1c2d',
+    'E863F108-079E-48FF-8F25-9C2566232931',
+    'E863F109-079E-48FF-8F25-9C2566232931'
+];

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.4-beta.4] - 2026-02-13
+
+### Fixed
+- Pushed **Version 3 UUIDs** for the Z-Wave Manager service and characteristics. This is a definitive "hard reset" for HomeKit to resolve stuck read-only permissions and duplicate services.
+- Implemented **ServiceLabelIndex** and enforced **PAIRED_READ-only ConfiguredName** to fix the generic 'Switch 1/2' naming bug across all accessories.
+- Aggressive cleanup logic now purges all legacy UUID variants (v1, v2, and obsolete custom IDs) from the accessory cache.
+
 ## [1.9.4-beta.3] - 2026-02-13
 
 ### Fixed

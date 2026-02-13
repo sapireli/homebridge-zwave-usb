@@ -44,16 +44,25 @@ export abstract class BaseFeature implements ZWaveFeature {
     const addedService = this.accessory.addService(service);
     
     // Explicitly set the name and configured name characteristics to ensure it's displayed correctly
-    if (addedService.setCharacteristic) {
-        addedService.getCharacteristic(this.platform.Characteristic.Name)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .setProps({ perms: [HAPPerm.PAIRED_READ as any] })
-            .updateValue(serviceName);
-        
-        if (!addedService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
-            addedService.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+    addedService.getCharacteristic(this.platform.Characteristic.Name)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .setProps({ perms: [HAPPerm.PAIRED_READ as any] })
+        .updateValue(serviceName);
+    
+    if (!addedService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+        addedService.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+    }
+    addedService.getCharacteristic(this.platform.Characteristic.ConfiguredName)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .setProps({ perms: [HAPPerm.PAIRED_READ as any] })
+        .updateValue(serviceName);
+
+    // Add Service Label Index for multi-endpoint devices
+    if (this.endpoint.index > 0) {
+        if (!addedService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
+            addedService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
         }
-        addedService.setCharacteristic(this.platform.Characteristic.ConfiguredName, serviceName);
+        addedService.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex).updateValue(this.endpoint.index);
     }
     
     return addedService;
