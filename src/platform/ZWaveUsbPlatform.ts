@@ -119,6 +119,12 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   private handleNodeReady(node: IZWaveNode) {
     this.log.info(`Node ${node.nodeId} ready`);
 
+    // Skip Node 1 (the controller itself) as it's handled by ControllerAccessory
+    if (node.nodeId === 1) {
+      this.log.debug('Skipping accessory creation for Node 1 (Controller)');
+      return;
+    }
+
     if (!node.ready) {
       this.log.warn(`Node ${node.nodeId} reported ready but node.ready is false, skipping...`);
       return;
