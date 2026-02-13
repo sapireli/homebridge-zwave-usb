@@ -1,7 +1,7 @@
 import { PlatformAccessory, Service, CharacteristicValue, Characteristic } from 'homebridge';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { IZWaveController } from '../zwave/interfaces';
-import { MANAGER_SERVICE_UUID, OBSOLETE_MANAGER_UUIDS, OBSOLETE_CHAR_UUIDS, HAPFormat, HAPPerm } from '../platform/settings';
+import { MANAGER_SERVICE_UUID, OBSOLETE_MANAGER_UUIDS, OBSOLETE_CHAR_UUIDS, HAPFormat, HAPPerm, HAPAccess } from '../platform/settings';
 
 export class ControllerAccessory {
   private statusService: Service;
@@ -73,7 +73,7 @@ export class ControllerAccessory {
             }
         });
         
-        this.lockConfiguredNameIfPresent(service);
+        this.syncConfiguredNameIfPresent(service);
     });
 
     // Add ServiceLabelNamespace to AccessoryInformation to help with naming multi-service accessories
@@ -88,7 +88,7 @@ export class ControllerAccessory {
     this.statusService = this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         this.platformAccessory.addService(new (this.platform.Service as any).ZWaveManager('System Status', 'Status'));
-    this.lockConfiguredNameIfPresent(this.statusService, 'System Status');
+    this.syncConfiguredNameIfPresent(this.statusService, 'System Status');
     
     // Naming Identity - Strictly Name only
     this.statusService.getCharacteristic(this.platform.Characteristic.Name)
@@ -129,29 +129,39 @@ export class ControllerAccessory {
     this.statusService.addOptionalCharacteristic(pinCharType);
     this.pinChar = this.statusService.getCharacteristic(pinCharType);
     
-    // FORCE WRITABLE PROPS: Explicitly define perms and format. Removed maxLen to avoid validation issues.
+    // Follow homebridge-ups writable pattern: numeric characteristic with bounds/step.
     this.pinChar.setProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        format: HAPFormat.STRING as any,
+        format: HAPFormat.UINT32 as any,
+        minValue: 0,
+        maxValue: 99999,
+        minStep: 1,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.PAIRED_WRITE as any],
-        maxLen: 5,
+        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any, HAPPerm.PAIRED_WRITE as any],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        adminOnlyAccess: [HAPAccess.WRITE as any],
         description: 'Enter 5-digit S2 PIN'
     });
 
     this.pinChar.onSet((value: CharacteristicValue) => {
-        const pin = String(value ?? '').trim();
+        const raw = Number(value);
+        if (!Number.isInteger(raw) || raw < 0 || raw > 99999) {
+          this.platform.log.warn(`[S2] Ignoring invalid PIN value from HomeKit: ${value}`);
+          return;
+        }
+
+        const pin = raw.toString().padStart(5, '0');
         this.platform.log.info(`HomeKit S2 PIN Received: ${pin}`);
         this.controller.setS2Pin(pin);
-        setTimeout(() => this.pinChar.updateValue(''), 2000);
+        setTimeout(() => this.pinChar.updateValue(0), 2000);
     });
-    this.pinChar.updateValue('');
+    this.pinChar.updateValue(0);
 
     // --- 2. Inclusion Mode Switch ---
     this.inclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Inclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
-    this.lockConfiguredNameIfPresent(this.inclusionService, 'Inclusion Mode');
+    this.syncConfiguredNameIfPresent(this.inclusionService, 'Inclusion Mode');
     
     this.inclusionService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,7 +178,7 @@ export class ControllerAccessory {
     this.exclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Exclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
-    this.lockConfiguredNameIfPresent(this.exclusionService, 'Exclusion Mode');
+    this.syncConfiguredNameIfPresent(this.exclusionService, 'Exclusion Mode');
     
     this.exclusionService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -184,7 +194,7 @@ export class ControllerAccessory {
     this.healService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Heal') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
-    this.lockConfiguredNameIfPresent(this.healService, 'Heal Network');
+    this.syncConfiguredNameIfPresent(this.healService, 'Heal Network');
     
     this.healService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -256,17 +266,13 @@ export class ControllerAccessory {
     });
   }
 
-  private lockConfiguredNameIfPresent(service: Service, value?: string) {
+  private syncConfiguredNameIfPresent(service: Service, value?: string) {
     if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
       return;
     }
 
     const configuredNameValue = value || service.displayName;
-    const configuredName = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
-    configuredName
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any] })
-      .updateValue(configuredNameValue);
+    service.getCharacteristic(this.platform.Characteristic.ConfiguredName).updateValue(configuredNameValue);
   }
 
   private async handleSetInclusion(value: CharacteristicValue) {

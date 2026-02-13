@@ -50,7 +50,7 @@ export abstract class BaseFeature implements ZWaveFeature {
   }
 
   private configureServiceIdentity(service: Service, serviceName: string): void {
-    // Explicitly set Name as read-only and lock ConfiguredName to avoid user edits.
+    // Explicitly set Name and sync ConfiguredName so Home shows stable service labels.
     const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     nameChar.setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
@@ -58,9 +58,7 @@ export abstract class BaseFeature implements ZWaveFeature {
 
     if (service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
       const configuredNameChar = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      configuredNameChar.setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any] })
-        .updateValue(serviceName);
+      configuredNameChar.updateValue(serviceName);
     }
 
     // Add Service Label Index for multi-endpoint devices to help with ordering/naming
