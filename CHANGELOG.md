@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.4-beta.5] - 2026-02-13
+
+### Fixed
+- Definitive fix for the **Read-Only S2 PIN Entry** and **Writable ConfiguredName** bug. Every `setProps` call now includes the mandatory `format` field, ensuring HomeKit respects custom permissions.
+- Fixed the **"Switch 1/2" naming bug** by correctly setting enforced read-only permissions on the `Name` characteristic instance during virgin discovery.
+- Incremented to **Version 5 UUIDs** to ensure a 100% clean state for HomeKit controllers.
+
 ## [1.9.4-beta.4] - 2026-02-13
 
 ### Fixed

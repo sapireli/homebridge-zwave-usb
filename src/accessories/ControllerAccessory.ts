@@ -49,7 +49,7 @@ export class ControllerAccessory {
       .setCharacteristic(this.platform.Characteristic.Model, 'Z-Wave USB Controller')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, homeId.toString());
 
-    // --- AGGRESSIVE CLEANUP: Remove obsolete services and characteristics ---
+    // --- AGGRESSIVE CLEANUP: Remove ALL obsolete services and characteristics ---
     this.platformAccessory.services.slice().forEach(service => {
         const serviceUuid = service.UUID.toUpperCase();
         
@@ -87,7 +87,7 @@ export class ControllerAccessory {
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         this.platformAccessory.addService(new (this.platform.Service as any).ZWaveManager('System Status', 'Status'));
     
-    // Naming Identity
+    // Identity Enforcement
     this.setupServiceName(this.statusService, 'System Status', 1);
 
     // System Status Characteristic
@@ -97,6 +97,8 @@ export class ControllerAccessory {
         this.statusService.addOptionalCharacteristic(statusCharType);
     }
     this.statusChar = this.statusService.getCharacteristic(statusCharType);
+    
+    // FORCE PROPS: This is critical to fix "read-only" issues in the cache
     this.statusChar.setProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         format: HAPFormat.STRING as any,
@@ -114,7 +116,7 @@ export class ControllerAccessory {
     }
     this.pinChar = this.statusService.getCharacteristic(pinCharType);
     
-    // FORCE WRITABLE PROPS: Critical fix for virgin installs
+    // FORCE WRITABLE PROPS: Explicitly define perms and format at the instance level
     this.pinChar.setProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         format: HAPFormat.STRING as any,
@@ -213,7 +215,7 @@ export class ControllerAccessory {
     // 1. Formal Name characteristic (Enforced Read-Only to prevent generic override)
     service.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .setProps({ perms: [HAPPerm.PAIRED_READ as any] })
+        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
         .updateValue(name);
 
     // 2. Configured Name (Apple preferred, Enforced Read-Only to hide it as an editable prop)
@@ -222,7 +224,7 @@ export class ControllerAccessory {
     }
     service.getCharacteristic(this.platform.Characteristic.ConfiguredName)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .setProps({ perms: [HAPPerm.PAIRED_READ as any] })
+        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
         .updateValue(name);
 
     // 3. Service Label Index (Tells Apple the order and helps naming multi-service accessories)

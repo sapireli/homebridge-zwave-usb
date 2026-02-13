@@ -2,7 +2,7 @@ import { PlatformAccessory, Service, WithUUID } from 'homebridge';
 import { Endpoint } from 'zwave-js';
 import { IZWaveNode } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
-import { HAPPerm } from '../platform/settings';
+import { HAPFormat, HAPPerm } from '../platform/settings';
 
 export interface ZWaveFeature {
   init(): void;
@@ -46,7 +46,7 @@ export abstract class BaseFeature implements ZWaveFeature {
     // Explicitly set the name and configured name characteristics to ensure it's displayed correctly
     addedService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .setProps({ perms: [HAPPerm.PAIRED_READ as any] })
+        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
         .updateValue(serviceName);
     
     if (!addedService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
@@ -54,7 +54,7 @@ export abstract class BaseFeature implements ZWaveFeature {
     }
     addedService.getCharacteristic(this.platform.Characteristic.ConfiguredName)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .setProps({ perms: [HAPPerm.PAIRED_READ as any] })
+        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
         .updateValue(serviceName);
 
     // Add Service Label Index for multi-endpoint devices
