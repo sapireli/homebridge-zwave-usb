@@ -73,7 +73,7 @@ export class ControllerAccessory {
             }
         });
         
-        this.removeConfiguredNameIfPresent(service);
+        this.syncConfiguredNameIfPresent(service);
     });
 
     // Add ServiceLabelNamespace to AccessoryInformation to help with naming multi-service accessories
@@ -88,7 +88,7 @@ export class ControllerAccessory {
     this.statusService = this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         this.platformAccessory.addService(new (this.platform.Service as any).ZWaveManager('System Status', 'Status'));
-    this.removeConfiguredNameIfPresent(this.statusService);
+    this.syncConfiguredNameIfPresent(this.statusService, 'System Status');
     
     // Naming Identity - Strictly Name only
     this.statusService.getCharacteristic(this.platform.Characteristic.Name)
@@ -130,7 +130,7 @@ export class ControllerAccessory {
     this.inclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Inclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
-    this.removeConfiguredNameIfPresent(this.inclusionService);
+    this.syncConfiguredNameIfPresent(this.inclusionService, 'Inclusion Mode');
     
     this.inclusionService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -148,7 +148,7 @@ export class ControllerAccessory {
     this.exclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Exclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
-    this.removeConfiguredNameIfPresent(this.exclusionService);
+    this.syncConfiguredNameIfPresent(this.exclusionService, 'Exclusion Mode');
     
     this.exclusionService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -164,7 +164,7 @@ export class ControllerAccessory {
     this.healService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Heal') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
-    this.removeConfiguredNameIfPresent(this.healService);
+    this.syncConfiguredNameIfPresent(this.healService, 'Heal Network');
     
     this.healService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -236,11 +236,13 @@ export class ControllerAccessory {
     });
   }
 
-  private removeConfiguredNameIfPresent(service: Service) {
-    const configuredName = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
-    if (configuredName) {
-      service.removeCharacteristic(configuredName);
+  private syncConfiguredNameIfPresent(service: Service, value?: string) {
+    if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+      return;
     }
+
+    const configuredNameValue = value || service.displayName;
+    service.getCharacteristic(this.platform.Characteristic.ConfiguredName).updateValue(configuredNameValue);
   }
 
   private setupPinEntryCharacteristic(service: Service) {
