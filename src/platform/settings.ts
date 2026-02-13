@@ -1,11 +1,11 @@
 export const PLUGIN_NAME = 'homebridge-zwave-usb';
 export const PLATFORM_NAME = 'ZWaveUSB';
 
-// Custom UUIDs - Version 3
-// Iterating UUIDs is the most robust way to overcome HomeKit's persistent metadata cache
-export const MANAGER_SERVICE_UUID = '00000001-0000-1000-8000-0026BB765293';
-export const STATUS_CHAR_UUID = '00000002-0000-1000-8000-0026BB765293';
-export const PIN_CHAR_UUID = '00000003-0000-1000-8000-0026BB765293';
+// Custom UUIDs - Version 4
+// Definitive UUID change to force HomeKit to recognize new permissions and naming logic
+export const MANAGER_SERVICE_UUID = '00000001-0000-1000-8000-0026BB765294';
+export const STATUS_CHAR_UUID = '00000002-0000-1000-8000-0026BB765294';
+export const PIN_CHAR_UUID = '00000003-0000-1000-8000-0026BB765294';
 
 // HAP Constants - Local copies to avoid isolatedModules const enum issues
 export enum HAPFormat {
@@ -28,14 +28,12 @@ export enum HAPPerm {
   HIDDEN = 'hd',
 }
 
-// Obsolete UUIDs for cleanup (Aggressive Pruning)
+// Obsolete UUIDs for cleanup
 export const OBSOLETE_MANAGER_UUIDS = [
     '00000001-0000-1000-8000-0026BB765291',
     '00000001-0000-1000-8000-0026BB765292',
-    '9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c',
-    'manager',
-    'Status',
-    'System Status'
+    '00000001-0000-1000-8000-0026BB765293',
+    '9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c'
 ];
 
 export const OBSOLETE_CHAR_UUIDS = [
@@ -43,6 +41,8 @@ export const OBSOLETE_CHAR_UUIDS = [
     '00000003-0000-1000-8000-0026BB765291',
     '00000002-0000-1000-8000-0026BB765292',
     '00000003-0000-1000-8000-0026BB765292',
+    '00000002-0000-1000-8000-0026BB765293',
+    '00000003-0000-1000-8000-0026BB765293',
     '7f8e9d0a-1b2c-4d3e-8f9a-0b1c2d3e4f5a',
     '8a9b0c1d-2e3f-4a5b-9c6d-7e8f9a0b1c2d',
     'E863F108-079E-48FF-8F25-9C2566232931',
