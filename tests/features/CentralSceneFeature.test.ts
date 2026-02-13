@@ -24,6 +24,8 @@ describe('CentralSceneFeature', () => {
     service = {
       getCharacteristic: jest.fn().mockReturnValue(characteristic),
       setCharacteristic: jest.fn().mockReturnThis(),
+      testCharacteristic: jest.fn().mockReturnValue(true),
+      addOptionalCharacteristic: jest.fn(),
     };
 
     hap = {
@@ -36,6 +38,8 @@ describe('CentralSceneFeature', () => {
             DOUBLE_PRESS: 1,
             LONG_PRESS: 2,
         },
+        Name: 'Name',
+        ConfiguredName: 'ConfiguredName',
       } as any,
       uuid: {
         generate: jest.fn().mockReturnValue('test-uuid'),
@@ -53,6 +57,9 @@ describe('CentralSceneFeature', () => {
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
       on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      user: {
+        storagePath: jest.fn().mockReturnValue('/tmp'),
+      },
       platformAccessory: jest.fn().mockImplementation(() => accessory),
     } as any;
 

@@ -23,10 +23,15 @@ describe('BinarySwitchFeature', () => {
             updateValue: jest.fn(),
             setProps: jest.fn().mockReturnThis(),
           }),
+          testCharacteristic: jest.fn().mockReturnValue(true),
+          addOptionalCharacteristic: jest.fn(),
+          setCharacteristic: jest.fn().mockReturnThis(),
         }),
       } as any,
       Characteristic: {
         On: jest.fn(),
+        Name: 'Name',
+        ConfiguredName: 'ConfiguredName',
       } as any,
       uuid: {
         generate: jest.fn().mockReturnValue('test-uuid'),
@@ -47,6 +52,8 @@ describe('BinarySwitchFeature', () => {
                     updateValue: jest.fn(),
                     setProps: jest.fn().mockReturnThis(),
                   }),
+                  testCharacteristic: jest.fn().mockReturnValue(true),
+                  addOptionalCharacteristic: jest.fn(),
                   setCharacteristic: jest.fn().mockReturnThis(),
                   updateCharacteristic: jest.fn(),
               };
@@ -60,6 +67,8 @@ describe('BinarySwitchFeature', () => {
             updateValue: jest.fn(),
             setProps: jest.fn().mockReturnThis(),
           });
+          service.testCharacteristic = jest.fn().mockReturnValue(true);
+          service.addOptionalCharacteristic = jest.fn();
           service.updateCharacteristic = jest.fn().mockReturnThis();
           return service;
       }),

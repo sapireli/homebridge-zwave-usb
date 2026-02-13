@@ -2,6 +2,7 @@ import { PlatformAccessory, Service, WithUUID } from 'homebridge';
 import { Endpoint } from 'zwave-js';
 import { IZWaveNode } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
+import { HAPPerm } from '../platform/settings';
 
 export interface ZWaveFeature {
   init(): void;
@@ -46,9 +47,12 @@ export abstract class BaseFeature implements ZWaveFeature {
     if (addedService.setCharacteristic) {
         addedService.getCharacteristic(this.platform.Characteristic.Name)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .setProps({ perms: ['pr' as any] })
+            .setProps({ perms: [HAPPerm.PAIRED_READ as any] })
             .updateValue(serviceName);
         
+        if (!addedService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+            addedService.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+        }
         addedService.setCharacteristic(this.platform.Characteristic.ConfiguredName, serviceName);
     }
     

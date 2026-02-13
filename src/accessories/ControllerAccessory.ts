@@ -130,6 +130,9 @@ export class ControllerAccessory {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .setProps({ perms: [HAPPerm.PAIRED_READ as any] })
         .updateValue('Inclusion Mode');
+    if (!this.inclusionService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+        this.inclusionService.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+    }
     this.inclusionService.setCharacteristic(this.platform.Characteristic.ConfiguredName, 'Inclusion Mode');
 
     // --- 3. Exclusion Mode Switch ---
@@ -141,6 +144,9 @@ export class ControllerAccessory {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .setProps({ perms: [HAPPerm.PAIRED_READ as any] })
         .updateValue('Exclusion Mode');
+    if (!this.exclusionService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+        this.exclusionService.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+    }
     this.exclusionService.setCharacteristic(this.platform.Characteristic.ConfiguredName, 'Exclusion Mode');
 
     // --- 4. Heal Network Switch ---
@@ -152,6 +158,9 @@ export class ControllerAccessory {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .setProps({ perms: [HAPPerm.PAIRED_READ as any] })
         .updateValue('Heal Network');
+    if (!this.healService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+        this.healService.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+    }
     this.healService.setCharacteristic(this.platform.Characteristic.ConfiguredName, 'Heal Network');
 
     // Setup Switch characteristic Handlers
