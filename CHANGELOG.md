@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.4-beta.3] - 2026-02-13
+
+### Fixed
+- Improved robustness of service and characteristic schema registration to silence all Homebridge warnings across all accessories.
+- Guaranteed formal registration of custom characteristics (`ZWaveStatus`, `S2PinEntry`) even when services are retrieved from the Homebridge cache.
+
 ## [1.9.4-beta.2] - 2026-02-13
 
 ### Fixed

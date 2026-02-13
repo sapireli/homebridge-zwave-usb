@@ -80,13 +80,20 @@ export class ControllerAccessory {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .setProps({ perms: [HAPPerm.PAIRED_READ as any] })
         .updateValue('System Status');
+    
+    if (!this.statusService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+        this.statusService.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+    }
     this.statusService.setCharacteristic(this.platform.Characteristic.ConfiguredName, 'System Status');
 
     // System Status Characteristic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.statusChar = this.statusService.getCharacteristic((this.platform.Characteristic as any).ZWaveStatus) ||
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      this.statusService.addCharacteristic((this.platform.Characteristic as any).ZWaveStatus);
+    if (!this.statusService.testCharacteristic((this.platform.Characteristic as any).ZWaveStatus)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.statusService.addOptionalCharacteristic((this.platform.Characteristic as any).ZWaveStatus);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.statusChar = this.statusService.getCharacteristic((this.platform.Characteristic as any).ZWaveStatus);
     
     // Force Props to ensure it's up to date in cache
     this.statusChar.setProps({
@@ -100,9 +107,12 @@ export class ControllerAccessory {
 
     // S2 PIN Entry Characteristic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.pinChar = this.statusService.getCharacteristic((this.platform.Characteristic as any).S2PinEntry) ||
-                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                   this.statusService.addCharacteristic((this.platform.Characteristic as any).S2PinEntry);
+    if (!this.statusService.testCharacteristic((this.platform.Characteristic as any).S2PinEntry)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.statusService.addOptionalCharacteristic((this.platform.Characteristic as any).S2PinEntry);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.pinChar = this.statusService.getCharacteristic((this.platform.Characteristic as any).S2PinEntry);
     
     // Force Props to ensure it is WRITABLE in HomeKit apps
     this.pinChar.setProps({
@@ -268,7 +278,7 @@ export class ControllerAccessory {
       this.platform.log.info(`Requesting Exclusion Mode ON (Timeout: ${timeoutSeconds}s)`);
       await this.controller.startExclusion();
 
-      this.exclusionTimer = setTimeout(async () => {
+      this.inclusionTimer = setTimeout(async () => {
         this.platform.log.info('Exclusion Mode timed out');
         await this.controller.stopExclusion();
         this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
