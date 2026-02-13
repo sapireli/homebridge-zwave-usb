@@ -72,6 +72,13 @@ export class ControllerAccessory {
                 service.removeCharacteristic(found);
             }
         });
+        
+        // Clean up ConfiguredName from previous beta versions
+        const configuredName = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
+        if (configuredName) {
+             // We are removing ConfiguredName support to fix the writable bug
+             service.removeCharacteristic(configuredName);
+        }
     });
 
     // Add ServiceLabelNamespace to AccessoryInformation to help with naming multi-service accessories
@@ -87,8 +94,17 @@ export class ControllerAccessory {
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         this.platformAccessory.addService(new (this.platform.Service as any).ZWaveManager('System Status', 'Status'));
     
-    // Identity Enforcement
-    this.setupServiceName(this.statusService, 'System Status', 1);
+    // Naming Identity - Strictly Name only
+    this.statusService.getCharacteristic(this.platform.Characteristic.Name)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
+        .updateValue('System Status');
+    
+    // Service Label Index
+    if (!this.statusService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
+        this.statusService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
+    }
+    this.statusService.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex).updateValue(1);
 
     // System Status Characteristic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -97,8 +113,6 @@ export class ControllerAccessory {
         this.statusService.addOptionalCharacteristic(statusCharType);
     }
     this.statusChar = this.statusService.getCharacteristic(statusCharType);
-    
-    // FORCE PROPS: This is critical to fix "read-only" issues in the cache
     this.statusChar.setProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         format: HAPFormat.STRING as any,
@@ -116,13 +130,12 @@ export class ControllerAccessory {
     }
     this.pinChar = this.statusService.getCharacteristic(pinCharType);
     
-    // FORCE WRITABLE PROPS: Explicitly define perms and format at the instance level
+    // FORCE WRITABLE PROPS: Explicitly define perms and format. Removed maxLen to avoid validation issues.
     this.pinChar.setProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         format: HAPFormat.STRING as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         perms: [HAPPerm.PAIRED_READ as any, HAPPerm.PAIRED_WRITE as any, HAPPerm.NOTIFY as any],
-        maxLen: 5,
         description: 'Enter 5-digit S2 PIN'
     });
 
@@ -137,19 +150,47 @@ export class ControllerAccessory {
     this.inclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Inclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
-    this.setupServiceName(this.inclusionService, 'Inclusion Mode', 2);
+    
+    this.inclusionService.getCharacteristic(this.platform.Characteristic.Name)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
+        .updateValue('Inclusion Mode');
+    
+    if (!this.inclusionService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
+        this.inclusionService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
+    }
+    this.inclusionService.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex).updateValue(2);
+
 
     // --- 3. Exclusion Mode Switch ---
     this.exclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Exclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
-    this.setupServiceName(this.exclusionService, 'Exclusion Mode', 3);
+    
+    this.exclusionService.getCharacteristic(this.platform.Characteristic.Name)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
+        .updateValue('Exclusion Mode');
+
+    if (!this.exclusionService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
+        this.exclusionService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
+    }
+    this.exclusionService.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex).updateValue(3);
 
     // --- 4. Heal Network Switch ---
     this.healService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Heal') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
-    this.setupServiceName(this.healService, 'Heal Network', 4);
+    
+    this.healService.getCharacteristic(this.platform.Characteristic.Name)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
+        .updateValue('Heal Network');
+
+    if (!this.healService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
+        this.healService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
+    }
+    this.healService.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex).updateValue(4);
 
     // Setup Switch characteristic Handlers
     [this.inclusionService, this.exclusionService, this.healService].forEach(service => {
@@ -209,29 +250,6 @@ export class ControllerAccessory {
       this.platform.log.info('Controller event: Heal Network Done');
       this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
     });
-  }
-
-  private setupServiceName(service: Service, name: string, index: number) {
-    // 1. Formal Name characteristic (Enforced Read-Only to prevent generic override)
-    service.getCharacteristic(this.platform.Characteristic.Name)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
-        .updateValue(name);
-
-    // 2. Configured Name (Apple preferred, Enforced Read-Only to hide it as an editable prop)
-    if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
-        service.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
-    }
-    service.getCharacteristic(this.platform.Characteristic.ConfiguredName)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
-        .updateValue(name);
-
-    // 3. Service Label Index (Tells Apple the order and helps naming multi-service accessories)
-    if (!service.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
-        service.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
-    }
-    service.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex).updateValue(index);
   }
 
   private async handleSetInclusion(value: CharacteristicValue) {
