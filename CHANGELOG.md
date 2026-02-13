@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.9] - 2026-02-13
+
+### Changed
+- Aligned `package.json` with standard `homebridge-lib` patterns:
+  - Removed `peerDependencies` for Homebridge (moved to `engines`).
+  - Updated `engines` to match modern standard ranges (`node: "^24||^22||^20"`, `homebridge: "^1.6.0||^2.0.0-beta"`).
+  - Verified zero runtime leaks of Homebridge or HAP-NodeJS in the production tree.
+
 ## [1.8.8] - 2026-02-13
 
 ### Fixed
