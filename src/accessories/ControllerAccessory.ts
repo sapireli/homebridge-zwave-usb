@@ -40,21 +40,19 @@ export class ControllerAccessory {
       this.platform.accessories.push(this.platformAccessory);
     }
 
-    // Set accessory information
-    this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!
+    // --- Accessory Information (Meta Z-Wave Controller) ---
+    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
+    
+    infoService
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Aeotec / Z-Wave JS')
       .setCharacteristic(this.platform.Characteristic.Model, 'Z-Wave USB Controller')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, homeId.toString());
 
-    // Add Custom Status Service (using standard Label service as a container for text)
-    const statusService = 
-        this.platformAccessory.getService('Z-Wave Status') ||
-        this.platformAccessory.addService(this.platform.Service.ServiceLabel, 'Z-Wave Status', 'status');
-    
-    // Add Custom Characteristic for the text (check if exists first)
-    let statusChar = statusService.getCharacteristic(STATUS_CHAR_UUID);
-    if (!statusChar || !statusService.characteristics.some(c => c.UUID === STATUS_CHAR_UUID)) {
-        statusChar = statusService.addCharacteristic(
+    // Add Status and PIN to the Accessory Information service (The "Meta" part of the accessory)
+    let statusChar = infoService.getCharacteristic(STATUS_CHAR_UUID);
+    if (!statusChar || !infoService.characteristics.some(c => c.UUID === STATUS_CHAR_UUID)) {
+        this.platform.log.debug('Adding System Status characteristic to AccessoryInformation');
+        statusChar = infoService.addCharacteristic(
             new this.platform.api.hap.Characteristic('System Status', STATUS_CHAR_UUID, {
                 format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
                 perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -63,10 +61,10 @@ export class ControllerAccessory {
     }
     statusChar.updateValue('Driver Ready');
 
-    // Add Custom Characteristic for PIN input (check if exists first)
-    let pinChar = statusService.getCharacteristic(PIN_CHAR_UUID);
-    if (!pinChar || !statusService.characteristics.some(c => c.UUID === PIN_CHAR_UUID)) {
-        pinChar = statusService.addCharacteristic(
+    let pinChar = infoService.getCharacteristic(PIN_CHAR_UUID);
+    if (!pinChar || !infoService.characteristics.some(c => c.UUID === PIN_CHAR_UUID)) {
+        this.platform.log.debug('Adding S2 PIN Input characteristic to AccessoryInformation');
+        pinChar = infoService.addCharacteristic(
             new this.platform.api.hap.Characteristic('S2 PIN Input', PIN_CHAR_UUID, {
                 format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
                 perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -78,24 +76,28 @@ export class ControllerAccessory {
     });
     pinChar.updateValue('');
 
+    // --- Inclusion Mode Service ---
     this.inclusionService =
       this.platformAccessory.getService('Inclusion Mode') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
 
     this.inclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Inclusion Mode');
 
+    // --- Exclusion Mode Service ---
     this.exclusionService =
       this.platformAccessory.getService('Exclusion Mode') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
 
     this.exclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Exclusion Mode');
 
+    // --- Heal Network Service ---
     this.healService =
       this.platformAccessory.getService('Heal Network') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
 
     this.healService.setCharacteristic(this.platform.Characteristic.Name, 'Heal Network');
 
+    // --- Setup Characteristic Handlers ---
     this.inclusionService
       .getCharacteristic(this.platform.Characteristic.On)
       .onSet(this.handleSetInclusion.bind(this))
@@ -111,7 +113,7 @@ export class ControllerAccessory {
       .onSet(this.handleSetHeal.bind(this))
       .onGet(this.handleGetHeal.bind(this));
 
-    // Listen for controller events to sync state
+    // --- Listen for controller events to sync state ---
     this.controller.on('status updated', (status: string) => {
         statusChar.updateValue(status);
     });
