@@ -49,11 +49,13 @@ export class ControllerAccessory {
       .setCharacteristic(this.platform.Characteristic.Model, 'Z-Wave USB Controller')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, homeId.toString());
 
-    // --- 1. System Status Service ---
-    // We use a custom Service UUID to keep this isolated and visible
+    // --- 1. System Status Service (Custom Service) ---
+    // Using the formally registered ZWaveManager service class
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.statusService = 
         this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
-        this.platformAccessory.addService(new this.platform.api.hap.Service('System Status', MANAGER_SERVICE_UUID, 'manager'));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.platformAccessory.addService(new (this.platform.Service as any).ZWaveManager('System Status', 'Status'));
     
     this.statusService.setCharacteristic(this.platform.Characteristic.Name, 'System Status');
 
@@ -128,7 +130,7 @@ export class ControllerAccessory {
         if (found) infoService.removeCharacteristic(found);
     });
 
-    // Clean up old Switch services named "Z-Wave Manager" or "System Status"
+    // Clean up old Switch services named "Z-Wave Manager" or "System Status" or generic "manager"
     [OBSOLETE_MANAGER_SERVICE_UUID, 'manager', 'Status', 'System Status'].forEach(id => {
         const old = this.platformAccessory.getService(id);
         if (old && old.UUID !== MANAGER_SERVICE_UUID) {

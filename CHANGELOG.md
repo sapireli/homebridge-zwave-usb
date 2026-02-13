@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.3] - 2026-02-13
+
+### Fixed
+- Fixed Homebridge warnings about custom characteristics not being in the required or optional section.
+- Formally registered a custom **ZWaveManager** service class that explicitly includes our custom characteristics.
+- Restored full visibility and editability of the **S2 PIN Entry** in third-party HomeKit apps.
+
 ## [1.9.2] - 2026-02-13
 
 ### Fixed

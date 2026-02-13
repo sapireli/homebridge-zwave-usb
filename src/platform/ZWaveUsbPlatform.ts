@@ -4,7 +4,7 @@ import { IZWaveController, IZWaveNode } from '../zwave/interfaces';
 import { ZWaveAccessory } from '../accessories/ZWaveAccessory';
 import { AccessoryFactory } from '../accessories/AccessoryFactory';
 import { ControllerAccessory } from '../accessories/ControllerAccessory';
-import { STATUS_CHAR_UUID, PIN_CHAR_UUID } from './settings';
+import { STATUS_CHAR_UUID, PIN_CHAR_UUID, MANAGER_SERVICE_UUID } from './settings';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const packageJson = require('../../package.json');
 
@@ -95,6 +95,20 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
                 perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
             });
             this.value = this.getDefaultValue();
+        }
+    };
+
+    // 3. Z-Wave Manager Service
+    const hap = this.api.hap;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.Service as any).ZWaveManager = class extends this.Service {
+        static readonly UUID = MANAGER_SERVICE_UUID;
+        constructor(displayName: string, subtype?: string) {
+            super(displayName, MANAGER_SERVICE_UUID, subtype);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this.addOptionalCharacteristic((hap.Characteristic as any).ZWaveStatus);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            this.addOptionalCharacteristic((hap.Characteristic as any).S2PinEntry);
         }
     };
   }
