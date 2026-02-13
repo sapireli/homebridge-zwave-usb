@@ -1,8 +1,5 @@
 # Homebridge Z-Wave USB
 
-> [!IMPORTANT]
-> **BETA SOFTWARE:** This plugin is currently in beta. Most core features are stable, but please report any issues you encounter.
-
 [![Build and Test](https://github.com/sapireli/homebridge-zwave-usb/actions/workflows/build.yml/badge.svg)](https://github.com/sapireli/homebridge-zwave-usb/actions/workflows/build.yml)
 
 A high-performance HomeKit integration for Z-Wave networks, built on the modern **Z-Wave JS** driver.
