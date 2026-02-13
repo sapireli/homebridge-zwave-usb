@@ -1,0 +1,61 @@
+{
+  "name": "homebridge-zwave-usb",
+  "displayName": "Homebridge Z-Wave USB",
+  "version": "1.4.0-beta.3",
+  "description": "A Homebridge dynamic platform plugin for Z-Wave USB controllers using zwave-js.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sapireli/homebridge-zwave-usb.git"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "lint": "eslint src/**/*.ts --max-warnings=0",
+    "watch": "npm run build && npm link && homebridge -D",
+    "build": "rimraf ./dist && tsc",
+    "prepublishOnly": "npm run lint && npm run build && npm test",
+    "test": "jest"
+  },
+  "keywords": [
+    "homebridge-plugin",
+    "z-wave",
+    "zwave",
+    "zwave-js"
+  ],
+  "engines": {
+    "node": ">=18",
+    "homebridge": ">=1.6.0"
+  },
+  "peerDependencies": {
+    "homebridge": ">=1.6.0"
+  },
+  "dependencies": {
+    "@types/ws": "^8.18.1",
+    "homebridge-lib": "^6.0.0",
+    "ws": "^8.19.0",
+    "zwave-js": "^15.20.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.11.19",
+    "@typescript-eslint/eslint-plugin": "^7.0.2",
+    "@typescript-eslint/parser": "^7.0.2",
+    "eslint": "^8.56.0",
+    "homebridge": "^1.11.1",
+    "jest": "^30.2.0",
+    "rimraf": "^5.0.10",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.3.3",
+    "zwave-js": "^15.20.0"
+  },
+  "homebridge": {
+    "pluginAlias": "ZWaveUSB",
+    "pluginName": "homebridge-zwave-usb"
+  },
+  "files": [
+    "dist",
+    "homebridge-ui",
+    "config.schema.json",
+    "README.md",
+    "LICENSE"
+  ]
+}

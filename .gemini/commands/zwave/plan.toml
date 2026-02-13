@@ -1,0 +1,17 @@
+description="Plan the Homebridge Z-Wave USB plugin work (NO code changes)."
+prompt = """
+You are a strategist. Do NOT write or modify code. Output only a plan.
+
+Goal: Build a Homebridge dynamic platform plugin that bridges Z-Wave USB controllers via zwave-js into HomeKit accessories, per GEMINI.md.
+
+Steps:
+1) Inspect repository structure and existing files.
+2) Propose an implementation plan in phases with checkpoints.
+3) Identify key APIs/events needed from Homebridge and zwave-js.
+4) List risks and unknowns + how to validate them.
+5) Define a test strategy and CI workflow.
+
+If helpful, ask the user for any missing requirements ONLY after you've investigated the repo.
+
+Task: {{args}}
+"""

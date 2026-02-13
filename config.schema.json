@@ -1,0 +1,109 @@
+{
+  "pluginAlias": "ZWaveUSB",
+  "pluginType": "platform",
+  "customUi": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "required": true,
+        "default": "Homebridge Z-Wave USB"
+      },
+      "platform": {
+        "title": "Platform",
+        "type": "string",
+        "required": true,
+        "default": "ZWaveUSB",
+        "const": "ZWaveUSB"
+      },
+      "serialPort": {
+        "title": "Serial Port Path",
+        "type": "string",
+        "required": true,
+        "description": "Path to your Z-Wave USB stick (e.g., /dev/ttyACM0 or /dev/serial/by-id/...)."
+      },
+      "securityKeys": {
+        "title": "Security Keys",
+        "type": "object",
+        "properties": {
+          "S0_Legacy": {
+            "title": "S0 Legacy Key",
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 32,
+            "pattern": "^[0-9a-fA-F]+$",
+            "description": "16-byte hex string (32 characters)."
+          },
+          "S2_Unauthenticated": {
+            "title": "S2 Unauthenticated Key",
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 32,
+            "pattern": "^[0-9a-fA-F]+$",
+            "description": "16-byte hex string (32 characters)."
+          },
+          "S2_Authenticated": {
+            "title": "S2 Authenticated Key",
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 32,
+            "pattern": "^[0-9a-fA-F]+$",
+            "description": "16-byte hex string (32 characters)."
+          },
+          "S2_AccessControl": {
+            "title": "S2 Access Control Key",
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 32,
+            "pattern": "^[0-9a-fA-F]+$",
+            "description": "16-byte hex string (32 characters)."
+          }
+        }
+      },
+      "inclusionTimeoutSeconds": {
+        "title": "Inclusion Timeout (Seconds)",
+        "type": "integer",
+        "default": 60,
+        "minimum": 30,
+        "maximum": 300,
+        "description": "How long the inclusion mode stays active."
+      },
+      "debug": {
+        "title": "Enable Verbose Driver Logging",
+        "type": "boolean",
+        "default": false,
+        "description": "If true, redirects all Z-Wave JS driver logs to Homebridge."
+      }
+    }
+  },
+  "layout": [
+    "name",
+    {
+      "key": "serialPort",
+      "description": "WARNING: Use persistent paths like /dev/serial/by-id/... on Linux or /dev/tty.usbmodem... on macOS."
+    },
+    {
+      "type": "fieldset",
+      "title": "Z-Wave Security Keys",
+      "expandable": true,
+      "description": "Required for secure devices (Locks, Sensors). Use the 'Auto-Generate' button in settings UI.",
+      "items": [
+        "securityKeys.S0_Legacy",
+        "securityKeys.S2_Unauthenticated",
+        "securityKeys.S2_Authenticated",
+        "securityKeys.S2_AccessControl"
+      ]
+    },
+    {
+      "type": "fieldset",
+      "title": "Advanced",
+      "expandable": true,
+      "items": [
+        "inclusionTimeoutSeconds",
+        "debug"
+      ]
+    }
+  ]
+}

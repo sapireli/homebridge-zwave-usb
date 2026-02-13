@@ -1,0 +1,141 @@
+import { API, HAP, PlatformConfig } from 'homebridge';
+import { ZWaveNode, Endpoint } from 'zwave-js';
+import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
+import { MultilevelSwitchFeature } from '../../src/features/MultilevelSwitchFeature';
+import { PLATFORM_NAME } from '../../src/platform/settings';
+
+describe('MultilevelSwitchFeature', () => {
+  let api: jest.Mocked<API>;
+  let hap: HAP;
+  let platform: ZWaveUsbPlatform;
+  let node: jest.Mocked<ZWaveNode>;
+  let endpoint: jest.Mocked<Endpoint>;
+  let feature: MultilevelSwitchFeature;
+  let accessory: any;
+  let service: any;
+
+  beforeEach(() => {
+    service = {
+      getCharacteristic: jest.fn().mockReturnValue({
+        on: jest.fn().mockReturnThis(),
+        onGet: jest.fn().mockReturnThis(),
+        onSet: jest.fn().mockReturnThis(),
+        updateValue: jest.fn(),
+      }),
+      updateCharacteristic: jest.fn(),
+    };
+
+    hap = {
+      Service: {
+        Lightbulb: jest.fn(),
+      } as any,
+      Characteristic: {
+        On: 'On',
+        Brightness: 'Brightness',
+      } as any,
+      uuid: {
+        generate: jest.fn().mockReturnValue('test-uuid'),
+      },
+    } as any;
+    
+    accessory = {
+      getService: jest.fn(),
+      getServiceById: jest.fn(),
+      addService: jest.fn().mockReturnValue(service),
+    };
+
+    api = {
+      hap,
+      registerPlatform: jest.fn(),
+      registerPlatformAccessories: jest.fn(),
+      on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      platformAccessory: jest.fn().mockImplementation(() => accessory),
+    } as any;
+
+    const log = {
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    } as any;
+
+    const config: PlatformConfig = {
+      platform: PLATFORM_NAME,
+      name: 'Z-Wave USB',
+      serialPort: '/dev/null',
+    };
+
+    platform = new ZWaveUsbPlatform(log, config, api);
+
+    node = {
+      nodeId: 7,
+      supportsCC: jest.fn(),
+      getValue: jest.fn(),
+      setValue: jest.fn().mockResolvedValue({ status: 255 }), // Mock successful setValue response
+    } as any;
+
+    endpoint = {
+      index: 0,
+      node: node,
+    } as any;
+    
+    feature = new MultilevelSwitchFeature(platform, accessory, endpoint);
+  });
+
+  it('should initialize Lightbulb service', () => {
+    feature.init();
+    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.Lightbulb, '0');
+  });
+
+  it('should update On state (Value > 0)', () => {
+    feature.init();
+    node.getValue.mockReturnValue(50); // 50% brightness
+    feature.update();
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.On, true);
+  });
+
+  it('should update Off state (Value = 0)', () => {
+    feature.init();
+    node.getValue.mockReturnValue(0);
+    feature.update();
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.On, false);
+  });
+
+  it('should update Brightness', () => {
+    feature.init();
+    node.getValue.mockReturnValue(75);
+    feature.update();
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.Brightness, 75);
+  });
+
+  it('should set Target Value to 255 when turning On', async () => {
+    feature.init();
+    // Simulate 'set' callback
+    // We need to access the callback passed to .on('set', ...)
+    // For unit tests, we usually test the handler method directly if it was public, 
+    // or we mock the .on method to capture the callback. 
+    // Here we'll just check logic or use a spy if we had one.
+    // Instead, let's trigger it by inspecting the mock calls to 'on' if we want to be precise, 
+    // OR just instantiate and call the private handler if we cast to any.
+    
+    // Easier: Mock setValue and verify logic if we could trigger it. 
+    // Let's use `(feature as any).handleSetOn(true, cb)`
+    
+    await (feature as any).handleSetOn(true);
+    
+    expect(node.setValue).toHaveBeenCalledWith(
+        { commandClass: 38, property: 'targetValue', endpoint: 0 }, 
+        255
+    );
+  });
+
+  it('should set Target Value to 0 when turning Off', async () => {
+    feature.init();
+    await (feature as any).handleSetOn(false);
+    
+    expect(node.setValue).toHaveBeenCalledWith(
+        { commandClass: 38, property: 'targetValue', endpoint: 0 }, 
+        0
+    );
+  });
+});

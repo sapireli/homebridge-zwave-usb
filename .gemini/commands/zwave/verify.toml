@@ -1,0 +1,59 @@
+description="Verify correctness: tests, build, and a quick behavior checklist."
+prompt = """
+Verify the project meets GEMINI.md acceptance criteria and is ready for a 'First Run' success.
+
+Do:
+- Run unit tests, lint, and build:
+  !{npm test}
+  !{npm run lint}
+  !{npm run build}
+- Verify Entry Point & Registration:
+  !{grep 'api.registerPlatform' src/index.ts}
+  !{grep '"main": "dist/index.js"' package.json}
+- Verify Package Assets (NPM Inclusion):
+  !{grep -A 5 '"files":' package.json}
+- Verify UUID Stability (Node + HomeID):
+  !{grep "uuid.generate" src/accessories/ZWaveAccessory.ts}
+  !{grep "uuid.generate" src/accessories/ControllerAccessory.ts}
+- Verify Connection & Best Practices:
+  !{grep "softReset: false" src/zwave/ZWaveController.ts}
+  !{grep "forceConsole: true" src/zwave/ZWaveController.ts}
+  !{grep "storagePath:" src/zwave/ZWaveController.ts}
+- Verify Terminal PIN Entry System:
+  !{grep "s2_pin.txt" src/zwave/ZWaveController.ts}
+- Verify All Features Implementation:
+  !{ls src/features/BatteryFeature.ts}
+  !{ls src/features/ThermostatFeature.ts}
+  !{ls src/features/WindowCoveringFeature.ts}
+  !{ls src/features/GarageDoorFeature.ts}
+  !{ls src/features/ColorSwitchFeature.ts}
+  !{ls src/features/SirenFeature.ts}
+  !{grep "ThermostatFeature" src/accessories/AccessoryFactory.ts}
+  !{grep "WindowCoveringFeature" src/accessories/AccessoryFactory.ts}
+  !{grep "GarageDoorFeature" src/accessories/AccessoryFactory.ts}
+  !{grep "ColorSwitchFeature" src/accessories/AccessoryFactory.ts}
+  !{grep "SirenFeature" src/accessories/AccessoryFactory.ts}
+- Verify Config Schema & UI (Direct Mode):
+  !{grep "serialPort" config.schema.json}
+  !{grep "securityKeys" config.schema.json}
+  !{grep -v "WebSocket URL" config.schema.json}
+  !{grep -v "enableServer" config.schema.json}
+  !{grep "generateKeys" homebridge-ui/public/index.html}
+- Verify Accessory Information (Metadata):
+  !{grep "AccessoryInformation" src/accessories/ZWaveAccessory.ts}
+  !{grep "AccessoryInformation" src/accessories/ControllerAccessory.ts}
+- Verify Publishing & Security Setup:
+  !{grep "id-token: write" .github/workflows/publish.yml}
+  !{grep "npm publish --provenance" .github/workflows/publish.yml}
+  !{grep "repository" package.json}
+- Grep for accidental secrets logging (keys):
+  !{grep -R "securityKeys" -n src || true}
+
+Then produce:
+1) A 'First Run Readiness' Report
+2) Checklist against 'Definition of done'
+3) Any gaps and exact next steps to close them
+4) A short manual test script for a Raspberry Pi/Homebridge host (covering Direct Mode and PIN entry)
+
+Task: {{args}}
+"""
