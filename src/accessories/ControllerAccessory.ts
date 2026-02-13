@@ -1,7 +1,7 @@
 import { PlatformAccessory, Service, CharacteristicValue, Characteristic } from 'homebridge';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { IZWaveController } from '../zwave/interfaces';
-import { STATUS_CHAR_UUID, PIN_CHAR_UUID, OBSOLETE_STATUS_UUID, OBSOLETE_PIN_UUID, OBSOLETE_MANAGER_SERVICE_UUID } from '../platform/settings';
+import { STATUS_CHAR_UUID, PIN_CHAR_UUID, MANAGER_SERVICE_UUID, OBSOLETE_STATUS_UUID, OBSOLETE_PIN_UUID, OBSOLETE_MANAGER_SERVICE_UUID, OBSOLETE_EVE_PIN_UUID, OBSOLETE_EVE_STATUS_UUID } from '../platform/settings';
 
 export class ControllerAccessory {
   private statusService: Service;
@@ -49,35 +49,24 @@ export class ControllerAccessory {
       .setCharacteristic(this.platform.Characteristic.Model, 'Z-Wave USB Controller')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, homeId.toString());
 
-    // --- 1. System Status Service (Switch) ---
-    // This service hosts the Status and PIN entry. Putting it in a Switch ensures it's interactive.
+    // --- 1. System Status Service ---
+    // We use a custom Service UUID to keep this isolated and visible
     this.statusService = 
-        this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Status') ||
-        this.platformAccessory.addService(this.platform.Service.Switch, 'System Status', 'Status');
+        this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
+        this.platformAccessory.addService(new this.platform.api.hap.Service('System Status', MANAGER_SERVICE_UUID, 'manager'));
     
     this.statusService.setCharacteristic(this.platform.Characteristic.Name, 'System Status');
 
     // System Status Characteristic
-    this.statusChar = this.statusService.getCharacteristic(STATUS_CHAR_UUID) ||
-                      this.statusService.addCharacteristic(new this.platform.api.hap.Characteristic('Detailed Status', STATUS_CHAR_UUID, {
-                          format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-                          perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
-                      }));
+    this.statusChar = this.statusService.getCharacteristic((this.platform.Characteristic as any).ZWaveStatus) ||
+                      this.statusService.addCharacteristic((this.platform.Characteristic as any).ZWaveStatus);
+    
     this.statusChar.updateValue('Driver Ready');
 
-    // S2 PIN Input Characteristic
-    this.pinChar = this.statusService.getCharacteristic(PIN_CHAR_UUID) ||
-                   this.statusService.addCharacteristic(new this.platform.api.hap.Characteristic('S2 PIN Entry', PIN_CHAR_UUID, {
-                       format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-                       perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
-                   }));
+    // S2 PIN Entry Characteristic
+    this.pinChar = this.statusService.getCharacteristic((this.platform.Characteristic as any).S2PinEntry) ||
+                   this.statusService.addCharacteristic((this.platform.Characteristic as any).S2PinEntry);
     
-    // Explicitly force writable permissions
-    this.pinChar.setProps({
-        format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-        perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
-    });
-
     this.pinChar.onSet((value: CharacteristicValue) => {
         this.platform.log.info(`HomeKit S2 PIN Received: ${value}`);
         this.controller.setS2Pin(value as string);
@@ -85,40 +74,28 @@ export class ControllerAccessory {
     });
     this.pinChar.updateValue('');
 
-    // Status Switch logic: Turning it OFF stops all processes
-    this.statusService.getCharacteristic(this.platform.Characteristic.On)
-        .onGet(() => false)
-        .onSet(async (value: CharacteristicValue) => {
-            if (!value) {
-                this.platform.log.info('System: Stopping all active processes...');
-                await this.controller.stopInclusion();
-                await this.controller.stopExclusion();
-                await this.controller.stopHealing();
-            }
-        });
-
-    // --- 2. Inclusion Mode Service (Switch) ---
+    // --- 2. Inclusion Mode Switch ---
     this.inclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Inclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
 
     this.inclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Inclusion Mode');
 
-    // --- 3. Exclusion Mode Service (Switch) ---
+    // --- 3. Exclusion Mode Switch ---
     this.exclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Exclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
 
     this.exclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Exclusion Mode');
 
-    // --- 4. Heal Network Service (Switch) ---
+    // --- 4. Heal Network Switch ---
     this.healService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Heal') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
 
     this.healService.setCharacteristic(this.platform.Characteristic.Name, 'Heal Network');
 
-    // --- Setup Characteristic Handlers ---
+    // Setup Switch characteristic Handlers
     [this.inclusionService, this.exclusionService, this.healService].forEach(service => {
         service.getCharacteristic(this.platform.Characteristic.On)
             .onGet(() => false);
@@ -133,19 +110,24 @@ export class ControllerAccessory {
     this.healService.getCharacteristic(this.platform.Characteristic.On)
       .onSet(this.handleSetHeal.bind(this));
 
-    // --- Cleanup Obsolete Metadata ---
+    // --- CLEANUP: Remove obsolete characteristics/services from cache ---
+    const allObsoleteUuids = [
+        OBSOLETE_STATUS_UUID, OBSOLETE_PIN_UUID, 
+        OBSOLETE_EVE_STATUS_UUID, OBSOLETE_EVE_PIN_UUID,
+        STATUS_CHAR_UUID, PIN_CHAR_UUID // Current ones if they are in the wrong service
+    ];
+
+    // Clean up AccessoryInformation
     const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
-    [STATUS_CHAR_UUID, PIN_CHAR_UUID, OBSOLETE_STATUS_UUID, OBSOLETE_PIN_UUID].forEach(uuid => {
+    allObsoleteUuids.forEach(uuid => {
         const found = infoService.characteristics.find(c => c.UUID.toUpperCase() === uuid.toUpperCase());
-        if (found) {
-            this.platform.log.info(`Cleaning up obsolete characteristic from info service: ${uuid}`);
-            infoService.removeCharacteristic(found);
-        }
+        if (found) infoService.removeCharacteristic(found);
     });
 
-    [OBSOLETE_MANAGER_SERVICE_UUID, 'manager', 'Z-Wave Manager'].forEach(id => {
+    // Clean up old Switch services named "Z-Wave Manager" or "System Status"
+    [OBSOLETE_MANAGER_SERVICE_UUID, 'manager', 'Status', 'System Status'].forEach(id => {
         const old = this.platformAccessory.getService(id);
-        if (old) {
+        if (old && old.UUID !== MANAGER_SERVICE_UUID) {
             this.platform.log.info(`Cleaning up obsolete service: ${id}`);
             this.platformAccessory.removeService(old);
         }

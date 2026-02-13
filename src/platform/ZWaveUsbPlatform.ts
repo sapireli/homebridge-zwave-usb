@@ -4,6 +4,7 @@ import { IZWaveController, IZWaveNode } from '../zwave/interfaces';
 import { ZWaveAccessory } from '../accessories/ZWaveAccessory';
 import { AccessoryFactory } from '../accessories/AccessoryFactory';
 import { ControllerAccessory } from '../accessories/ControllerAccessory';
+import { STATUS_CHAR_UUID, PIN_CHAR_UUID } from './settings';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const packageJson = require('../../package.json');
 
@@ -22,6 +23,9 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   ) {
     this.Service = this.api.hap.Service;
     this.Characteristic = this.api.hap.Characteristic;
+
+    // Register Custom Characteristics for S2 PIN and Status
+    this.registerCustomCharacteristics();
 
     this.log.info(`Initializing Homebridge Z-Wave USB v${packageJson.version}`);
     this.log.debug('Finished initializing platform:', this.config.name);
@@ -54,6 +58,38 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       this.controllerAccessory?.stop();
       await this.zwaveController?.stop();
     });
+  }
+
+  private registerCustomCharacteristics() {
+    this.log.debug('Registering custom HomeKit characteristics...');
+    
+    // 1. Z-Wave Status Characteristic
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.Characteristic as any).ZWaveStatus = class extends this.Characteristic {
+        static readonly UUID = STATUS_CHAR_UUID;
+        constructor() {
+            // @ts-ignore
+            super('System Status', STATUS_CHAR_UUID, {
+                format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+                perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
+            });
+            this.value = this.getDefaultValue();
+        }
+    };
+
+    // 2. S2 PIN Entry Characteristic
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.Characteristic as any).S2PinEntry = class extends this.Characteristic {
+        static readonly UUID = PIN_CHAR_UUID;
+        constructor() {
+            // @ts-ignore
+            super('S2 PIN Entry', PIN_CHAR_UUID, {
+                format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+                perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
+            });
+            this.value = this.getDefaultValue();
+        }
+    };
   }
 
   configureAccessory(accessory: PlatformAccessory) {

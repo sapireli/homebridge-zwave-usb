@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.1] - 2026-02-13
+
+### Fixed
+- Fixed **S2 PIN Entry** visibility in third-party HomeKit apps by formally registering custom Characteristics with the HAP API.
+- Fixed missing switch names by standardizing on `Switch` services with unique subtypes and explicit `Name` characteristics.
+- Implemented a more robust cleanup of obsolete metadata from previous versions to prevent cache-related display bugs.
+
 ## [1.9.0] - 2026-02-13
 
 ### Changed
