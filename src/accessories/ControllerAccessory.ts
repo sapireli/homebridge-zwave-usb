@@ -237,6 +237,9 @@ export class ControllerAccessory {
 
   private syncConfiguredName(service: Service, value?: string) {
     const configuredNameValue = value || service.displayName;
+    if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+      service.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+    }
     service.getCharacteristic(this.platform.Characteristic.ConfiguredName).updateValue(configuredNameValue);
   }
 
