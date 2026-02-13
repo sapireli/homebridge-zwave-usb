@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.3] - 2026-02-13
+
+### Changed
+- Finalized compliance with Homebridge Verified standards.
+- Restored `peerDependencies` for Homebridge.
+- Verified runtime dependency tree excludes `homebridge` and `hap-nodejs`.
+
 ## [1.8.2] - 2026-02-13
 
 ### Added

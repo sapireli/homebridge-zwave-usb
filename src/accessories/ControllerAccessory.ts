@@ -57,7 +57,19 @@ export class ControllerAccessory {
     this.managerService.setCharacteristic(this.platform.Characteristic.Name, 'Z-Wave Manager');
 
     // System Status Characteristic
-    this.statusChar = this.managerService.getCharacteristic(STATUS_CHAR_UUID)!;
+    const existingStatus = this.managerService.getCharacteristic(STATUS_CHAR_UUID);
+    if (!existingStatus) {
+        this.platform.log.debug('Adding new System Status characteristic');
+        this.statusChar = this.managerService.addCharacteristic(
+            new this.platform.api.hap.Characteristic('System Status', STATUS_CHAR_UUID, {
+                format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+                perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
+            })
+        );
+    } else {
+        this.statusChar = existingStatus;
+    }
+    
     this.statusChar.setProps({
         format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -65,7 +77,19 @@ export class ControllerAccessory {
     this.statusChar.updateValue('Driver Ready');
 
     // S2 PIN Input Characteristic
-    this.pinChar = this.managerService.getCharacteristic(PIN_CHAR_UUID)!;
+    const existingPin = this.managerService.getCharacteristic(PIN_CHAR_UUID);
+    if (!existingPin) {
+        this.platform.log.debug('Adding new S2 PIN Input characteristic');
+        this.pinChar = this.managerService.addCharacteristic(
+            new this.platform.api.hap.Characteristic('S2 PIN Input', PIN_CHAR_UUID, {
+                format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+                perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
+            })
+        );
+    } else {
+        this.pinChar = existingPin;
+    }
+
     this.pinChar.setProps({
         format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
