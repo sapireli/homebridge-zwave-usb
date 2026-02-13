@@ -4,7 +4,6 @@ import { IZWaveController } from '../zwave/interfaces';
 import { STATUS_CHAR_UUID, PIN_CHAR_UUID, MANAGER_SERVICE_UUID, OBSOLETE_STATUS_UUID, OBSOLETE_PIN_UUID } from '../platform/settings';
 
 export class ControllerAccessory {
-  private managerService: Service;
   private inclusionService: Service;
   private exclusionService: Service;
   private healService: Service;
@@ -43,67 +42,46 @@ export class ControllerAccessory {
       this.platform.accessories.push(this.platformAccessory);
     }
 
-    // Set accessory information
-    this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!
+    // --- Accessory Information (Meta Z-Wave Controller) ---
+    // We attach the System Status and S2 PIN Input here to associate them with the whole accessory.
+    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
+    
+    infoService
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Aeotec / Z-Wave JS')
       .setCharacteristic(this.platform.Characteristic.Model, 'Z-Wave USB Controller')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, homeId.toString());
 
-    // --- 1. Z-Wave Manager Service (Custom Service) ---
-    // Using a custom Service UUID ensures third-party apps treat this as a specialized management container.
-    this.managerService = 
-        this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
-        this.platformAccessory.addService(new this.platform.api.hap.Service('Z-Wave Manager', MANAGER_SERVICE_UUID, 'manager'));
-    
-    // Ensure Name is set correctly
-    this.managerService.setCharacteristic(this.platform.Characteristic.Name, 'Z-Wave Manager');
-
-    // Cleanup: Remove obsolete characteristics from previous versions to prevent UUID collisions
-    [OBSOLETE_STATUS_UUID, OBSOLETE_PIN_UUID].forEach(obsoleteUuid => {
-        const found = this.managerService.characteristics.find(c => c.UUID.toUpperCase() === obsoleteUuid.toUpperCase());
-        if (found) {
-            this.platform.log.info(`Cleaning up obsolete characteristic: ${obsoleteUuid}`);
-            this.managerService.removeCharacteristic(found);
-        }
-    });
-
-    // System Status Characteristic
-    // Case-insensitive lookup to be absolutely safe against HAP variations
-    const statusCharacteristic = this.managerService.characteristics.find(c => c.UUID.toUpperCase() === STATUS_CHAR_UUID.toUpperCase());
-    
+    // System Status Characteristic (Read-only)
+    const statusCharacteristic = infoService.characteristics.find(c => c.UUID.toUpperCase() === STATUS_CHAR_UUID.toUpperCase());
     if (statusCharacteristic) {
         this.statusChar = statusCharacteristic;
     } else {
-        this.platform.log.debug('Adding new System Status characteristic');
-        this.statusChar = this.managerService.addCharacteristic(
+        this.statusChar = infoService.addCharacteristic(
             new this.platform.api.hap.Characteristic('System Status', STATUS_CHAR_UUID, {
                 format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
                 perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
             })
         );
     }
-    
     this.statusChar.setProps({
         format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
     });
     this.statusChar.updateValue('Driver Ready');
 
-    // S2 PIN Input Characteristic
-    const pinCharacteristic = this.managerService.characteristics.find(c => c.UUID.toUpperCase() === PIN_CHAR_UUID.toUpperCase());
-    
+    // S2 PIN Input Characteristic (Writable)
+    // We put this in AccessoryInformation as well so it's "Meta".
+    const pinCharacteristic = infoService.characteristics.find(c => c.UUID.toUpperCase() === PIN_CHAR_UUID.toUpperCase());
     if (pinCharacteristic) {
         this.pinChar = pinCharacteristic;
     } else {
-        this.platform.log.debug('Adding new S2 PIN Input characteristic');
-        this.pinChar = this.managerService.addCharacteristic(
+        this.pinChar = infoService.addCharacteristic(
             new this.platform.api.hap.Characteristic('S2 PIN Input', PIN_CHAR_UUID, {
                 format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
                 perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
             })
         );
     }
-
     this.pinChar.setProps({
         format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -112,38 +90,64 @@ export class ControllerAccessory {
     this.pinChar.onSet((value: CharacteristicValue) => {
         this.platform.log.info(`HomeKit S2 PIN Received: ${value}`);
         this.controller.setS2Pin(value as string);
-        // Clear the value after a short delay so the UI doesn't keep the PIN visible
         setTimeout(() => this.pinChar.updateValue(''), 1000);
     });
     this.pinChar.updateValue('');
 
-    // --- 2. Inclusion Mode Service ---
+    // --- 1. Inclusion Mode Service ---
     this.inclusionService =
       this.platformAccessory.getService('Inclusion Mode') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
 
-    this.inclusionService.updateCharacteristic(this.platform.Characteristic.Name, 'Inclusion Mode');
+    this.inclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Inclusion Mode');
 
-    // --- 3. Exclusion Mode Service ---
+    // --- 2. Exclusion Mode Service ---
     this.exclusionService =
       this.platformAccessory.getService('Exclusion Mode') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
 
-    this.exclusionService.updateCharacteristic(this.platform.Characteristic.Name, 'Exclusion Mode');
+    this.exclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Exclusion Mode');
 
-    // --- 4. Heal Network Service ---
+    // --- 3. Heal Network Service ---
     this.healService =
       this.platformAccessory.getService('Heal Network') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
 
-    this.healService.updateCharacteristic(this.platform.Characteristic.Name, 'Heal Network');
+    this.healService.setCharacteristic(this.platform.Characteristic.Name, 'Heal Network');
 
-    // Cleanup: Remove old "Z-Wave Manager" Switch if it was cached from previous version
-    const oldSwitchManager = this.platformAccessory.getService('Z-Wave Manager');
-    if (oldSwitchManager && oldSwitchManager.UUID !== MANAGER_SERVICE_UUID) {
-        this.platform.log.info('Cleaning up obsolete Z-Wave Manager switch service');
-        this.platformAccessory.removeService(oldSwitchManager);
-    }
+    // --- Setup Characteristic Handlers ---
+    this.inclusionService
+      .getCharacteristic(this.platform.Characteristic.On)
+      .onSet(this.handleSetInclusion.bind(this))
+      .onGet(this.handleGetInclusion.bind(this));
+
+    this.exclusionService
+      .getCharacteristic(this.platform.Characteristic.On)
+      .onSet(this.handleSetExclusion.bind(this))
+      .onGet(this.handleGetExclusion.bind(this));
+
+    this.healService
+      .getCharacteristic(this.platform.Characteristic.On)
+      .onSet(this.handleSetHeal.bind(this))
+      .onGet(this.handleGetHeal.bind(this));
+
+    // --- Cleanup: Remove old "Z-Wave Manager" services from previous versions ---
+    [MANAGER_SERVICE_UUID, 'manager'].forEach(oldId => {
+        const oldService = this.platformAccessory.getService(oldId);
+        if (oldService) {
+            this.platform.log.info(`Cleaning up obsolete Z-Wave Manager service (${oldId})`);
+            this.platformAccessory.removeService(oldService);
+        }
+    });
+
+    // Cleanup: Remove obsolete characteristics from info service if they exist with old UUIDs
+    [OBSOLETE_STATUS_UUID, OBSOLETE_PIN_UUID].forEach(obsoleteUuid => {
+        const found = infoService.characteristics.find(c => c.UUID.toUpperCase() === obsoleteUuid.toUpperCase());
+        if (found) {
+            this.platform.log.info(`Cleaning up obsolete characteristic: ${obsoleteUuid}`);
+            infoService.removeCharacteristic(found);
+        }
+    });
 
     // --- Listen for controller events to sync state ---
     this.controller.on('status updated', (status: string) => {

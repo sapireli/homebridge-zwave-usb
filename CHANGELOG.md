@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.8] - 2026-02-13
+
+### Fixed
+- Fixed missing switch names in the Controller app by removing the non-standard custom service and restoring standard service types.
+- Moved **System Status** and **S2 PIN Input** to the **Accessory Information** service. This is the most compatible "Meta" location for plugin-wide settings and follows patterns used by established Homebridge libraries.
+- Guaranteed **S2 PIN Input** is writable in third-party apps by forcing explicit HAP permission strings.
+- Added comprehensive cleanup for obsolete services and characteristics from previous versions.
+
 ## [1.8.7] - 2026-02-13
 
 ### Fixed
