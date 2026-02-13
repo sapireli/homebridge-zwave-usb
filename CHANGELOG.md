@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.7] - 2026-02-13
+
+### Fixed
+- Fixed critical "TypeError: setProps of undefined" by ensuring characteristics exist before configuration.
+- Improved "Duplicate Characteristic" logic with case-insensitive UUID matching.
+- Cleaned up dependency tree to satisfy strict Homebridge Verification requirements.
+- Synced lockfile and removed redundant development packages.
+
 ## [1.8.6] - 2026-02-13
 
 ### Fixed
