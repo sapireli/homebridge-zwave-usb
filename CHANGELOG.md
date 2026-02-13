@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.5] - 2026-02-13
+
+### Changed
+- Explicitly defined `hap-nodejs` as a development dependency to ensure clear separation from production runtime.
+- Verified and finalized Homebridge Verified compliance criteria.
+
 ## [1.8.4] - 2026-02-13
 
 ### Fixed
