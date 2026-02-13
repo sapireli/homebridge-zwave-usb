@@ -1,6 +1,11 @@
 # Homebridge Z-Wave USB
 
+[![NPM Version](https://img.shields.io/npm/v/homebridge-zwave-usb.svg)](https://www.npmjs.com/package/homebridge-zwave-usb)
+[![NPM Downloads](https://img.shields.io/npm/dt/homebridge-zwave-usb.svg)](https://www.npmjs.com/package/homebridge-zwave-usb)
 [![Build and Test](https://github.com/sapireli/homebridge-zwave-usb/actions/workflows/build.yml/badge.svg)](https://github.com/sapireli/homebridge-zwave-usb/actions/workflows/build.yml)
+[![GitHub License](https://img.shields.io/github/license/sapireli/homebridge-zwave-usb.svg)](https://github.com/sapireli/homebridge-zwave-usb/blob/main/LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/sapireli/homebridge-zwave-usb.svg)](https://github.com/sapireli/homebridge-zwave-usb/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/sapireli/homebridge-zwave-usb.svg)](https://github.com/sapireli/homebridge-zwave-usb/issues)
 
 A high-performance HomeKit integration for Z-Wave networks, built on the modern **Z-Wave JS** driver.
 
@@ -80,6 +85,12 @@ A special accessory is added to HomeKit with these controls:
 *   **Inclusion Mode:** Turn ON to pair a new device (3-minute window for PIN entry).
 *   **Exclusion Mode:** Turn ON to unpair/remove a device.
 *   **Heal Network:** Turn ON to rebuild mesh routes.
+
+## 💖 Support
+
+If you find this plugin useful, please consider supporting its development:
+
+*   **[Donate via PayPal](https://paypal.me/sapir)**
 
 ---
 

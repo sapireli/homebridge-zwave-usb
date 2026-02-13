@@ -1,8 +1,17 @@
 {
   "name": "homebridge-zwave-usb",
   "displayName": "Homebridge Z-Wave USB",
-  "version": "1.7.1",
+  "version": "1.7.6",
   "description": "A Homebridge dynamic platform plugin for Z-Wave USB controllers using zwave-js.",
+  "license": "MIT",
+  "funding": {
+    "type": "paypal",
+    "url": "https://paypal.me/sapir"
+  },
+  "homepage": "https://github.com/sapireli/homebridge-zwave-usb#readme",
+  "bugs": {
+    "url": "https://github.com/sapireli/homebridge-zwave-usb/issues"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/sapireli/homebridge-zwave-usb.git"

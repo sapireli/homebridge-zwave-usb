@@ -83,21 +83,18 @@ export class ControllerAccessory {
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
 
     this.inclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Inclusion Mode');
-    this.inclusionService.setCharacteristic(this.platform.Characteristic.ConfiguredName, 'Inclusion Mode');
 
     this.exclusionService =
       this.platformAccessory.getService('Exclusion Mode') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
 
     this.exclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Exclusion Mode');
-    this.exclusionService.setCharacteristic(this.platform.Characteristic.ConfiguredName, 'Exclusion Mode');
 
     this.healService =
       this.platformAccessory.getService('Heal Network') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
 
     this.healService.setCharacteristic(this.platform.Characteristic.Name, 'Heal Network');
-    this.healService.setCharacteristic(this.platform.Characteristic.ConfiguredName, 'Heal Network');
 
     this.inclusionService
       .getCharacteristic(this.platform.Characteristic.On)
