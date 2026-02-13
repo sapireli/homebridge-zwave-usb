@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Plugin version logging on startup.
 
 ### Fixed
+- Fixed "Battery Level" warning where illegal value -1 was supplied to HomeKit.
 - Fixed "Ghost" Node 1 accessory appearing in HomeKit.
 - Fixed duplicate characteristic crash during Homebridge restart.
 - Fixed service naming regressions where devices showed generic "Switch" labels.

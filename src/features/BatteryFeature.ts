@@ -18,11 +18,19 @@ export class BatteryFeature extends BaseFeature {
   }
 
   update(): void {
-    const level = this.getBatteryLevel();
-    const lowBattery = this.getStatusLowBattery();
+    const value = this.node.getValue({
+      commandClass: 128,
+      property: 'level',
+      endpoint: this.endpoint.index,
+    });
 
-    this.service.updateCharacteristic(this.platform.Characteristic.BatteryLevel, level);
-    this.service.updateCharacteristic(this.platform.Characteristic.StatusLowBattery, lowBattery);
+    if (typeof value === 'number') {
+      const level = Math.max(0, Math.min(value, 100));
+      const lowBattery = this.getStatusLowBattery();
+
+      this.service.updateCharacteristic(this.platform.Characteristic.BatteryLevel, level);
+      this.service.updateCharacteristic(this.platform.Characteristic.StatusLowBattery, lowBattery);
+    }
   }
 
   private getBatteryLevel(): number {
@@ -31,7 +39,7 @@ export class BatteryFeature extends BaseFeature {
       property: 'level',
       endpoint: this.endpoint.index,
     });
-    return typeof value === 'number' ? Math.max(0, Math.min(value, 100)) : -1;
+    return typeof value === 'number' ? Math.max(0, Math.min(value, 100)) : 0;
   }
 
   private getStatusLowBattery(): number {
@@ -46,9 +54,12 @@ export class BatteryFeature extends BaseFeature {
     }
 
     const level = this.getBatteryLevel();
-    // -1 means unknown/unavailable, don't show low battery warning for unknown
-    if (level < 0) {
-      return this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
+    // Default to normal if level is 0 (could be unknown) or > 15
+    if (level === 0) {
+        const rawValue = this.node.getValue({ commandClass: 128, property: 'level', endpoint: this.endpoint.index });
+        if (typeof rawValue !== 'number') {
+            return this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
+        }
     }
     return level <= 15 ? this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW : this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
   }

@@ -66,6 +66,10 @@ export class ControllerAccessory {
             })
         );
     }
+    statusChar.setProps({
+        format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
+    });
     statusChar.updateValue('Driver Ready');
 
     // S2 PIN Input Characteristic
@@ -78,8 +82,18 @@ export class ControllerAccessory {
             })
         );
     }
+    
+    // Force write permissions even if cached
+    pinChar.setProps({
+        format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
+    });
+
     pinChar.onSet((value: CharacteristicValue) => {
+        this.platform.log.info(`HomeKit S2 PIN Received: ${value}`);
         this.controller.setS2Pin(value as string);
+        // Clear the value after a short delay so the UI doesn't keep the PIN visible
+        setTimeout(() => pinChar.updateValue(''), 1000);
     });
     pinChar.updateValue('');
 
