@@ -57,8 +57,12 @@ export class ControllerAccessory {
     this.managerService.setCharacteristic(this.platform.Characteristic.Name, 'Z-Wave Manager');
 
     // System Status Characteristic
-    const existingStatus = this.managerService.getCharacteristic(STATUS_CHAR_UUID);
-    if (!existingStatus) {
+    // Robust check: Look through all characteristics manually to avoid UUID collision errors
+    const statusCharacteristic = this.managerService.characteristics.find(c => c.UUID === STATUS_CHAR_UUID);
+    
+    if (statusCharacteristic) {
+        this.statusChar = statusCharacteristic;
+    } else {
         this.platform.log.debug('Adding new System Status characteristic');
         this.statusChar = this.managerService.addCharacteristic(
             new this.platform.api.hap.Characteristic('System Status', STATUS_CHAR_UUID, {
@@ -66,8 +70,6 @@ export class ControllerAccessory {
                 perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
             })
         );
-    } else {
-        this.statusChar = existingStatus;
     }
     
     this.statusChar.setProps({
@@ -77,8 +79,11 @@ export class ControllerAccessory {
     this.statusChar.updateValue('Driver Ready');
 
     // S2 PIN Input Characteristic
-    const existingPin = this.managerService.getCharacteristic(PIN_CHAR_UUID);
-    if (!existingPin) {
+    const pinCharacteristic = this.managerService.characteristics.find(c => c.UUID === PIN_CHAR_UUID);
+    
+    if (pinCharacteristic) {
+        this.pinChar = pinCharacteristic;
+    } else {
         this.platform.log.debug('Adding new S2 PIN Input characteristic');
         this.pinChar = this.managerService.addCharacteristic(
             new this.platform.api.hap.Characteristic('S2 PIN Input', PIN_CHAR_UUID, {
@@ -86,8 +91,6 @@ export class ControllerAccessory {
                 perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
             })
         );
-    } else {
-        this.pinChar = existingPin;
     }
 
     this.pinChar.setProps({
@@ -240,7 +243,7 @@ export class ControllerAccessory {
         this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
       }, timeoutSeconds * 1000);
     } else {
-      this.platform.log.info('Requesting Exclusion Mode OFF');
+      this.platform.log.info('Requesting Inclusion Mode OFF');
       await this.controller.stopExclusion();
     }
   }

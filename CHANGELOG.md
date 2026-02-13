@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.4] - 2026-02-13
+
+### Fixed
+- Fixed a critical "Duplicate Characteristic" crash by implementing a more robust characteristic initialization check.
+- Migrated custom characteristics to truly unique random UUIDs to prevent collisions with standard HomeKit or Eve characteristics.
+
 ## [1.8.3] - 2026-02-13
 
 ### Changed
