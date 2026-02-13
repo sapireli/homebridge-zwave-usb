@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.2] - 2026-02-13
+
+### Added
+- **Auto-Release CI**: The plugin now automatically creates GitHub releases and publishes to NPM whenever the version is bumped in `main`.
+
 ## [1.8.1] - 2026-02-13
 
 ### Changed
