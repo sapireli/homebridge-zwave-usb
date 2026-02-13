@@ -73,7 +73,7 @@ export class ControllerAccessory {
             }
         });
         
-        this.removeConfiguredNameIfPresent(service);
+        this.lockConfiguredNameIfPresent(service);
     });
 
     // Add ServiceLabelNamespace to AccessoryInformation to help with naming multi-service accessories
@@ -88,7 +88,7 @@ export class ControllerAccessory {
     this.statusService = this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         this.platformAccessory.addService(new (this.platform.Service as any).ZWaveManager('System Status', 'Status'));
-    this.removeConfiguredNameIfPresent(this.statusService);
+    this.lockConfiguredNameIfPresent(this.statusService, 'System Status');
     
     // Naming Identity - Strictly Name only
     this.statusService.getCharacteristic(this.platform.Characteristic.Name)
@@ -134,22 +134,24 @@ export class ControllerAccessory {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         format: HAPFormat.STRING as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.PAIRED_WRITE as any, HAPPerm.NOTIFY as any],
+        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.PAIRED_WRITE as any],
+        maxLen: 5,
         description: 'Enter 5-digit S2 PIN'
     });
 
     this.pinChar.onSet((value: CharacteristicValue) => {
-        this.platform.log.info(`HomeKit S2 PIN Received: ${value}`);
-        this.controller.setS2Pin(value as string);
-        setTimeout(() => this.pinChar.updateValue('Enter PIN'), 2000);
+        const pin = String(value ?? '').trim();
+        this.platform.log.info(`HomeKit S2 PIN Received: ${pin}`);
+        this.controller.setS2Pin(pin);
+        setTimeout(() => this.pinChar.updateValue(''), 2000);
     });
-    this.pinChar.updateValue('Enter PIN');
+    this.pinChar.updateValue('');
 
     // --- 2. Inclusion Mode Switch ---
     this.inclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Inclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
-    this.removeConfiguredNameIfPresent(this.inclusionService);
+    this.lockConfiguredNameIfPresent(this.inclusionService, 'Inclusion Mode');
     
     this.inclusionService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -166,7 +168,7 @@ export class ControllerAccessory {
     this.exclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Exclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
-    this.removeConfiguredNameIfPresent(this.exclusionService);
+    this.lockConfiguredNameIfPresent(this.exclusionService, 'Exclusion Mode');
     
     this.exclusionService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -182,7 +184,7 @@ export class ControllerAccessory {
     this.healService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Heal') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
-    this.removeConfiguredNameIfPresent(this.healService);
+    this.lockConfiguredNameIfPresent(this.healService, 'Heal Network');
     
     this.healService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -254,25 +256,17 @@ export class ControllerAccessory {
     });
   }
 
-  private removeConfiguredNameIfPresent(service: Service) {
+  private lockConfiguredNameIfPresent(service: Service, value?: string) {
     if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
       return;
     }
 
-    // We expose a read-only Name characteristic and intentionally omit writable ConfiguredName.
+    const configuredNameValue = value || service.displayName;
     const configuredName = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
-    const mutableService = service as Service & {
-      removeCharacteristic?: (characteristic: unknown) => void;
-      characteristics?: unknown[];
-    };
-    if (typeof mutableService.removeCharacteristic === 'function') {
-      mutableService.removeCharacteristic(configuredName);
-      return;
-    }
-
-    if (Array.isArray(mutableService.characteristics)) {
-      mutableService.characteristics = mutableService.characteristics.filter((c) => c !== configuredName);
-    }
+    configuredName
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any] })
+      .updateValue(configuredNameValue);
   }
 
   private async handleSetInclusion(value: CharacteristicValue) {

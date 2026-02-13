@@ -50,7 +50,7 @@ export abstract class BaseFeature implements ZWaveFeature {
   }
 
   private configureServiceIdentity(service: Service, serviceName: string): void {
-    // Explicitly set Name as read-only and remove writable ConfiguredName.
+    // Explicitly set Name as read-only and lock ConfiguredName to avoid user edits.
     const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     nameChar.setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
@@ -58,16 +58,9 @@ export abstract class BaseFeature implements ZWaveFeature {
 
     if (service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
       const configuredNameChar = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
-      // Some test doubles don't implement removeCharacteristic.
-      const mutableService = service as Service & {
-        removeCharacteristic?: (characteristic: unknown) => void;
-        characteristics?: unknown[];
-      };
-      if (typeof mutableService.removeCharacteristic === 'function') {
-        mutableService.removeCharacteristic(configuredNameChar);
-      } else if (Array.isArray(mutableService.characteristics)) {
-        mutableService.characteristics = mutableService.characteristics.filter((c) => c !== configuredNameChar);
-      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      configuredNameChar.setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any] })
+        .updateValue(serviceName);
     }
 
     // Add Service Label Index for multi-endpoint devices to help with ordering/naming
