@@ -1,9 +1,10 @@
 import { PlatformAccessory, Service, CharacteristicValue, Characteristic } from 'homebridge';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { IZWaveController } from '../zwave/interfaces';
-import { STATUS_CHAR_UUID, PIN_CHAR_UUID, MANAGER_SERVICE_UUID, OBSOLETE_STATUS_UUID, OBSOLETE_PIN_UUID } from '../platform/settings';
+import { STATUS_CHAR_UUID, PIN_CHAR_UUID, OBSOLETE_STATUS_UUID, OBSOLETE_PIN_UUID, OBSOLETE_MANAGER_SERVICE_UUID } from '../platform/settings';
 
 export class ControllerAccessory {
+  private statusService: Service;
   private inclusionService: Service;
   private exclusionService: Service;
   private healService: Service;
@@ -42,46 +43,36 @@ export class ControllerAccessory {
       this.platform.accessories.push(this.platformAccessory);
     }
 
-    // --- Accessory Information (Meta Z-Wave Controller) ---
-    // We attach the System Status and S2 PIN Input here to associate them with the whole accessory.
-    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
-    
-    infoService
+    // Set accessory information
+    this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Aeotec / Z-Wave JS')
       .setCharacteristic(this.platform.Characteristic.Model, 'Z-Wave USB Controller')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, homeId.toString());
 
-    // System Status Characteristic (Read-only)
-    const statusCharacteristic = infoService.characteristics.find(c => c.UUID.toUpperCase() === STATUS_CHAR_UUID.toUpperCase());
-    if (statusCharacteristic) {
-        this.statusChar = statusCharacteristic;
-    } else {
-        this.statusChar = infoService.addCharacteristic(
-            new this.platform.api.hap.Characteristic('System Status', STATUS_CHAR_UUID, {
-                format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-                perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
-            })
-        );
-    }
-    this.statusChar.setProps({
-        format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-        perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
-    });
+    // --- 1. System Status Service (Switch) ---
+    // This service hosts the Status and PIN entry. Putting it in a Switch ensures it's interactive.
+    this.statusService = 
+        this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Status') ||
+        this.platformAccessory.addService(this.platform.Service.Switch, 'System Status', 'Status');
+    
+    this.statusService.setCharacteristic(this.platform.Characteristic.Name, 'System Status');
+
+    // System Status Characteristic
+    this.statusChar = this.statusService.getCharacteristic(STATUS_CHAR_UUID) ||
+                      this.statusService.addCharacteristic(new this.platform.api.hap.Characteristic('Detailed Status', STATUS_CHAR_UUID, {
+                          format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+                          perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
+                      }));
     this.statusChar.updateValue('Driver Ready');
 
-    // S2 PIN Input Characteristic (Writable)
-    // We put this in AccessoryInformation as well so it's "Meta".
-    const pinCharacteristic = infoService.characteristics.find(c => c.UUID.toUpperCase() === PIN_CHAR_UUID.toUpperCase());
-    if (pinCharacteristic) {
-        this.pinChar = pinCharacteristic;
-    } else {
-        this.pinChar = infoService.addCharacteristic(
-            new this.platform.api.hap.Characteristic('S2 PIN Input', PIN_CHAR_UUID, {
-                format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-                perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
-            })
-        );
-    }
+    // S2 PIN Input Characteristic
+    this.pinChar = this.statusService.getCharacteristic(PIN_CHAR_UUID) ||
+                   this.statusService.addCharacteristic(new this.platform.api.hap.Characteristic('S2 PIN Entry', PIN_CHAR_UUID, {
+                       format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+                       perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
+                   }));
+    
+    // Explicitly force writable permissions
     this.pinChar.setProps({
         format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
         perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -94,58 +85,69 @@ export class ControllerAccessory {
     });
     this.pinChar.updateValue('');
 
-    // --- 1. Inclusion Mode Service ---
+    // Status Switch logic: Turning it OFF stops all processes
+    this.statusService.getCharacteristic(this.platform.Characteristic.On)
+        .onGet(() => false)
+        .onSet(async (value: CharacteristicValue) => {
+            if (!value) {
+                this.platform.log.info('System: Stopping all active processes...');
+                await this.controller.stopInclusion();
+                await this.controller.stopExclusion();
+                await this.controller.stopHealing();
+            }
+        });
+
+    // --- 2. Inclusion Mode Service (Switch) ---
     this.inclusionService =
-      this.platformAccessory.getService('Inclusion Mode') ||
+      this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Inclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
 
     this.inclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Inclusion Mode');
 
-    // --- 2. Exclusion Mode Service ---
+    // --- 3. Exclusion Mode Service (Switch) ---
     this.exclusionService =
-      this.platformAccessory.getService('Exclusion Mode') ||
+      this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Exclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
 
     this.exclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Exclusion Mode');
 
-    // --- 3. Heal Network Service ---
+    // --- 4. Heal Network Service (Switch) ---
     this.healService =
-      this.platformAccessory.getService('Heal Network') ||
+      this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Heal') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
 
     this.healService.setCharacteristic(this.platform.Characteristic.Name, 'Heal Network');
 
     // --- Setup Characteristic Handlers ---
-    this.inclusionService
-      .getCharacteristic(this.platform.Characteristic.On)
-      .onSet(this.handleSetInclusion.bind(this))
-      .onGet(this.handleGetInclusion.bind(this));
+    [this.inclusionService, this.exclusionService, this.healService].forEach(service => {
+        service.getCharacteristic(this.platform.Characteristic.On)
+            .onGet(() => false);
+    });
 
-    this.exclusionService
-      .getCharacteristic(this.platform.Characteristic.On)
-      .onSet(this.handleSetExclusion.bind(this))
-      .onGet(this.handleGetExclusion.bind(this));
+    this.inclusionService.getCharacteristic(this.platform.Characteristic.On)
+      .onSet(this.handleSetInclusion.bind(this));
 
-    this.healService
-      .getCharacteristic(this.platform.Characteristic.On)
-      .onSet(this.handleSetHeal.bind(this))
-      .onGet(this.handleGetHeal.bind(this));
+    this.exclusionService.getCharacteristic(this.platform.Characteristic.On)
+      .onSet(this.handleSetExclusion.bind(this));
 
-    // --- Cleanup: Remove old "Z-Wave Manager" services from previous versions ---
-    [MANAGER_SERVICE_UUID, 'manager'].forEach(oldId => {
-        const oldService = this.platformAccessory.getService(oldId);
-        if (oldService) {
-            this.platform.log.info(`Cleaning up obsolete Z-Wave Manager service (${oldId})`);
-            this.platformAccessory.removeService(oldService);
+    this.healService.getCharacteristic(this.platform.Characteristic.On)
+      .onSet(this.handleSetHeal.bind(this));
+
+    // --- Cleanup Obsolete Metadata ---
+    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
+    [STATUS_CHAR_UUID, PIN_CHAR_UUID, OBSOLETE_STATUS_UUID, OBSOLETE_PIN_UUID].forEach(uuid => {
+        const found = infoService.characteristics.find(c => c.UUID.toUpperCase() === uuid.toUpperCase());
+        if (found) {
+            this.platform.log.info(`Cleaning up obsolete characteristic from info service: ${uuid}`);
+            infoService.removeCharacteristic(found);
         }
     });
 
-    // Cleanup: Remove obsolete characteristics from info service if they exist with old UUIDs
-    [OBSOLETE_STATUS_UUID, OBSOLETE_PIN_UUID].forEach(obsoleteUuid => {
-        const found = infoService.characteristics.find(c => c.UUID.toUpperCase() === obsoleteUuid.toUpperCase());
-        if (found) {
-            this.platform.log.info(`Cleaning up obsolete characteristic: ${obsoleteUuid}`);
-            infoService.removeCharacteristic(found);
+    [OBSOLETE_MANAGER_SERVICE_UUID, 'manager', 'Z-Wave Manager'].forEach(id => {
+        const old = this.platformAccessory.getService(id);
+        if (old) {
+            this.platform.log.info(`Cleaning up obsolete service: ${id}`);
+            this.platformAccessory.removeService(old);
         }
     });
 
@@ -216,10 +218,6 @@ export class ControllerAccessory {
     }
   }
 
-  private handleGetInclusion(): boolean {
-    return false;
-  }
-
   private async handleSetExclusion(value: CharacteristicValue) {
     if (this.exclusionTimer) {
       clearTimeout(this.exclusionTimer);
@@ -242,10 +240,6 @@ export class ControllerAccessory {
     }
   }
 
-  private handleGetExclusion(): boolean {
-    return false;
-  }
-
   private async handleSetHeal(value: CharacteristicValue) {
     if (value) {
       this.platform.log.info('Requesting Heal Network ON');
@@ -254,10 +248,6 @@ export class ControllerAccessory {
       this.platform.log.info('Requesting Heal Network OFF');
       await this.controller.stopHealing();
     }
-  }
-
-  private handleGetHeal(): boolean {
-    return false;
   }
 
   public stop() {

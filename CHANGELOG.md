@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0] - 2026-02-13
+
+### Changed
+- Major refactor of the **Z-Wave Controller** HomeKit structure for maximum compatibility:
+  - Moved **System Status** and **S2 PIN Input** to a dedicated "System Status" switch service (subtype: `Status`).
+  - Standardized all management switches (Inclusion, Exclusion, Heal) to use explicit subtypes.
+  - Guaranteed service naming in all HomeKit apps (fixed "Missing Name" bug).
+  - Explicitly forced **PAIRED_WRITE** permissions on the PIN entry field.
+  - Improved cleanup logic for obsolete characteristics and services from older versions.
+
 ## [1.8.9] - 2026-02-13
 
 ### Changed
