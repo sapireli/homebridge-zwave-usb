@@ -21,6 +21,7 @@ describe('BinarySwitchFeature', () => {
           getCharacteristic: jest.fn().mockReturnValue({
             on: jest.fn().mockReturnThis(),
             updateValue: jest.fn(),
+            setProps: jest.fn().mockReturnThis(),
           }),
         }),
       } as any,
@@ -44,6 +45,7 @@ describe('BinarySwitchFeature', () => {
                     onGet: jest.fn().mockReturnThis(),
                     onSet: jest.fn().mockReturnThis(),
                     updateValue: jest.fn(),
+                    setProps: jest.fn().mockReturnThis(),
                   }),
                   setCharacteristic: jest.fn().mockReturnThis(),
                   updateCharacteristic: jest.fn(),
@@ -56,6 +58,7 @@ describe('BinarySwitchFeature', () => {
             onGet: jest.fn().mockReturnThis(),
             onSet: jest.fn().mockReturnThis(),
             updateValue: jest.fn(),
+            setProps: jest.fn().mockReturnThis(),
           });
           service.updateCharacteristic = jest.fn().mockReturnThis();
           return service;

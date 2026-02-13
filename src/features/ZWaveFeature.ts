@@ -44,7 +44,11 @@ export abstract class BaseFeature implements ZWaveFeature {
     
     // Explicitly set the name and configured name characteristics to ensure it's displayed correctly
     if (addedService.setCharacteristic) {
-        addedService.setCharacteristic(this.platform.Characteristic.Name, serviceName);
+        addedService.getCharacteristic(this.platform.Characteristic.Name)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .setProps({ perms: ['pr' as any] })
+            .updateValue(serviceName);
+        
         addedService.setCharacteristic(this.platform.Characteristic.ConfiguredName, serviceName);
     }
     

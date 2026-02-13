@@ -19,6 +19,7 @@ describe('CentralSceneFeature', () => {
   beforeEach(() => {
     characteristic = {
         updateValue: jest.fn(),
+        setProps: jest.fn().mockReturnThis(),
     };
     service = {
       getCharacteristic: jest.fn().mockReturnValue(characteristic),

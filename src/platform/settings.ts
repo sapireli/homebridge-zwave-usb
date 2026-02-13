@@ -6,6 +6,27 @@ export const MANAGER_SERVICE_UUID = '00000001-0000-1000-8000-0026BB765291';
 export const STATUS_CHAR_UUID = '00000002-0000-1000-8000-0026BB765291';
 export const PIN_CHAR_UUID = '00000003-0000-1000-8000-0026BB765291';
 
+// HAP Constants - Local copies to avoid isolatedModules const enum issues
+export enum HAPFormat {
+  STRING = 'string',
+  BOOL = 'bool',
+  INT = 'int',
+  FLOAT = 'float',
+  UINT8 = 'uint8',
+  UINT16 = 'uint16',
+  UINT32 = 'uint32',
+  UINT64 = 'uint64',
+  DATA = 'data',
+  TLV8 = 'tlv8',
+}
+
+export enum HAPPerm {
+  PAIRED_READ = 'pr',
+  PAIRED_WRITE = 'pw',
+  NOTIFY = 'ev',
+  HIDDEN = 'hd',
+}
+
 // Obsolete UUIDs for cleanup
 export const OBSOLETE_STATUS_UUID = '7f8e9d0a-1b2c-4d3e-8f9a-0b1c2d3e4f5a';
 export const OBSOLETE_PIN_UUID = '8a9b0c1d-2e3f-4a5b-9c6d-7e8f9a0b1c2d';

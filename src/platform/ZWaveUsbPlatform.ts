@@ -4,7 +4,7 @@ import { IZWaveController, IZWaveNode } from '../zwave/interfaces';
 import { ZWaveAccessory } from '../accessories/ZWaveAccessory';
 import { AccessoryFactory } from '../accessories/AccessoryFactory';
 import { ControllerAccessory } from '../accessories/ControllerAccessory';
-import { STATUS_CHAR_UUID, PIN_CHAR_UUID, MANAGER_SERVICE_UUID } from './settings';
+import { STATUS_CHAR_UUID, PIN_CHAR_UUID, MANAGER_SERVICE_UUID, HAPFormat, HAPPerm } from './settings';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const packageJson = require('../../package.json');
 
@@ -79,8 +79,10 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
         static readonly UUID = STATUS_CHAR_UUID;
         constructor() {
             super('System Status', STATUS_CHAR_UUID, {
-                format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-                perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                format: HAPFormat.STRING as any,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
             });
             this.value = this.getDefaultValue();
         }
@@ -92,8 +94,10 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
         static readonly UUID = PIN_CHAR_UUID;
         constructor() {
             super('S2 PIN Entry', PIN_CHAR_UUID, {
-                format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-                perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                format: HAPFormat.STRING as any,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                perms: [HAPPerm.PAIRED_READ as any, HAPPerm.PAIRED_WRITE as any, HAPPerm.NOTIFY as any],
             });
             this.value = this.getDefaultValue();
         }
