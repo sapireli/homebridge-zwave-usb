@@ -58,8 +58,9 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     // Z-Wave JS logging configuration
     const logConfig = {
         enabled: true,
-        level: this.options.debug ? 'debug' : 'info',
+        level: this.options.debug ? 'debug' : 'warn',
         forceConsole: true,
+        showLogo: false,
     };
 
     const storagePath = this.options.storagePath || process.cwd();

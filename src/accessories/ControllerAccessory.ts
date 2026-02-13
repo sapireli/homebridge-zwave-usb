@@ -51,9 +51,9 @@ export class ControllerAccessory {
         this.platformAccessory.getService('Z-Wave Status') ||
         this.platformAccessory.addService(this.platform.Service.ServiceLabel, 'Z-Wave Status', 'status');
     
-    // Add Custom Characteristic for the text
+    // Add Custom Characteristic for the text (check if exists first)
     let statusChar = statusService.getCharacteristic(STATUS_CHAR_UUID);
-    if (!statusChar) {
+    if (!statusChar || !statusService.characteristics.some(c => c.UUID === STATUS_CHAR_UUID)) {
         statusChar = statusService.addCharacteristic(
             new this.platform.api.hap.Characteristic('System Status', STATUS_CHAR_UUID, {
                 format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -63,9 +63,9 @@ export class ControllerAccessory {
     }
     statusChar.updateValue('Driver Ready');
 
-    // Add Custom Characteristic for PIN input
+    // Add Custom Characteristic for PIN input (check if exists first)
     let pinChar = statusService.getCharacteristic(PIN_CHAR_UUID);
-    if (!pinChar) {
+    if (!pinChar || !statusService.characteristics.some(c => c.UUID === PIN_CHAR_UUID)) {
         pinChar = statusService.addCharacteristic(
             new this.platform.api.hap.Characteristic('S2 PIN Input', PIN_CHAR_UUID, {
                 format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
