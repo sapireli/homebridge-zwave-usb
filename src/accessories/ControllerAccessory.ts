@@ -4,6 +4,7 @@ import { IZWaveController } from '../zwave/interfaces';
 import { STATUS_CHAR_UUID, PIN_CHAR_UUID } from '../platform/settings';
 
 export class ControllerAccessory {
+  private managerService: Service;
   private inclusionService: Service;
   private exclusionService: Service;
   private healService: Service;
@@ -40,19 +41,25 @@ export class ControllerAccessory {
       this.platform.accessories.push(this.platformAccessory);
     }
 
-    // --- Accessory Information (Meta Z-Wave Controller) ---
-    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
-    
-    infoService
+    // Set accessory information
+    this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Aeotec / Z-Wave JS')
       .setCharacteristic(this.platform.Characteristic.Model, 'Z-Wave USB Controller')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, homeId.toString());
 
-    // Add Status and PIN to the Accessory Information service (The "Meta" part of the accessory)
-    let statusChar = infoService.getCharacteristic(STATUS_CHAR_UUID);
-    if (!statusChar || !infoService.characteristics.some(c => c.UUID === STATUS_CHAR_UUID)) {
-        this.platform.log.debug('Adding System Status characteristic to AccessoryInformation');
-        statusChar = infoService.addCharacteristic(
+    // --- 1. Z-Wave Manager Service ---
+    // We use a Switch service to host our custom characteristics.
+    // This ensures they are visible and writeable in 3rd party apps.
+    this.managerService = 
+        this.platformAccessory.getService('Z-Wave Manager') ||
+        this.platformAccessory.addService(this.platform.Service.Switch, 'Z-Wave Manager', 'manager');
+    
+    this.managerService.setCharacteristic(this.platform.Characteristic.Name, 'Z-Wave Manager');
+
+    // System Status Characteristic
+    let statusChar = this.managerService.getCharacteristic(STATUS_CHAR_UUID);
+    if (!statusChar || !this.managerService.characteristics.some(c => c.UUID === STATUS_CHAR_UUID)) {
+        statusChar = this.managerService.addCharacteristic(
             new this.platform.api.hap.Characteristic('System Status', STATUS_CHAR_UUID, {
                 format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
                 perms: ['pr' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -61,10 +68,10 @@ export class ControllerAccessory {
     }
     statusChar.updateValue('Driver Ready');
 
-    let pinChar = infoService.getCharacteristic(PIN_CHAR_UUID);
-    if (!pinChar || !infoService.characteristics.some(c => c.UUID === PIN_CHAR_UUID)) {
-        this.platform.log.debug('Adding S2 PIN Input characteristic to AccessoryInformation');
-        pinChar = infoService.addCharacteristic(
+    // S2 PIN Input Characteristic
+    let pinChar = this.managerService.getCharacteristic(PIN_CHAR_UUID);
+    if (!pinChar || !this.managerService.characteristics.some(c => c.UUID === PIN_CHAR_UUID)) {
+        pinChar = this.managerService.addCharacteristic(
             new this.platform.api.hap.Characteristic('S2 PIN Input', PIN_CHAR_UUID, {
                 format: 'string' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
                 perms: ['pr' as any, 'pw' as any, 'ev' as any], // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -76,21 +83,33 @@ export class ControllerAccessory {
     });
     pinChar.updateValue('');
 
-    // --- Inclusion Mode Service ---
+    // Manager Switch logic: Turning it ON does nothing, turning it OFF stops all active processes
+    this.managerService.getCharacteristic(this.platform.Characteristic.On)
+        .onGet(() => false)
+        .onSet(async (value: CharacteristicValue) => {
+            if (!value) {
+                this.platform.log.info('Manager: Stopping all active processes...');
+                await this.controller.stopInclusion();
+                await this.controller.stopExclusion();
+                await this.controller.stopHealing();
+            }
+        });
+
+    // --- 2. Inclusion Mode Service ---
     this.inclusionService =
       this.platformAccessory.getService('Inclusion Mode') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
 
     this.inclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Inclusion Mode');
 
-    // --- Exclusion Mode Service ---
+    // --- 3. Exclusion Mode Service ---
     this.exclusionService =
       this.platformAccessory.getService('Exclusion Mode') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
 
     this.exclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Exclusion Mode');
 
-    // --- Heal Network Service ---
+    // --- 4. Heal Network Service ---
     this.healService =
       this.platformAccessory.getService('Heal Network') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');

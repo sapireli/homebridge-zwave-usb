@@ -1,7 +1,7 @@
 {
   "name": "homebridge-zwave-usb",
   "displayName": "Homebridge Z-Wave USB",
-  "version": "1.7.7",
+  "version": "1.7.8",
   "description": "A Homebridge dynamic platform plugin for Z-Wave USB controllers using zwave-js.",
   "license": "MIT",
   "funding": {

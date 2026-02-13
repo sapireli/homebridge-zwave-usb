@@ -13,6 +13,8 @@ export interface ZWaveControllerOptions {
     S2_Unauthenticated?: string;
     S2_Authenticated?: string;
     S2_AccessControl?: string;
+    S2_Authenticated_LR?: string;
+    S2_AccessControl_LR?: string;
   };
 }
 
@@ -40,19 +42,33 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     super();
     
     const securityKeys: Record<string, Buffer> = {};
+    const securityKeysLongRange: Record<string, Buffer> = {};
+
     if (this.options.securityKeys) {
-      if (this.options.securityKeys.S0_Legacy && this.options.securityKeys.S0_Legacy.length === 32) {
-        securityKeys.S0_Legacy = Buffer.from(this.options.securityKeys.S0_Legacy, 'hex');
-      }
-      if (this.options.securityKeys.S2_Unauthenticated && this.options.securityKeys.S2_Unauthenticated.length === 32) {
-        securityKeys.S2_Unauthenticated = Buffer.from(this.options.securityKeys.S2_Unauthenticated, 'hex');
-      }
-      if (this.options.securityKeys.S2_Authenticated && this.options.securityKeys.S2_Authenticated.length === 32) {
-        securityKeys.S2_Authenticated = Buffer.from(this.options.securityKeys.S2_Authenticated, 'hex');
-      }
-      if (this.options.securityKeys.S2_AccessControl && this.options.securityKeys.S2_AccessControl.length === 32) {
-        securityKeys.S2_AccessControl = Buffer.from(this.options.securityKeys.S2_AccessControl, 'hex');
-      }
+      const keys = this.options.securityKeys;
+      
+      // Helper to parse key
+      const parse = (val: string | undefined) => (val && val.length === 32) ? Buffer.from(val, 'hex') : undefined;
+
+      // Classic Keys
+      const s0 = parse(keys.S0_Legacy);
+      if (s0) securityKeys.S0_Legacy = s0;
+      
+      const s2u = parse(keys.S2_Unauthenticated);
+      if (s2u) securityKeys.S2_Unauthenticated = s2u;
+      
+      const s2a = parse(keys.S2_Authenticated);
+      if (s2a) securityKeys.S2_Authenticated = s2a;
+      
+      const s2c = parse(keys.S2_AccessControl);
+      if (s2c) securityKeys.S2_AccessControl = s2c;
+
+      // Long Range Keys (Explicit or Fallback)
+      const s2a_lr = parse(keys.S2_Authenticated_LR) || s2a;
+      if (s2a_lr) securityKeysLongRange.S2_Authenticated = s2a_lr;
+
+      const s2c_lr = parse(keys.S2_AccessControl_LR) || s2c;
+      if (s2c_lr) securityKeysLongRange.S2_AccessControl = s2c_lr;
     }
 
     // Z-Wave JS logging configuration
@@ -67,6 +83,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
 
     this.driver = new Driver(this.serialPort, {
       securityKeys: Object.keys(securityKeys).length > 0 ? securityKeys : undefined,
+      securityKeysLongRange: Object.keys(securityKeysLongRange).length > 0 ? securityKeysLongRange : undefined,
       logConfig,
       storage: {
           cacheDir: path.join(storagePath, 'zwave-js-cache'),

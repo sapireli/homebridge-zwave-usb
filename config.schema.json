@@ -59,6 +59,22 @@
             "maxLength": 32,
             "pattern": "^[0-9a-fA-F]+$",
             "description": "16-byte hex string (32 characters)."
+          },
+          "S2_Authenticated_LR": {
+            "title": "S2 Authenticated (Long Range)",
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 32,
+            "pattern": "^[0-9a-fA-F]+$",
+            "description": "Optional: Specific key for Z-Wave Long Range. Falls back to S2 Authenticated if empty."
+          },
+          "S2_AccessControl_LR": {
+            "title": "S2 Access Control (Long Range)",
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 32,
+            "pattern": "^[0-9a-fA-F]+$",
+            "description": "Optional: Specific key for Z-Wave Long Range. Falls back to S2 Access Control if empty."
           }
         }
       },
@@ -88,7 +104,7 @@
       "type": "fieldset",
       "title": "Z-Wave Security Keys",
       "expandable": true,
-      "description": "Required for secure devices (Locks, Sensors). Use the 'Auto-Generate' button in settings UI.",
+      "description": "Required for secure devices (Locks, Sensors). Note: Your S2 Authenticated and Access Control keys are automatically used for Z-Wave Long Range as well. Use the 'Auto-Generate' button to create a set of secure keys.",
       "items": [
         "securityKeys.S0_Legacy",
         "securityKeys.S2_Unauthenticated",

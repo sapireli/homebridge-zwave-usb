@@ -42,6 +42,14 @@ export abstract class BaseFeature implements ZWaveFeature {
     const service = subType 
       ? new ServiceConstructor(serviceName, subType) 
       : new ServiceConstructor(serviceName);
-    return this.accessory.addService(service);
+    
+    const addedService = this.accessory.addService(service);
+    
+    // Explicitly set the name characteristic to ensure it's displayed correctly
+    if (addedService.setCharacteristic) {
+        addedService.setCharacteristic(this.platform.Characteristic.Name, serviceName);
+    }
+    
+    return addedService;
   }
 }

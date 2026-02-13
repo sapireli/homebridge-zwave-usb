@@ -45,3 +45,7 @@ All internal Z-Wave JS logs are redirected to the Homebridge logger.
 - **Jest**: Mocked Z-Wave JS driver with full `EventEmitter` support.
 - **Linting**: Strict `typescript-eslint` rules with zero-warning tolerance.
 - **CI**: GitHub Actions for every push (lint + test + build).
+
+## Release Management
+- **Versioning**: Follow SemVer.
+- **Changelog**: Maintain `CHANGELOG.md` with detailed notes for every release.

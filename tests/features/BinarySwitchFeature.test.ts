@@ -34,14 +34,30 @@ describe('BinarySwitchFeature', () => {
     accessory = {
       getService: jest.fn(),
       getServiceById: jest.fn(),
-      addService: jest.fn().mockReturnValue({
-        getCharacteristic: jest.fn().mockReturnValue({
-          on: jest.fn().mockReturnThis(),
-          onGet: jest.fn().mockReturnThis(),
-          onSet: jest.fn().mockReturnThis(),
-          updateValue: jest.fn(),
-        }),
-        updateCharacteristic: jest.fn(),
+      addService: jest.fn().mockImplementation((service) => {
+          if (typeof service === 'function') {
+              // Handle constructor case if needed
+              return {
+                  getCharacteristic: jest.fn().mockReturnValue({
+                    on: jest.fn().mockReturnThis(),
+                    onGet: jest.fn().mockReturnThis(),
+                    onSet: jest.fn().mockReturnThis(),
+                    updateValue: jest.fn(),
+                  }),
+                  setCharacteristic: jest.fn().mockReturnThis(),
+                  updateCharacteristic: jest.fn(),
+              };
+          }
+          // Handle instance case
+          service.setCharacteristic = jest.fn().mockReturnThis();
+          service.getCharacteristic = jest.fn().mockReturnValue({
+            on: jest.fn().mockReturnThis(),
+            onGet: jest.fn().mockReturnThis(),
+            onSet: jest.fn().mockReturnThis(),
+            updateValue: jest.fn(),
+          });
+          service.updateCharacteristic = jest.fn().mockReturnThis();
+          return service;
       }),
     };
 

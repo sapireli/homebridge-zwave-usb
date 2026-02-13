@@ -4,6 +4,8 @@ import { IZWaveController, IZWaveNode } from '../zwave/interfaces';
 import { ZWaveAccessory } from '../accessories/ZWaveAccessory';
 import { AccessoryFactory } from '../accessories/AccessoryFactory';
 import { ControllerAccessory } from '../accessories/ControllerAccessory';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const packageJson = require('../../package.json');
 
 export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
@@ -21,6 +23,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     this.Service = this.api.hap.Service;
     this.Characteristic = this.api.hap.Characteristic;
 
+    this.log.info(`Initializing Homebridge Z-Wave USB v${packageJson.version}`);
     this.log.debug('Finished initializing platform:', this.config.name);
 
     if (!this.config.serialPort) {
@@ -120,8 +123,8 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     this.log.info(`Node ${node.nodeId} ready`);
 
     // Skip Node 1 (the controller itself) as it's handled by ControllerAccessory
-    if (node.nodeId === 1) {
-      this.log.debug('Skipping accessory creation for Node 1 (Controller)');
+    if (Number(node.nodeId) === 1) {
+      this.log.info('System: Controller node (Node 1) identified. Skipping generic accessory creation.');
       return;
     }
 

@@ -45,8 +45,9 @@ This plugin supports Security 2 (S2) without requiring an external UI. If a devi
 ### Option 1: HomeKit App (Easiest)
 1.  Open a third-party HomeKit app (like **Controller for HomeKit**, **Eve**, or **Home+**).
 2.  Navigate to the **"Z-Wave Controller"** accessory.
-3.  You will see a field named **"S2 PIN Input"**.
-4.  Enter the 5-digit PIN and save. The plugin will complete the pairing immediately.
+3.  Find the **"Z-Wave Manager"** service.
+4.  You will see a field named **"S2 PIN Input"**.
+5.  Enter the 5-digit PIN and save. The plugin will complete the pairing immediately.
 
 ### Option 2: Terminal
 1.  Watch the **Homebridge Logs**.
@@ -81,10 +82,12 @@ This plugin supports Security 2 (S2) without requiring an external UI. If a devi
 
 ## 🎮 Z-Wave Controller Accessory
 
-A special accessory is added to HomeKit with these controls:
-*   **Inclusion Mode:** Turn ON to pair a new device (3-minute window for PIN entry).
-*   **Exclusion Mode:** Turn ON to unpair/remove a device.
-*   **Heal Network:** Turn ON to rebuild mesh routes.
+A special accessory is added to HomeKit with these components:
+*   **Z-Wave Manager**: A dedicated service for monitoring **System Status** and entering **S2 PINs**.
+    *   *Tip*: Turning this switch **OFF** acts as a "Panic Button" to stop all active Z-Wave processes (Inclusion, Exclusion, Healing).
+*   **Inclusion Mode**: Turn ON to pair a new device (3-minute window for PIN entry).
+*   **Exclusion Mode**: Turn ON to unpair/remove a device.
+*   **Heal Network**: Turn ON to rebuild mesh routes.
 
 ## 💖 Support
 

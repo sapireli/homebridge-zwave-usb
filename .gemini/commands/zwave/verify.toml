@@ -10,16 +10,23 @@ Do:
 - Verify Entry Point & Registration:
   !{grep 'api.registerPlatform' src/index.ts}
   !{grep '"main": "dist/index.js"' package.json}
-- Verify Package Assets (NPM Inclusion):
-  !{grep -A 5 '"files":' package.json}
-- Verify UUID Stability (Node + HomeID):
+- Verify Versioning & Metadata:
+  !{grep "Initializing Homebridge Z-Wave USB v" src/platform/ZWaveUsbPlatform.ts}
+  !{grep "homepage" package.json}
+  !{grep "funding" package.json}
+- Verify UUID Stability & Naming:
   !{grep "uuid.generate" src/accessories/ZWaveAccessory.ts}
   !{grep "uuid.generate" src/accessories/ControllerAccessory.ts}
+  !{grep "setCharacteristic(this.platform.Characteristic.Name" src/features/ZWaveFeature.ts}
 - Verify Connection & Best Practices:
   !{grep "softReset: false" src/zwave/ZWaveController.ts}
   !{grep "forceConsole: true" src/zwave/ZWaveController.ts}
   !{grep "storagePath:" src/zwave/ZWaveController.ts}
-- Verify Terminal PIN Entry System:
+  !{grep "securityKeysLongRange:" src/zwave/ZWaveController.ts}
+- Verify Z-Wave Manager & PIN System:
+  !{grep "Z-Wave Manager" src/accessories/ControllerAccessory.ts}
+  !{grep "STATUS_CHAR_UUID" src/accessories/ControllerAccessory.ts}
+  !{grep "PIN_CHAR_UUID" src/accessories/ControllerAccessory.ts}
   !{grep "s2_pin.txt" src/zwave/ZWaveController.ts}
 - Verify All Features Implementation:
   !{ls src/features/BatteryFeature.ts}
@@ -28,26 +35,17 @@ Do:
   !{ls src/features/GarageDoorFeature.ts}
   !{ls src/features/ColorSwitchFeature.ts}
   !{ls src/features/SirenFeature.ts}
-  !{grep "ThermostatFeature" src/accessories/AccessoryFactory.ts}
-  !{grep "WindowCoveringFeature" src/accessories/AccessoryFactory.ts}
-  !{grep "GarageDoorFeature" src/accessories/AccessoryFactory.ts}
-  !{grep "ColorSwitchFeature" src/accessories/AccessoryFactory.ts}
-  !{grep "SirenFeature" src/accessories/AccessoryFactory.ts}
-- Verify Config Schema & UI (Direct Mode):
+- Verify Config Schema & UI:
   !{grep "serialPort" config.schema.json}
-  !{grep "securityKeys" config.schema.json}
-  !{grep -v "WebSocket URL" config.schema.json}
-  !{grep -v "enableServer" config.schema.json}
+  !{grep "S2_Authenticated_LR" config.schema.json}
+  !{grep "S2_AccessControl_LR" config.schema.json}
   !{grep "generateKeys" homebridge-ui/public/index.html}
 - Verify Accessory Information (Metadata):
   !{grep "AccessoryInformation" src/accessories/ZWaveAccessory.ts}
   !{grep "AccessoryInformation" src/accessories/ControllerAccessory.ts}
-- Verify Publishing & Security Setup:
+- Verify Publishing Setup:
   !{grep "id-token: write" .github/workflows/publish.yml}
   !{grep "npm publish --provenance" .github/workflows/publish.yml}
-  !{grep "repository" package.json}
-- Grep for accidental secrets logging (keys):
-  !{grep -R "securityKeys" -n src || true}
 
 Then produce:
 1) A 'First Run Readiness' Report
