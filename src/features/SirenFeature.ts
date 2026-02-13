@@ -1,4 +1,5 @@
 import { Service, CharacteristicValue } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 
 export class SirenFeature extends BaseFeature {
@@ -21,10 +22,10 @@ export class SirenFeature extends BaseFeature {
   }
 
   private handleGetState(): boolean {
-    // CC 121 (Sound Switch) - Tone Identifier
+    // CommandClasses['Sound Switch'] - Tone Identifier
     // 0 = Off, >0 = On (Playing a tone)
     const val = this.node.getValue({
-        commandClass: 121,
+        commandClass: CommandClasses['Sound Switch'],
         property: 'toneId',
         endpoint: this.endpoint.index
     });
@@ -34,7 +35,7 @@ export class SirenFeature extends BaseFeature {
     }
     // Fallback: Binary Switch (some sirens use this)
     // Handled by BinarySwitchFeature usually, but if this feature is forced:
-    const binVal = this.node.getValue({ commandClass: 37, property: 'currentValue', endpoint: this.endpoint.index });
+    const binVal = this.node.getValue({ commandClass: CommandClasses['Binary Switch'], property: 'currentValue', endpoint: this.endpoint.index });
     return !!binVal;
   }
 
@@ -43,7 +44,7 @@ export class SirenFeature extends BaseFeature {
 
     try {
         await this.node.setValue(
-            { commandClass: 121, property: 'toneId', endpoint: this.endpoint.index },
+            { commandClass: CommandClasses['Sound Switch'], property: 'toneId', endpoint: this.endpoint.index },
             on ? 255 : 0 // 255 = Default Tone
         );
     } catch (err) {

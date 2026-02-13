@@ -1,4 +1,5 @@
 import { Service, CharacteristicValue } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 
 export class ColorSwitchFeature extends BaseFeature {
@@ -29,17 +30,17 @@ export class ColorSwitchFeature extends BaseFeature {
   }
 
   private handleGetHue(): number {
-    // CC 51 (Color Switch)
+    // CommandClasses['Color Switch']
     // currentColor: { red: 0, green: 0, blue: 0, warmWhite: 0 ... }
     // We need to convert RGB to HSL
     const color = this.node.getValue({
-        commandClass: 51,
+        commandClass: CommandClasses['Color Switch'],
         property: 'currentColor',
         endpoint: this.endpoint.index
     });
 
     if (color && typeof color === 'object') {
-        const { r, g, b } = this.zwaveColorToRgb(color);
+        const { r, g, b } = this.zwaveColorToRgb(color as Record<string, number>);
         const [h, ,] = this.rgbToHsl(r, g, b);
         return h;
     }
@@ -48,20 +49,20 @@ export class ColorSwitchFeature extends BaseFeature {
 
   private handleGetSaturation(): number {
     const color = this.node.getValue({
-        commandClass: 51,
+        commandClass: CommandClasses['Color Switch'],
         property: 'currentColor',
         endpoint: this.endpoint.index
     });
 
     if (color && typeof color === 'object') {
-        const { r, g, b } = this.zwaveColorToRgb(color);
+        const { r, g, b } = this.zwaveColorToRgb(color as Record<string, number>);
         const [, s,] = this.rgbToHsl(r, g, b);
         return s;
     }
     return 0;
   }
 
-  private zwaveColorToRgb(color: any): { r: number, g: number, b: number } { // eslint-disable-line @typescript-eslint/no-explicit-any
+  private zwaveColorToRgb(color: Record<string, number>): { r: number, g: number, b: number } {
       // Z-Wave JS returns a dict like { red: 255, green: 0, blue: 0 }
       return {
           r: color.red || 0,
@@ -84,7 +85,7 @@ export class ColorSwitchFeature extends BaseFeature {
       
       try {
           await this.node.setValue(
-              { commandClass: 51, property: 'targetColor', endpoint: this.endpoint.index },
+              { commandClass: CommandClasses['Color Switch'], property: 'targetColor', endpoint: this.endpoint.index },
               { red: r, green: g, blue: b }
           );
       } catch (err) {

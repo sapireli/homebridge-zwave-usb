@@ -13,11 +13,8 @@ export abstract class BaseFeature implements ZWaveFeature {
     protected readonly platform: ZWaveUsbPlatform,
     protected readonly accessory: PlatformAccessory,
     protected readonly endpoint: Endpoint,
+    protected readonly node: IZWaveNode,
   ) {}
-
-  protected get node(): IZWaveNode {
-    return (this.endpoint as unknown as { node: IZWaveNode }).node || (this.endpoint as unknown as IZWaveNode);
-  }
 
   abstract init(): void;
   abstract update(): void;
@@ -45,9 +42,10 @@ export abstract class BaseFeature implements ZWaveFeature {
     
     const addedService = this.accessory.addService(service);
     
-    // Explicitly set the name characteristic to ensure it's displayed correctly
+    // Explicitly set the name and configured name characteristics to ensure it's displayed correctly
     if (addedService.setCharacteristic) {
         addedService.setCharacteristic(this.platform.Characteristic.Name, serviceName);
+        addedService.setCharacteristic(this.platform.Characteristic.ConfiguredName, serviceName);
     }
     
     return addedService;

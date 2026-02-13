@@ -1,4 +1,5 @@
 import { Service, CharacteristicValue } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 
 export class ThermostatFeature extends BaseFeature {
@@ -40,9 +41,9 @@ export class ThermostatFeature extends BaseFeature {
 
   private updateCurrentState() {
     // We infer current state from the mode or operating state if available
-    // CC 66 (Thermostat Operating State) is best, but CC 64 (Mode) is acceptable fallback
+    // CommandClasses['Thermostat Operating State'] is best, but CommandClasses['Thermostat Mode'] is acceptable fallback
     const opState = this.node.getValue({
-      commandClass: 66,
+      commandClass: CommandClasses['Thermostat Operating State'],
       property: 'state',
       endpoint: this.endpoint.index,
     });
@@ -64,7 +65,7 @@ export class ThermostatFeature extends BaseFeature {
 
   private handleGetCurrentState(): number {
     // Similar logic to updateCurrentState but sync return
-    const opState = this.node.getValue({ commandClass: 66, property: 'state', endpoint: this.endpoint.index });
+    const opState = this.node.getValue({ commandClass: CommandClasses['Thermostat Operating State'], property: 'state', endpoint: this.endpoint.index });
     if (typeof opState === 'number') {
         if (opState === 1) return this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
         if (opState === 2) return this.platform.Characteristic.CurrentHeatingCoolingState.COOL;
@@ -79,7 +80,7 @@ export class ThermostatFeature extends BaseFeature {
 
   private handleGetTargetState(): number {
     const mode = this.node.getValue({
-      commandClass: 64,
+      commandClass: CommandClasses['Thermostat Mode'],
       property: 'mode',
       endpoint: this.endpoint.index,
     });
@@ -103,7 +104,7 @@ export class ThermostatFeature extends BaseFeature {
 
     try {
       await this.node.setValue(
-        { commandClass: 64, property: 'mode', endpoint: this.endpoint.index },
+        { commandClass: CommandClasses['Thermostat Mode'], property: 'mode', endpoint: this.endpoint.index },
         zwaveMode
       );
     } catch (err) {
@@ -118,14 +119,14 @@ export class ThermostatFeature extends BaseFeature {
 
   private handleGetCurrentTemp(): number {
     const val = this.node.getValue({
-      commandClass: 49,
+      commandClass: CommandClasses['Multilevel Sensor'],
       property: 'Air temperature',
       endpoint: this.endpoint.index,
     });
 
     if (typeof val === 'number') {
        // Check metadata for conversion
-       const meta = this.node.getValueMetadata({ commandClass: 49, property: 'Air temperature', endpoint: this.endpoint.index });
+       const meta = this.node.getValueMetadata({ commandClass: CommandClasses['Multilevel Sensor'], property: 'Air temperature', endpoint: this.endpoint.index });
        if (meta && (meta as { unit?: string }).unit === '°F') {
          return (val - 32) * 5 / 9;
        }
@@ -146,7 +147,7 @@ export class ThermostatFeature extends BaseFeature {
     if (mode === this.platform.Characteristic.TargetHeatingCoolingState.COOL) setpointType = 2;
 
     const val = this.node.getValue({
-        commandClass: 67,
+        commandClass: CommandClasses['Thermostat Setpoint'],
         property: 'setpoint',
         propertyKey: setpointType,
         endpoint: this.endpoint.index,
@@ -154,7 +155,7 @@ export class ThermostatFeature extends BaseFeature {
 
     if (typeof val === 'number') {
         const meta = this.node.getValueMetadata({ 
-            commandClass: 67, 
+            commandClass: CommandClasses['Thermostat Setpoint'], 
             property: 'setpoint', 
             propertyKey: setpointType, 
             endpoint: this.endpoint.index 
@@ -177,7 +178,7 @@ export class ThermostatFeature extends BaseFeature {
 
     // Check unit to see if we need to convert back to F for the device
     const meta = this.node.getValueMetadata({ 
-        commandClass: 67, 
+        commandClass: CommandClasses['Thermostat Setpoint'], 
         property: 'setpoint', 
         propertyKey: setpointType, 
         endpoint: this.endpoint.index 
@@ -190,7 +191,7 @@ export class ThermostatFeature extends BaseFeature {
 
     try {
         await this.node.setValue(
-            { commandClass: 67, property: 'setpoint', propertyKey: setpointType, endpoint: this.endpoint.index },
+            { commandClass: CommandClasses['Thermostat Setpoint'], property: 'setpoint', propertyKey: setpointType, endpoint: this.endpoint.index },
             targetVal
         );
     } catch (err) {
@@ -201,7 +202,7 @@ export class ThermostatFeature extends BaseFeature {
   private handleGetDisplayUnits(): number {
       // 0 = Celsius, 1 = Fahrenheit
       // Check metadata of air temp
-      const meta = this.node.getValueMetadata({ commandClass: 49, property: 'Air temperature', endpoint: this.endpoint.index });
+      const meta = this.node.getValueMetadata({ commandClass: CommandClasses['Multilevel Sensor'], property: 'Air temperature', endpoint: this.endpoint.index });
       if (meta && (meta as { unit?: string }).unit === '°F') {
           return this.platform.Characteristic.TemperatureDisplayUnits.FAHRENHEIT;
       }

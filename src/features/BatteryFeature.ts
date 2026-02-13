@@ -1,4 +1,5 @@
 import { Service } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 
 export class BatteryFeature extends BaseFeature {
@@ -19,7 +20,7 @@ export class BatteryFeature extends BaseFeature {
 
   update(): void {
     const value = this.node.getValue({
-      commandClass: 128,
+      commandClass: CommandClasses.Battery,
       property: 'level',
       endpoint: this.endpoint.index,
     });
@@ -35,7 +36,7 @@ export class BatteryFeature extends BaseFeature {
 
   private getBatteryLevel(): number {
     const value = this.node.getValue({
-      commandClass: 128, // Battery CC
+      commandClass: CommandClasses.Battery,
       property: 'level',
       endpoint: this.endpoint.index,
     });
@@ -44,7 +45,7 @@ export class BatteryFeature extends BaseFeature {
 
   private getStatusLowBattery(): number {
     const value = this.node.getValue({
-      commandClass: 128,
+      commandClass: CommandClasses.Battery,
       property: 'isLow',
       endpoint: this.endpoint.index,
     });
@@ -56,7 +57,7 @@ export class BatteryFeature extends BaseFeature {
     const level = this.getBatteryLevel();
     // Default to normal if level is 0 (could be unknown) or > 15
     if (level === 0) {
-        const rawValue = this.node.getValue({ commandClass: 128, property: 'level', endpoint: this.endpoint.index });
+        const rawValue = this.node.getValue({ commandClass: CommandClasses.Battery, property: 'level', endpoint: this.endpoint.index });
         if (typeof rawValue !== 'number') {
             return this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
         }

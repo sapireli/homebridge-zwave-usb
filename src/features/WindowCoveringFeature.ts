@@ -1,4 +1,5 @@
 import { Service, CharacteristicValue } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 
 export class WindowCoveringFeature extends BaseFeature {
@@ -32,15 +33,15 @@ export class WindowCoveringFeature extends BaseFeature {
 
   private handleGetCurrentPosition(): number {
     // 0 = Closed, 99 = Open.
-    // Use CC 38 (Multilevel Switch) as generic cover, or CC 106
+    // Use CommandClasses['Multilevel Switch'] as generic cover, or CommandClasses['Window Covering']
     const val = this.node.getValue({
-        commandClass: 38,
+        commandClass: CommandClasses['Multilevel Switch'],
         property: 'currentValue',
         endpoint: this.endpoint.index
     });
 
     if (val === undefined) {
-       // Try CC 106?
+       // Try CommandClasses['Window Covering']?
        // Not common in JS yet, usually mapped to Multilevel
     }
 
@@ -53,7 +54,7 @@ export class WindowCoveringFeature extends BaseFeature {
 
   private handleGetTargetPosition(): number {
     const val = this.node.getValue({
-        commandClass: 38,
+        commandClass: CommandClasses['Multilevel Switch'],
         property: 'targetValue',
         endpoint: this.endpoint.index
     });
@@ -73,7 +74,7 @@ export class WindowCoveringFeature extends BaseFeature {
 
     try {
         await this.node.setValue(
-            { commandClass: 38, property: 'targetValue', endpoint: this.endpoint.index },
+            { commandClass: CommandClasses['Multilevel Switch'], property: 'targetValue', endpoint: this.endpoint.index },
             zwaveVal
         );
     } catch (err) {

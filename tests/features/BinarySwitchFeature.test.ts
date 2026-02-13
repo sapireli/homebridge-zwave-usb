@@ -1,5 +1,6 @@
-import { API, HAP, PlatformConfig, Service, Characteristic } from 'homebridge';
-import { ZWaveNode, ValueID, Endpoint } from 'zwave-js';
+import { API, HAP, PlatformConfig } from 'homebridge';
+import { ZWaveNode, Endpoint } from 'zwave-js';
+import { CommandClasses } from '@zwave-js/core';
 import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
 import { BinarySwitchFeature } from '../../src/features/BinarySwitchFeature';
 import { PLATFORM_NAME } from '../../src/platform/settings';
@@ -105,7 +106,7 @@ describe('BinarySwitchFeature', () => {
     // Fix: make sure node returns the endpoint if asked (though not strictly needed if we pass endpoint directly)
     (node as any).getAllEndpoints = jest.fn().mockReturnValue([endpoint]);
 
-    feature = new BinarySwitchFeature(platform, accessory, endpoint);
+    feature = new BinarySwitchFeature(platform, accessory, endpoint, node);
   });
 
   it('should initialize service', () => {
@@ -119,7 +120,7 @@ describe('BinarySwitchFeature', () => {
     feature.init();
     feature.update();
     expect(node.getValue).toHaveBeenCalledWith({
-      commandClass: 37,
+      commandClass: CommandClasses['Binary Switch'],
       property: 'currentValue',
       endpoint: 0,
     });

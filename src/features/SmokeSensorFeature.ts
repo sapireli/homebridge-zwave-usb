@@ -1,4 +1,5 @@
 import { Service } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 
 export class SmokeSensorFeature extends BaseFeature {
@@ -19,13 +20,13 @@ export class SmokeSensorFeature extends BaseFeature {
 
   private getSensorValue(): number {
     // 1. Check Notification CC (Smoke Alarm)
-    if (this.node.supportsCC(113)) {
+    if (this.node.supportsCC(CommandClasses.Notification)) {
         const val = this.node.getValue({
-            commandClass: 113,
+            commandClass: CommandClasses.Notification,
             property: 'Smoke Alarm',
             endpoint: this.endpoint.index,
         }) ?? this.node.getValue({
-            commandClass: 113,
+            commandClass: CommandClasses.Notification,
             property: 'Smoke Alarm',
             propertyKey: 'Sensor status',
             endpoint: this.endpoint.index,
@@ -40,9 +41,9 @@ export class SmokeSensorFeature extends BaseFeature {
     }
 
     // 2. Fallback to Binary Sensor
-    if (this.node.supportsCC(48)) { 
+    if (this.node.supportsCC(CommandClasses['Binary Sensor'])) { 
        const value = this.node.getValue({
-        commandClass: 48,
+        commandClass: CommandClasses['Binary Sensor'],
         property: 'Smoke', 
         endpoint: this.endpoint.index,
       });

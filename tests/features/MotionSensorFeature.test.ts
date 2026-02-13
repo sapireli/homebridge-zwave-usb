@@ -1,5 +1,6 @@
 import { API, HAP, PlatformConfig } from 'homebridge';
 import { ZWaveNode, Endpoint } from 'zwave-js';
+import { CommandClasses } from '@zwave-js/core';
 import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
 import { MotionSensorFeature } from '../../src/features/MotionSensorFeature';
 import { PLATFORM_NAME } from '../../src/platform/settings';
@@ -66,7 +67,7 @@ describe('MotionSensorFeature', () => {
     platform = new ZWaveUsbPlatform(log, config, api);
 
     node = {
-      nodeId: 3,
+      nodeId: 5,
       supportsCC: jest.fn(),
       getValue: jest.fn(),
     } as any;
@@ -76,7 +77,7 @@ describe('MotionSensorFeature', () => {
       node: node,
     } as any;
     
-    feature = new MotionSensorFeature(platform, accessory, endpoint);
+    feature = new MotionSensorFeature(platform, accessory, endpoint, node);
   });
 
   it('should initialize MotionSensor service', () => {
@@ -86,41 +87,36 @@ describe('MotionSensorFeature', () => {
 
   it('should detect motion via Notification CC (Home Security - 8)', () => {
     feature.init();
-    node.supportsCC.mockImplementation((cc) => cc === 113);
-    node.getValue.mockImplementation((args) => {
-        if (args.commandClass === 113 && args.propertyKey === 'Motion sensor status') {
-            return 8; // Motion
-        }
-        return undefined;
-    });
-
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
+    node.getValue.mockReturnValue(8);
     feature.update();
     expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.MotionDetected, true);
+    expect(node.getValue).toHaveBeenCalledWith({
+        commandClass: CommandClasses.Notification,
+        property: 'Home Security',
+        propertyKey: 'Motion sensor status',
+        endpoint: 0
+    });
   });
 
   it('should detect NO motion via Notification CC', () => {
     feature.init();
-    node.supportsCC.mockImplementation((cc) => cc === 113);
-    node.getValue.mockImplementation((args) => {
-        if (args.commandClass === 113 && args.propertyKey === 'Motion sensor status') {
-            return 0; // Idle
-        }
-        return undefined;
-    });
-
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
+    node.getValue.mockReturnValue(0);
     feature.update();
     expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.MotionDetected, false);
   });
 
   it('should fallback to Binary Sensor CC (48) - True (Motion)', () => {
     feature.init();
-    node.supportsCC.mockImplementation((cc) => cc === 48);
-    node.getValue.mockImplementation((args) => {
-        if (args.commandClass === 48) return true;
-        return undefined;
-    });
-
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses['Binary Sensor']);
+    node.getValue.mockReturnValue(true);
     feature.update();
     expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.MotionDetected, true);
+    expect(node.getValue).toHaveBeenCalledWith({
+        commandClass: CommandClasses['Binary Sensor'],
+        property: 'Motion',
+        endpoint: 0
+    });
   });
 });

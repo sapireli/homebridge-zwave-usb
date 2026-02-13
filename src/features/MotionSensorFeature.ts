@@ -1,4 +1,5 @@
 import { Service } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 
 export class MotionSensorFeature extends BaseFeature {
@@ -19,19 +20,19 @@ export class MotionSensorFeature extends BaseFeature {
 
   private getSensorValue(): boolean {
     // 1. Check Notification CC (Home Security - Motion)
-    if (this.node.supportsCC(113)) {
+    if (this.node.supportsCC(CommandClasses.Notification)) {
         const val = this.node.getValue({
-            commandClass: 113,
+            commandClass: CommandClasses.Notification,
             property: 'Home Security',
             propertyKey: 'Motion sensor status',
             endpoint: this.endpoint.index,
         }) ?? this.node.getValue({
-            commandClass: 113,
+            commandClass: CommandClasses.Notification,
             property: 'Home Security',
             propertyKey: 'Sensor status',
             endpoint: this.endpoint.index,
         }) ?? this.node.getValue({
-            commandClass: 113,
+            commandClass: CommandClasses.Notification,
             property: 'Home Security',
             endpoint: this.endpoint.index,
         });
@@ -42,13 +43,13 @@ export class MotionSensorFeature extends BaseFeature {
     }
 
     // 2. Fallback to Binary Sensor
-    if (this.node.supportsCC(48)) { 
+    if (this.node.supportsCC(CommandClasses['Binary Sensor'])) { 
        const value = this.node.getValue({
-        commandClass: 48,
+        commandClass: CommandClasses['Binary Sensor'],
         property: 'Motion',
         endpoint: this.endpoint.index,
       }) ?? this.node.getValue({
-        commandClass: 48,
+        commandClass: CommandClasses['Binary Sensor'],
         property: 'Any', 
         endpoint: this.endpoint.index,
       });

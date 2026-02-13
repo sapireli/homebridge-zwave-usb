@@ -50,14 +50,26 @@ export class ControllerAccessory {
       .setCharacteristic(this.platform.Characteristic.SerialNumber, homeId.toString());
 
     // --- 1. System Status Service (Custom Service) ---
-    // Using the formally registered ZWaveManager service class
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.statusService = 
-        this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.platformAccessory.addService(new (this.platform.Service as any).ZWaveManager('System Status', 'Status'));
+    // Cleanup any duplicates or obsolete services first
+    const managerUuids = [MANAGER_SERVICE_UUID, OBSOLETE_MANAGER_SERVICE_UUID];
+    const existingManagerServices = this.platformAccessory.services.filter(s => managerUuids.includes(s.UUID));
+    if (existingManagerServices.length > 0) {
+        // Keep the first one only if it matches the current UUID, otherwise remove all and create fresh
+        const currentService = existingManagerServices.find(s => s.UUID === MANAGER_SERVICE_UUID);
+        existingManagerServices.forEach(s => {
+            if (s !== currentService) {
+                this.platform.log.info(`Cleaning up duplicate or obsolete manager service: ${s.displayName} (${s.UUID})`);
+                this.platformAccessory.removeService(s);
+            }
+        });
+    }
+
+    this.statusService = this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        this.platformAccessory.addService(new (this.platform.Service as any).ZWaveManager('System Status', 'Status'));
     
     this.statusService.setCharacteristic(this.platform.Characteristic.Name, 'System Status');
+    this.statusService.setCharacteristic(this.platform.Characteristic.ConfiguredName, 'System Status');
 
     // System Status Characteristic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,6 +98,7 @@ export class ControllerAccessory {
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
 
     this.inclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Inclusion Mode');
+    this.inclusionService.setCharacteristic(this.platform.Characteristic.ConfiguredName, 'Inclusion Mode');
 
     // --- 3. Exclusion Mode Switch ---
     this.exclusionService =
@@ -93,6 +106,7 @@ export class ControllerAccessory {
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
 
     this.exclusionService.setCharacteristic(this.platform.Characteristic.Name, 'Exclusion Mode');
+    this.exclusionService.setCharacteristic(this.platform.Characteristic.ConfiguredName, 'Exclusion Mode');
 
     // --- 4. Heal Network Switch ---
     this.healService =
@@ -100,6 +114,7 @@ export class ControllerAccessory {
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
 
     this.healService.setCharacteristic(this.platform.Characteristic.Name, 'Heal Network');
+    this.healService.setCharacteristic(this.platform.Characteristic.ConfiguredName, 'Heal Network');
 
     // Setup Switch characteristic Handlers
     [this.inclusionService, this.exclusionService, this.healService].forEach(service => {

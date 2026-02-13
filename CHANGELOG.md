@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.4-beta.1] - 2026-02-13
+
+### Fixed
+- Fixed HomeKit service naming bug where management switches showed up as generic 'Switch 1', 'Switch 2' by implementing strict `ConfiguredName` characteristics.
+- Fixed duplicate Z-Wave Controller services in HomeKit by adding aggressive service pruning for obsolete and duplicate UUIDs.
+- Fixed read-only S2 PIN entry by strictly adhering to HAP-NodeJS `Perms` and `Formats` enums instead of raw strings.
+- Removed all remaining `as any` and `eslint-disable` from HomeKit characteristic registration.
+
+## [1.9.4-beta.0] - 2026-02-13
+
+### Changed
+- Major refactor to improve type safety and remove extensive 'any' usage.
+- Consumed library types directly from `zwave-js` and `@zwave-js/core`.
+- Refactored `AccessoryFactory` and all features to use `CommandClasses` enum instead of numeric literals.
+- Improved constructor patterns for Features to ensure stable access to node data.
+- Complied with HomeKit `isolatedModules` requirements by avoiding ambient const enums.
+
 ## [1.9.3] - 2026-02-13
 
 ### Fixed

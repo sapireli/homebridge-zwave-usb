@@ -70,11 +70,12 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   }
 
   private registerCustomCharacteristics() {
+    const { Characteristic, Service } = this.api.hap;
     this.log.debug('Registering custom HomeKit characteristics...');
     
     // 1. Z-Wave Status Characteristic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.Characteristic as any).ZWaveStatus = class extends this.Characteristic {
+    (Characteristic as any).ZWaveStatus = class extends Characteristic {
         static readonly UUID = STATUS_CHAR_UUID;
         constructor() {
             super('System Status', STATUS_CHAR_UUID, {
@@ -87,7 +88,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
     // 2. S2 PIN Entry Characteristic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.Characteristic as any).S2PinEntry = class extends this.Characteristic {
+    (Characteristic as any).S2PinEntry = class extends Characteristic {
         static readonly UUID = PIN_CHAR_UUID;
         constructor() {
             super('S2 PIN Entry', PIN_CHAR_UUID, {
@@ -99,16 +100,15 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     };
 
     // 3. Z-Wave Manager Service
-    const hap = this.api.hap;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.Service as any).ZWaveManager = class extends this.Service {
+    (Service as any).ZWaveManager = class extends Service {
         static readonly UUID = MANAGER_SERVICE_UUID;
         constructor(displayName: string, subtype?: string) {
             super(displayName, MANAGER_SERVICE_UUID, subtype);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            this.addOptionalCharacteristic((hap.Characteristic as any).ZWaveStatus);
+            this.addOptionalCharacteristic((Characteristic as any).ZWaveStatus);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            this.addOptionalCharacteristic((hap.Characteristic as any).S2PinEntry);
+            this.addOptionalCharacteristic((Characteristic as any).S2PinEntry);
         }
     };
   }

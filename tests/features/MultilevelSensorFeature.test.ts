@@ -1,5 +1,6 @@
 import { API, HAP, PlatformConfig } from 'homebridge';
 import { ZWaveNode, Endpoint } from 'zwave-js';
+import { CommandClasses } from '@zwave-js/core';
 import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
 import { MultilevelSensorFeature } from '../../src/features/MultilevelSensorFeature';
 import { PLATFORM_NAME } from '../../src/platform/settings';
@@ -29,11 +30,19 @@ describe('MultilevelSensorFeature', () => {
         TemperatureSensor: jest.fn(),
         HumiditySensor: jest.fn(),
         LightSensor: jest.fn(),
+        AirQualitySensor: jest.fn(),
       } as any,
       Characteristic: {
         CurrentTemperature: 'CurrentTemperature',
         CurrentRelativeHumidity: 'CurrentRelativeHumidity',
         CurrentAmbientLightLevel: 'CurrentAmbientLightLevel',
+        AirQuality: {
+            EXCELLENT: 1,
+            POOR: 5,
+        },
+        CarbonDioxideLevel: 'CarbonDioxideLevel',
+        VOCDensity: 'VOCDensity',
+        PM2_5Density: 'PM2_5Density',
       } as any,
       uuid: {
         generate: jest.fn().mockReturnValue('test-uuid'),
@@ -51,6 +60,9 @@ describe('MultilevelSensorFeature', () => {
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
       on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      user: {
+        storagePath: jest.fn().mockReturnValue('/tmp'),
+      },
       platformAccessory: jest.fn().mockImplementation(() => accessory),
     } as any;
 
@@ -71,8 +83,9 @@ describe('MultilevelSensorFeature', () => {
 
     node = {
       nodeId: 6,
-      getDefinedValueIDs: jest.fn(),
+      supportsCC: jest.fn(),
       getValue: jest.fn(),
+      getDefinedValueIDs: jest.fn().mockReturnValue([]),
       getValueMetadata: jest.fn(),
     } as any;
 
@@ -81,87 +94,55 @@ describe('MultilevelSensorFeature', () => {
       node: node,
     } as any;
     
-    feature = new MultilevelSensorFeature(platform, accessory, endpoint);
-  });
-
-  afterEach(async () => {
-    // Trigger shutdown to clean up any listeners/handles
-    const shutdownListeners = (api.on as jest.Mock).mock.calls
-      .filter(call => call[0] === 'shutdown')
-      .map(call => call[1]);
-    
-    for (const listener of shutdownListeners) {
-      await listener();
-    }
+    feature = new MultilevelSensorFeature(platform, accessory, endpoint, node);
   });
 
   it('should initialize Temperature Sensor', () => {
-    node.getDefinedValueIDs.mockReturnValue([
-        { commandClass: 49, property: 'Air temperature', endpoint: 0 }
-    ] as any);
-    
+    node.getDefinedValueIDs.mockReturnValue([{ commandClass: CommandClasses['Multilevel Sensor'], property: 'Air temperature', endpoint: 0 }]);
     feature.init();
     expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.TemperatureSensor, '0');
   });
 
   it('should convert Fahrenheit to Celsius', () => {
-    node.getDefinedValueIDs.mockReturnValue([
-        { commandClass: 49, property: 'Air temperature', endpoint: 0 }
-    ] as any);
+    node.getDefinedValueIDs.mockReturnValue([{ commandClass: CommandClasses['Multilevel Sensor'], property: 'Air temperature', endpoint: 0 }]);
+    node.getValueMetadata.mockReturnValue({ unit: '°F' });
+    node.getValue.mockReturnValue(68); // 68F = 20C
     
     feature.init();
-    
-    node.getValue.mockReturnValue(72);
-    node.getValueMetadata.mockReturnValue({ unit: '°F' } as any);
-
     feature.update();
     
-    // (72 - 32) * 5/9 = 22.222...
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(
-        platform.Characteristic.CurrentTemperature,
-        expect.closeTo(22.22, 2)
-    );
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.CurrentTemperature, 20);
+    expect(node.getValue).toHaveBeenCalledWith({
+        commandClass: CommandClasses['Multilevel Sensor'],
+        property: 'Air temperature',
+        endpoint: 0
+    });
   });
 
   it('should pass Celsius through', () => {
-    node.getDefinedValueIDs.mockReturnValue([
-        { commandClass: 49, property: 'Air temperature', endpoint: 0 }
-    ] as any);
+    node.getDefinedValueIDs.mockReturnValue([{ commandClass: CommandClasses['Multilevel Sensor'], property: 'Air temperature', endpoint: 0 }]);
+    node.getValueMetadata.mockReturnValue({ unit: '°C' });
+    node.getValue.mockReturnValue(22);
     
     feature.init();
-    
-    node.getValue.mockReturnValue(25);
-    node.getValueMetadata.mockReturnValue({ unit: '°C' } as any);
-
     feature.update();
     
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(
-        platform.Characteristic.CurrentTemperature,
-        25
-    );
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.CurrentTemperature, 22);
   });
 
   it('should initialize Humidity Sensor', () => {
-    node.getDefinedValueIDs.mockReturnValue([
-        { commandClass: 49, property: 'Humidity', endpoint: 0 }
-    ] as any);
-    
+    node.getDefinedValueIDs.mockReturnValue([{ commandClass: CommandClasses['Multilevel Sensor'], property: 'Humidity', endpoint: 0 }]);
     feature.init();
     expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.HumiditySensor, '0');
   });
 
   it('should update Humidity', () => {
-     node.getDefinedValueIDs.mockReturnValue([
-        { commandClass: 49, property: 'Humidity', endpoint: 0 }
-    ] as any);
+    node.getDefinedValueIDs.mockReturnValue([{ commandClass: CommandClasses['Multilevel Sensor'], property: 'Humidity', endpoint: 0 }]);
+    node.getValue.mockReturnValue(45);
     
     feature.init();
-    node.getValue.mockReturnValue(45); // 45%
-    
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(
-        platform.Characteristic.CurrentRelativeHumidity,
-        45
-    );
+    
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.CurrentRelativeHumidity, 45);
   });
 });

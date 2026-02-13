@@ -1,5 +1,6 @@
 import { API, HAP, PlatformConfig } from 'homebridge';
 import { ZWaveNode, Endpoint } from 'zwave-js';
+import { CommandClasses } from '@zwave-js/core';
 import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
 import { LeakSensorFeature } from '../../src/features/LeakSensorFeature';
 import { PLATFORM_NAME } from '../../src/platform/settings';
@@ -30,8 +31,8 @@ describe('LeakSensorFeature', () => {
       } as any,
       Characteristic: {
         LeakDetected: {
-            LEAK_DETECTED: 1,
             LEAK_NOT_DETECTED: 0,
+            LEAK_DETECTED: 1,
         },
       } as any,
       uuid: {
@@ -79,7 +80,7 @@ describe('LeakSensorFeature', () => {
       node: node,
     } as any;
     
-    feature = new LeakSensorFeature(platform, accessory, endpoint);
+    feature = new LeakSensorFeature(platform, accessory, endpoint, node);
   });
 
   it('should initialize LeakSensor service', () => {
@@ -89,50 +90,36 @@ describe('LeakSensorFeature', () => {
 
   it('should detect leak via Notification CC (Water Alarm - 2)', () => {
     feature.init();
-    node.supportsCC.mockImplementation((cc) => cc === 113);
-    node.getValue.mockImplementation((args) => {
-        if (args.commandClass === 113 && args.propertyKey === 'Water leak status') {
-            return 2; // Leak
-        }
-        return undefined;
-    });
-
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
+    node.getValue.mockReturnValue(2);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(
-        platform.Characteristic.LeakDetected,
-        platform.Characteristic.LeakDetected.LEAK_DETECTED
-    );
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.LeakDetected, platform.Characteristic.LeakDetected.LEAK_DETECTED);
+    expect(node.getValue).toHaveBeenCalledWith({
+        commandClass: CommandClasses.Notification,
+        property: 'Water Alarm',
+        propertyKey: 'Water leak status',
+        endpoint: 0
+    });
   });
 
   it('should detect NO leak via Notification CC', () => {
     feature.init();
-    node.supportsCC.mockImplementation((cc) => cc === 113);
-    node.getValue.mockImplementation((args) => {
-        if (args.commandClass === 113) {
-            return 0; // Idle
-        }
-        return undefined;
-    });
-
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
+    node.getValue.mockReturnValue(0);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(
-        platform.Characteristic.LeakDetected,
-        platform.Characteristic.LeakDetected.LEAK_NOT_DETECTED
-    );
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.LeakDetected, platform.Characteristic.LeakDetected.LEAK_NOT_DETECTED);
   });
 
   it('should fallback to Binary Sensor CC (48) - True (Leak)', () => {
     feature.init();
-    node.supportsCC.mockImplementation((cc) => cc === 48);
-    node.getValue.mockImplementation((args) => {
-        if (args.commandClass === 48) return true;
-        return undefined;
-    });
-
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses['Binary Sensor']);
+    node.getValue.mockReturnValue(true);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(
-        platform.Characteristic.LeakDetected,
-        platform.Characteristic.LeakDetected.LEAK_DETECTED
-    );
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.LeakDetected, platform.Characteristic.LeakDetected.LEAK_DETECTED);
+    expect(node.getValue).toHaveBeenCalledWith({
+        commandClass: CommandClasses['Binary Sensor'],
+        property: 'Water',
+        endpoint: 0
+    });
   });
 });

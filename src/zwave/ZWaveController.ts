@@ -24,12 +24,12 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
   private pendingS2Pin: string | undefined;
   
   private nodeListeners = new Map<number, { 
-    ready: (...args: any[]) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
-    value: (...args: any[]) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
-    interviewStageCompleted?: (...args: any[]) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
-    interviewFailed?: (...args: any[]) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
-    onWakeUp?: (...args: any[]) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
-    onSleep?: (...args: any[]) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
+    ready: () => void;
+    value: () => void;
+    interviewStageCompleted?: (node: ZWaveNode, stageName: string) => void;
+    interviewFailed?: (node: ZWaveNode, args: { errorMessage: string }) => void;
+    onWakeUp?: (node: ZWaveNode) => void;
+    onSleep?: (node: ZWaveNode) => void;
   }>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private controllerListeners: Record<string, (...args: any[]) => void> = {};
@@ -277,17 +277,17 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       this.emit('node ready', node);
     };
 
-    const onValueUpdated = (_args: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    const onValueUpdated = () => {
       this.log.debug(`Node ${node.nodeId} value updated`);
       this.emit('value updated', node);
     };
 
-    const onInterviewStageCompleted = (stage: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    const onInterviewStageCompleted = (_node: ZWaveNode, stage: string) => {
       this.log.info(`Node ${node.nodeId} interview stage completed: ${stage}`);
       this.emit('status updated', `Node ${node.nodeId}: ${stage}`);
     };
 
-    const onInterviewFailed = (args: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+    const onInterviewFailed = (_node: ZWaveNode, args: { errorMessage: string }) => {
       this.log.error(`Node ${node.nodeId} interview failed: ${args.errorMessage}`);
     };
 

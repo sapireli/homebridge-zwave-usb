@@ -1,4 +1,5 @@
 import { Service, CharacteristicValue } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 
 export class BinarySwitchFeature extends BaseFeature {
@@ -16,7 +17,7 @@ export class BinarySwitchFeature extends BaseFeature {
 
   update(): void {
     const value = this.node.getValue({
-      commandClass: 37,
+      commandClass: CommandClasses['Binary Switch'],
       property: 'currentValue',
       endpoint: this.endpoint.index,
     });
@@ -25,7 +26,7 @@ export class BinarySwitchFeature extends BaseFeature {
 
   private handleGetOn(): boolean {
     const value = this.node.getValue({
-      commandClass: 37,
+      commandClass: CommandClasses['Binary Switch'],
       property: 'currentValue',
       endpoint: this.endpoint.index,
     });
@@ -35,14 +36,13 @@ export class BinarySwitchFeature extends BaseFeature {
   private async handleSetOn(value: CharacteristicValue) {
     try {
       await this.node.setValue(
-        { commandClass: 37, property: 'targetValue', endpoint: this.endpoint.index },
+        { commandClass: CommandClasses['Binary Switch'], property: 'targetValue', endpoint: this.endpoint.index },
         value,
       );
     } catch (err) {
       this.platform.log.error(`Failed to set switch value for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`, err);
-      // -70402: SERVICE_COMMUNICATION_FAILURE
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      throw new this.platform.api.hap.HapStatusError(-70402 as any);
+      // SERVICE_COMMUNICATION_FAILURE = -70402
+      throw new this.platform.api.hap.HapStatusError(-70402);
     }
   }
 }

@@ -1,4 +1,5 @@
 import { Service, CharacteristicGetCallback } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 
 export class MultilevelSensorFeature extends BaseFeature {
@@ -91,12 +92,12 @@ export class MultilevelSensorFeature extends BaseFeature {
 
   private hasSensorType(propertyName: string): boolean {
     const values = this.node.getDefinedValueIDs();
-    return values.some(v => v.commandClass === 49 && v.property === propertyName && v.endpoint === this.endpoint.index);
+    return values.some(v => v.commandClass === CommandClasses['Multilevel Sensor'] && v.property === propertyName && v.endpoint === this.endpoint.index);
   }
 
   private getSensorValue(propertyName: string): number | undefined {
     const valueId = {
-      commandClass: 49,
+      commandClass: CommandClasses['Multilevel Sensor'],
       property: propertyName,
       endpoint: this.endpoint.index,
     };

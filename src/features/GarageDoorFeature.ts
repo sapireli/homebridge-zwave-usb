@@ -1,4 +1,5 @@
 import { Service, CharacteristicValue } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 
 export class GarageDoorFeature extends BaseFeature {
@@ -28,10 +29,10 @@ export class GarageDoorFeature extends BaseFeature {
   }
 
   private handleGetCurrentState(): number {
-    // CC 102 (Barrier Operator)
+    // CommandClasses['Barrier Operator']
     // 0 = Closed, 255 = Open, 252 = Closing, 253 = Stopped, 254 = Opening
     const val = this.node.getValue({
-        commandClass: 102,
+        commandClass: CommandClasses['Barrier Operator'],
         property: 'currentState',
         endpoint: this.endpoint.index
     });
@@ -48,7 +49,7 @@ export class GarageDoorFeature extends BaseFeature {
 
   private handleGetTargetState(): number {
     const val = this.node.getValue({
-        commandClass: 102,
+        commandClass: CommandClasses['Barrier Operator'],
         property: 'targetState',
         endpoint: this.endpoint.index
     });
@@ -65,7 +66,7 @@ export class GarageDoorFeature extends BaseFeature {
     const target = value === this.platform.Characteristic.TargetDoorState.OPEN ? 255 : 0;
     try {
         await this.node.setValue(
-            { commandClass: 102, property: 'targetState', endpoint: this.endpoint.index },
+            { commandClass: CommandClasses['Barrier Operator'], property: 'targetState', endpoint: this.endpoint.index },
             target
         );
     } catch (err) {

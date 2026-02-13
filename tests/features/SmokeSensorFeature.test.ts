@@ -1,5 +1,6 @@
 import { API, HAP, PlatformConfig } from 'homebridge';
 import { ZWaveNode, Endpoint } from 'zwave-js';
+import { CommandClasses } from '@zwave-js/core';
 import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
 import { SmokeSensorFeature } from '../../src/features/SmokeSensorFeature';
 import { PLATFORM_NAME } from '../../src/platform/settings';
@@ -30,8 +31,8 @@ describe('SmokeSensorFeature', () => {
       } as any,
       Characteristic: {
         SmokeDetected: {
-            SMOKE_DETECTED: 1,
             SMOKE_NOT_DETECTED: 0,
+            SMOKE_DETECTED: 1,
         },
       } as any,
       uuid: {
@@ -69,7 +70,7 @@ describe('SmokeSensorFeature', () => {
     platform = new ZWaveUsbPlatform(log, config, api);
 
     node = {
-      nodeId: 8,
+      nodeId: 10,
       supportsCC: jest.fn(),
       getValue: jest.fn(),
     } as any;
@@ -79,7 +80,7 @@ describe('SmokeSensorFeature', () => {
       node: node,
     } as any;
     
-    feature = new SmokeSensorFeature(platform, accessory, endpoint);
+    feature = new SmokeSensorFeature(platform, accessory, endpoint, node);
   });
 
   it('should initialize SmokeSensor service', () => {
@@ -89,33 +90,27 @@ describe('SmokeSensorFeature', () => {
 
   it('should detect smoke via Notification CC (Smoke Alarm - 1)', () => {
     feature.init();
-    node.supportsCC.mockImplementation((cc) => cc === 113);
-    node.getValue.mockImplementation((args) => {
-        if (args.commandClass === 113 && args.property === 'Smoke Alarm') {
-            return 1; // Smoke detected
-        }
-        return undefined;
-    });
-
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
+    node.getValue.mockReturnValue(1);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(
-        platform.Characteristic.SmokeDetected,
-        platform.Characteristic.SmokeDetected.SMOKE_DETECTED
-    );
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.SmokeDetected, platform.Characteristic.SmokeDetected.SMOKE_DETECTED);
+    expect(node.getValue).toHaveBeenCalledWith({
+        commandClass: CommandClasses.Notification,
+        property: 'Smoke Alarm',
+        endpoint: 0
+    });
   });
 
   it('should fallback to Binary Sensor CC (48) - True (Smoke)', () => {
     feature.init();
-    node.supportsCC.mockImplementation((cc) => cc === 48);
-    node.getValue.mockImplementation((args) => {
-        if (args.commandClass === 48 && args.property === 'Smoke') return true;
-        return undefined;
-    });
-
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses['Binary Sensor']);
+    node.getValue.mockReturnValue(true);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(
-        platform.Characteristic.SmokeDetected,
-        platform.Characteristic.SmokeDetected.SMOKE_DETECTED
-    );
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.SmokeDetected, platform.Characteristic.SmokeDetected.SMOKE_DETECTED);
+    expect(node.getValue).toHaveBeenCalledWith({
+        commandClass: CommandClasses['Binary Sensor'],
+        property: 'Smoke',
+        endpoint: 0
+    });
   });
 });

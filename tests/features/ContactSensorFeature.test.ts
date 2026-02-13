@@ -1,5 +1,6 @@
 import { API, HAP, PlatformConfig } from 'homebridge';
 import { ZWaveNode, Endpoint } from 'zwave-js';
+import { CommandClasses } from '@zwave-js/core';
 import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
 import { ContactSensorFeature } from '../../src/features/ContactSensorFeature';
 import { PLATFORM_NAME } from '../../src/platform/settings';
@@ -50,6 +51,9 @@ describe('ContactSensorFeature', () => {
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
       on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      user: {
+        storagePath: jest.fn().mockReturnValue('/tmp'),
+      },
       platformAccessory: jest.fn().mockImplementation(() => accessory),
     } as any;
 
@@ -72,7 +76,6 @@ describe('ContactSensorFeature', () => {
       nodeId: 2,
       supportsCC: jest.fn(),
       getValue: jest.fn(),
-      getDefinedValueIDs: jest.fn(),
     } as any;
 
     endpoint = {
@@ -80,7 +83,7 @@ describe('ContactSensorFeature', () => {
       node: node,
     } as any;
     
-    feature = new ContactSensorFeature(platform, accessory, endpoint);
+    feature = new ContactSensorFeature(platform, accessory, endpoint, node);
   });
 
   it('should initialize ContactSensor service', () => {
@@ -90,70 +93,44 @@ describe('ContactSensorFeature', () => {
 
   it('should read Notification CC (Access Control) - Closed (23)', () => {
     feature.init();
-    node.supportsCC.mockImplementation((cc) => cc === 113);
-    node.getValue.mockImplementation((args) => {
-        if (args.commandClass === 113 && args.propertyKey === 'Door status') {
-            return 23; // Closed
-        }
-        return undefined;
-    });
-
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
+    node.getValue.mockReturnValue(23);
     feature.update();
-
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(
-        platform.Characteristic.ContactSensorState,
-        platform.Characteristic.ContactSensorState.CONTACT_DETECTED
-    );
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.ContactSensorState, platform.Characteristic.ContactSensorState.CONTACT_DETECTED);
+    expect(node.getValue).toHaveBeenCalledWith({
+        commandClass: CommandClasses.Notification,
+        property: 'Access Control',
+        propertyKey: 'Door status',
+        endpoint: 0
+    });
   });
 
   it('should read Notification CC (Access Control) - Open (22)', () => {
     feature.init();
-    node.supportsCC.mockImplementation((cc) => cc === 113);
-    node.getValue.mockImplementation((args) => {
-        if (args.commandClass === 113 && args.propertyKey === 'Door status') {
-            return 22; // Open
-        }
-        return undefined;
-    });
-
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
+    node.getValue.mockReturnValue(22);
     feature.update();
-
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(
-        platform.Characteristic.ContactSensorState,
-        platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED
-    );
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.ContactSensorState, platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED);
   });
 
   it('should fallback to Binary Sensor CC (48) - True (Open)', () => {
     feature.init();
-    node.supportsCC.mockImplementation((cc) => cc === 48); // No 113, yes 48
-    node.getValue.mockImplementation((args) => {
-        if (args.commandClass === 48) return true;
-        return undefined;
-    });
-
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses['Binary Sensor']);
+    node.getValue.mockReturnValue(true);
     feature.update();
-    
-    // Binary sensor true usually means "triggered/open" for contact
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(
-        platform.Characteristic.ContactSensorState,
-        platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED
-    );
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.ContactSensorState, platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED);
+    expect(node.getValue).toHaveBeenCalledWith({
+        commandClass: CommandClasses['Binary Sensor'],
+        property: 'Door/Window',
+        endpoint: 0
+    });
   });
 
   it('should fallback to Binary Sensor CC (48) - False (Closed)', () => {
     feature.init();
-    node.supportsCC.mockImplementation((cc) => cc === 48); 
-    node.getValue.mockImplementation((args) => {
-        if (args.commandClass === 48) return false;
-        return undefined;
-    });
-
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses['Binary Sensor']);
+    node.getValue.mockReturnValue(false);
     feature.update();
-    
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(
-        platform.Characteristic.ContactSensorState,
-        platform.Characteristic.ContactSensorState.CONTACT_DETECTED
-    );
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.ContactSensorState, platform.Characteristic.ContactSensorState.CONTACT_DETECTED);
   });
 });

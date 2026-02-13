@@ -1,4 +1,5 @@
 import { Service, CharacteristicValue } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 
 export class LockFeature extends BaseFeature {
@@ -20,7 +21,7 @@ export class LockFeature extends BaseFeature {
 
   update(): void {
     const value = this.node.getValue({
-      commandClass: 98,
+      commandClass: CommandClasses['Door Lock'],
       property: 'currentMode',
       endpoint: this.endpoint.index,
     });
@@ -46,7 +47,7 @@ export class LockFeature extends BaseFeature {
 
   private handleGetLockCurrentState(): number {
     const value = this.node.getValue({
-      commandClass: 98,
+      commandClass: CommandClasses['Door Lock'],
       property: 'currentMode',
       endpoint: this.endpoint.index,
     });
@@ -55,11 +56,11 @@ export class LockFeature extends BaseFeature {
 
   private handleGetLockTargetState(): number {
     const value = this.node.getValue({
-      commandClass: 98,
+      commandClass: CommandClasses['Door Lock'],
       property: 'targetMode',
       endpoint: this.endpoint.index,
     }) ?? this.node.getValue({
-      commandClass: 98,
+      commandClass: CommandClasses['Door Lock'],
       property: 'currentMode',
       endpoint: this.endpoint.index,
     });
@@ -74,14 +75,13 @@ export class LockFeature extends BaseFeature {
     const targetMode = value === this.platform.Characteristic.LockTargetState.SECURED ? 255 : 0;
     try {
       await this.node.setValue(
-        { commandClass: 98, property: 'targetMode', endpoint: this.endpoint.index },
+        { commandClass: CommandClasses['Door Lock'], property: 'targetMode', endpoint: this.endpoint.index },
         targetMode,
       );
     } catch (err) {
       this.platform.log.error(`Failed to set Lock Target for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`, err);
-      // -70402: SERVICE_COMMUNICATION_FAILURE
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      throw new this.platform.api.hap.HapStatusError(-70402 as any);
+      // SERVICE_COMMUNICATION_FAILURE = -70402
+      throw new this.platform.api.hap.HapStatusError(-70402);
     }
   }
 }

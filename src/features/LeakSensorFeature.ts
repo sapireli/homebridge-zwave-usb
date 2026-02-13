@@ -1,4 +1,5 @@
 import { Service } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 
 export class LeakSensorFeature extends BaseFeature {
@@ -19,19 +20,19 @@ export class LeakSensorFeature extends BaseFeature {
 
   private getSensorValue(): number {
     // 1. Check Notification CC (Water Alarm)
-    if (this.node.supportsCC(113)) {
+    if (this.node.supportsCC(CommandClasses.Notification)) {
         const val = this.node.getValue({
-            commandClass: 113,
+            commandClass: CommandClasses.Notification,
             property: 'Water Alarm',
             propertyKey: 'Water leak status',
             endpoint: this.endpoint.index,
         }) ?? this.node.getValue({
-            commandClass: 113,
+            commandClass: CommandClasses.Notification,
             property: 'Water Alarm',
             propertyKey: 'Sensor status',
             endpoint: this.endpoint.index,
         }) ?? this.node.getValue({
-            commandClass: 113,
+            commandClass: CommandClasses.Notification,
             property: 'Water Alarm',
             endpoint: this.endpoint.index,
         });
@@ -43,13 +44,13 @@ export class LeakSensorFeature extends BaseFeature {
     }
 
     // 2. Fallback to Binary Sensor
-    if (this.node.supportsCC(48)) { 
+    if (this.node.supportsCC(CommandClasses['Binary Sensor'])) { 
        const value = this.node.getValue({
-        commandClass: 48,
+        commandClass: CommandClasses['Binary Sensor'],
         property: 'Water', 
         endpoint: this.endpoint.index,
       }) ?? this.node.getValue({
-        commandClass: 48,
+        commandClass: CommandClasses['Binary Sensor'],
         property: 'Any', 
         endpoint: this.endpoint.index,
       });

@@ -1,5 +1,6 @@
 import { API, HAP, PlatformConfig } from 'homebridge';
 import { ZWaveNode, Endpoint } from 'zwave-js';
+import { CommandClasses } from '@zwave-js/core';
 import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
 import { MultilevelSwitchFeature } from '../../src/features/MultilevelSwitchFeature';
 import { PLATFORM_NAME } from '../../src/platform/settings';
@@ -49,6 +50,9 @@ describe('MultilevelSwitchFeature', () => {
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
       on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      user: {
+        storagePath: jest.fn().mockReturnValue('/tmp'),
+      },
       platformAccessory: jest.fn().mockImplementation(() => accessory),
     } as any;
 
@@ -79,7 +83,7 @@ describe('MultilevelSwitchFeature', () => {
       node: node,
     } as any;
     
-    feature = new MultilevelSwitchFeature(platform, accessory, endpoint);
+    feature = new MultilevelSwitchFeature(platform, accessory, endpoint, node);
   });
 
   it('should initialize Lightbulb service', () => {
@@ -110,21 +114,11 @@ describe('MultilevelSwitchFeature', () => {
 
   it('should set Target Value to 255 when turning On', async () => {
     feature.init();
-    // Simulate 'set' callback
-    // We need to access the callback passed to .on('set', ...)
-    // For unit tests, we usually test the handler method directly if it was public, 
-    // or we mock the .on method to capture the callback. 
-    // Here we'll just check logic or use a spy if we had one.
-    // Instead, let's trigger it by inspecting the mock calls to 'on' if we want to be precise, 
-    // OR just instantiate and call the private handler if we cast to any.
-    
-    // Easier: Mock setValue and verify logic if we could trigger it. 
-    // Let's use `(feature as any).handleSetOn(true, cb)`
     
     await (feature as any).handleSetOn(true);
     
     expect(node.setValue).toHaveBeenCalledWith(
-        { commandClass: 38, property: 'targetValue', endpoint: 0 }, 
+        { commandClass: CommandClasses['Multilevel Switch'], property: 'targetValue', endpoint: 0 }, 
         255
     );
   });
@@ -134,7 +128,7 @@ describe('MultilevelSwitchFeature', () => {
     await (feature as any).handleSetOn(false);
     
     expect(node.setValue).toHaveBeenCalledWith(
-        { commandClass: 38, property: 'targetValue', endpoint: 0 }, 
+        { commandClass: CommandClasses['Multilevel Switch'], property: 'targetValue', endpoint: 0 }, 
         0
     );
   });

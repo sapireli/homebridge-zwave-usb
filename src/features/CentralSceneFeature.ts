@@ -1,4 +1,5 @@
 import { Service } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 
 export class CentralSceneFeature extends BaseFeature {
@@ -6,7 +7,7 @@ export class CentralSceneFeature extends BaseFeature {
 
   init(): void {
     const values = this.node.getDefinedValueIDs();
-    const sceneValue = values.find(v => v.commandClass === 91 && v.endpoint === this.endpoint.index); // Central Scene
+    const sceneValue = values.find(v => v.commandClass === CommandClasses['Central Scene'] && v.endpoint === this.endpoint.index);
 
     if (sceneValue) {
       const subType = this.endpoint.index.toString();
@@ -19,13 +20,13 @@ export class CentralSceneFeature extends BaseFeature {
 
   update(): void {
     const value = this.node.getValue({
-        commandClass: 91,
+        commandClass: CommandClasses['Central Scene'],
         property: 'scene',
         endpoint: this.endpoint.index,
     });
 
     const action = this.node.getValue({
-        commandClass: 91,
+        commandClass: CommandClasses['Central Scene'],
         property: 'keyAttribute',
         endpoint: this.endpoint.index,
     });
