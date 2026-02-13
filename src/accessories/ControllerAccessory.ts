@@ -1,7 +1,7 @@
 import { PlatformAccessory, Service, CharacteristicValue, Characteristic } from 'homebridge';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { IZWaveController } from '../zwave/interfaces';
-import { MANAGER_SERVICE_UUID, OBSOLETE_MANAGER_UUIDS, OBSOLETE_CHAR_UUIDS, HAPFormat, HAPPerm, HAPAccess } from '../platform/settings';
+import { MANAGER_SERVICE_UUID, OBSOLETE_MANAGER_UUIDS, OBSOLETE_CHAR_UUIDS, HAPFormat, HAPPerm } from '../platform/settings';
 
 export class ControllerAccessory {
   private statusService: Service;
@@ -73,7 +73,7 @@ export class ControllerAccessory {
             }
         });
         
-        this.syncConfiguredNameIfPresent(service);
+        this.removeConfiguredNameIfPresent(service);
     });
 
     // Add ServiceLabelNamespace to AccessoryInformation to help with naming multi-service accessories
@@ -88,7 +88,7 @@ export class ControllerAccessory {
     this.statusService = this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         this.platformAccessory.addService(new (this.platform.Service as any).ZWaveManager('System Status', 'Status'));
-    this.syncConfiguredNameIfPresent(this.statusService, 'System Status');
+    this.removeConfiguredNameIfPresent(this.statusService);
     
     // Naming Identity - Strictly Name only
     this.statusService.getCharacteristic(this.platform.Characteristic.Name)
@@ -118,50 +118,19 @@ export class ControllerAccessory {
     });
     this.statusChar.updateValue('Driver Ready');
 
-    // S2 PIN Entry Characteristic
+    // Remove PIN from custom status service; Home app treats this custom service as display-only.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pinCharType = (this.platform.Characteristic as any).S2PinEntry;
     if (this.statusService.testCharacteristic(pinCharType)) {
-        const cachedPinChar = this.statusService.getCharacteristic(pinCharType);
-        this.platform.log.debug('Re-registering S2 PIN Entry characteristic with writable perms');
-        this.statusService.removeCharacteristic(cachedPinChar);
+      const cachedPinChar = this.statusService.getCharacteristic(pinCharType);
+      this.statusService.removeCharacteristic(cachedPinChar);
     }
-    this.statusService.addOptionalCharacteristic(pinCharType);
-    this.pinChar = this.statusService.getCharacteristic(pinCharType);
-    
-    // Follow homebridge-ups writable pattern: numeric characteristic with bounds/step.
-    this.pinChar.setProps({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        format: HAPFormat.UINT32 as any,
-        minValue: 0,
-        maxValue: 99999,
-        minStep: 1,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any, HAPPerm.PAIRED_WRITE as any],
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        adminOnlyAccess: [HAPAccess.WRITE as any],
-        description: 'Enter 5-digit S2 PIN'
-    });
-
-    this.pinChar.onSet((value: CharacteristicValue) => {
-        const raw = Number(value);
-        if (!Number.isInteger(raw) || raw < 0 || raw > 99999) {
-          this.platform.log.warn(`[S2] Ignoring invalid PIN value from HomeKit: ${value}`);
-          return;
-        }
-
-        const pin = raw.toString().padStart(5, '0');
-        this.platform.log.info(`HomeKit S2 PIN Received: ${pin}`);
-        this.controller.setS2Pin(pin);
-        setTimeout(() => this.pinChar.updateValue(0), 2000);
-    });
-    this.pinChar.updateValue(0);
 
     // --- 2. Inclusion Mode Switch ---
     this.inclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Inclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
-    this.syncConfiguredNameIfPresent(this.inclusionService, 'Inclusion Mode');
+    this.removeConfiguredNameIfPresent(this.inclusionService);
     
     this.inclusionService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -172,13 +141,14 @@ export class ControllerAccessory {
         this.inclusionService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
     }
     this.inclusionService.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex).updateValue(2);
+    this.setupPinEntryCharacteristic(this.inclusionService);
 
 
     // --- 3. Exclusion Mode Switch ---
     this.exclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Exclusion') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
-    this.syncConfiguredNameIfPresent(this.exclusionService, 'Exclusion Mode');
+    this.removeConfiguredNameIfPresent(this.exclusionService);
     
     this.exclusionService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -194,7 +164,7 @@ export class ControllerAccessory {
     this.healService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Heal') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
-    this.syncConfiguredNameIfPresent(this.healService, 'Heal Network');
+    this.removeConfiguredNameIfPresent(this.healService);
     
     this.healService.getCharacteristic(this.platform.Characteristic.Name)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -266,13 +236,46 @@ export class ControllerAccessory {
     });
   }
 
-  private syncConfiguredNameIfPresent(service: Service, value?: string) {
-    if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
-      return;
+  private removeConfiguredNameIfPresent(service: Service) {
+    const configuredName = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
+    if (configuredName) {
+      service.removeCharacteristic(configuredName);
+    }
+  }
+
+  private setupPinEntryCharacteristic(service: Service) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pinCharType = (this.platform.Characteristic as any).S2PinEntry;
+    if (service.testCharacteristic(pinCharType)) {
+      service.removeCharacteristic(service.getCharacteristic(pinCharType));
     }
 
-    const configuredNameValue = value || service.displayName;
-    service.getCharacteristic(this.platform.Characteristic.ConfiguredName).updateValue(configuredNameValue);
+    service.addOptionalCharacteristic(pinCharType);
+    this.pinChar = service.getCharacteristic(pinCharType);
+    this.pinChar.setProps({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      format: HAPFormat.UINT32 as any,
+      minValue: 0,
+      maxValue: 99999,
+      minStep: 1,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any, HAPPerm.PAIRED_WRITE as any],
+      description: 'Enter 5-digit S2 PIN',
+    });
+
+    this.pinChar.onSet((value: CharacteristicValue) => {
+      const raw = Number(value);
+      if (!Number.isInteger(raw) || raw < 0 || raw > 99999) {
+        this.platform.log.warn(`[S2] Ignoring invalid PIN value from HomeKit: ${value}`);
+        return;
+      }
+
+      const pin = raw.toString().padStart(5, '0');
+      this.platform.log.info(`HomeKit S2 PIN Received: ${pin}`);
+      this.controller.setS2Pin(pin);
+      setTimeout(() => this.pinChar.updateValue(0), 2000);
+    });
+    this.pinChar.updateValue(0);
   }
 
   private async handleSetInclusion(value: CharacteristicValue) {

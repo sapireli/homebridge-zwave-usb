@@ -4,7 +4,7 @@ import { IZWaveController, IZWaveNode } from '../zwave/interfaces';
 import { ZWaveAccessory } from '../accessories/ZWaveAccessory';
 import { AccessoryFactory } from '../accessories/AccessoryFactory';
 import { ControllerAccessory } from '../accessories/ControllerAccessory';
-import { STATUS_CHAR_UUID, PIN_CHAR_UUID, MANAGER_SERVICE_UUID, HAPFormat, HAPPerm, HAPAccess } from './settings';
+import { STATUS_CHAR_UUID, PIN_CHAR_UUID, MANAGER_SERVICE_UUID, HAPFormat, HAPPerm } from './settings';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const packageJson = require('../../package.json');
 
@@ -101,8 +101,6 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
                 minStep: 1,
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any, HAPPerm.PAIRED_WRITE as any],
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                adminOnlyAccess: [HAPAccess.WRITE as any],
             });
             this.value = 0;
         }

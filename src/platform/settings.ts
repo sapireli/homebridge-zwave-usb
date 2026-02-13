@@ -28,12 +28,6 @@ export enum HAPPerm {
   HIDDEN = 'hd',
 }
 
-export enum HAPAccess {
-  READ = 0,
-  WRITE = 1,
-  NOTIFY = 2,
-}
-
 // Obsolete UUIDs for cleanup
 export const OBSOLETE_MANAGER_UUIDS = [
     '00000001-0000-1000-8000-0026BB765291',
