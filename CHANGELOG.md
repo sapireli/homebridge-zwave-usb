@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-02-13
+
+### Changed
+- Refactored `config.schema.json` to follow strict JSON schema standards for better Homebridge verification.
+- Updated `engines.node` requirements to match Homebridge Verified standards (>=18.15.0).
+
+### Fixed
+- Cleaned up unused dependencies (`ws`, `homebridge-lib`) to reduce package size and improve security.
+
 ## [1.7.9] - 2026-02-13
 
 ### Fixed

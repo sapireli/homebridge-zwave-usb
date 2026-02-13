@@ -8,20 +8,17 @@
       "name": {
         "title": "Name",
         "type": "string",
-        "required": true,
         "default": "Homebridge Z-Wave USB"
       },
       "platform": {
         "title": "Platform",
         "type": "string",
-        "required": true,
         "default": "ZWaveUSB",
         "const": "ZWaveUSB"
       },
       "serialPort": {
         "title": "Serial Port Path",
         "type": "string",
-        "required": true,
         "description": "Path to your Z-Wave USB stick (e.g., /dev/ttyACM0 or /dev/serial/by-id/...)."
       },
       "securityKeys": {
@@ -86,16 +83,20 @@
         "maximum": 300,
         "description": "How long the inclusion mode stays active."
       },
-      "debug": {
-        "title": "Enable Verbose Driver Logging",
-        "type": "boolean",
-        "default": false,
-        "description": "If true, redirects all Z-Wave JS driver logs to Homebridge."
-      }
-    }
-  },
-  "layout": [
-    "name",
+              "debug": {
+              "title": "Enable Verbose Driver Logging",
+              "type": "boolean",
+              "default": false,
+              "description": "If true, redirects all Z-Wave JS driver logs to Homebridge."
+            }
+          },
+          "required": [
+            "name",
+            "platform",
+            "serialPort"
+          ]
+        },
+        "layout": [    "name",
     {
       "key": "serialPort",
       "description": "WARNING: Use persistent paths like /dev/serial/by-id/... on Linux or /dev/tty.usbmodem... on macOS."
