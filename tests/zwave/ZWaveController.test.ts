@@ -18,7 +18,7 @@ describe('ZWaveController (Direct Mode)', () => {
       warn: jest.fn(),
       debug: jest.fn(),
     } as any;
-    
+
     // Setup Driver mock using EventEmitter
     mockDriver = new EventEmitter();
     mockDriver.start = jest.fn().mockImplementation(async () => {

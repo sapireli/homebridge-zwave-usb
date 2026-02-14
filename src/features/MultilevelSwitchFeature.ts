@@ -1,6 +1,7 @@
 import { Service, CharacteristicValue } from 'homebridge';
 import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
+import { ZWaveValueEvent } from '../zwave/interfaces';
 
 export class MultilevelSwitchFeature extends BaseFeature {
   private service!: Service;
@@ -21,17 +22,20 @@ export class MultilevelSwitchFeature extends BaseFeature {
       .onSet(this.handleSetBrightness.bind(this));
   }
 
-  update(): void {
+  update(args?: ZWaveValueEvent): void {
+    if (!this.shouldUpdate(args, CommandClasses['Multilevel Switch'])) {
+      return;
+    }
     const value = this.node.getValue({
       commandClass: CommandClasses['Multilevel Switch'],
       property: 'currentValue',
       endpoint: this.endpoint.index,
     });
-    
+
     if (typeof value === 'number') {
       const isOn = value > 0;
       this.service.updateCharacteristic(this.platform.Characteristic.On, isOn);
-      
+
       if (value <= 99) {
         this.lastKnownBrightness = value;
         this.service.updateCharacteristic(this.platform.Characteristic.Brightness, value);
@@ -57,11 +61,18 @@ export class MultilevelSwitchFeature extends BaseFeature {
     const targetValue = value ? 255 : 0;
     try {
       await this.node.setValue(
-        { commandClass: CommandClasses['Multilevel Switch'], property: 'targetValue', endpoint: this.endpoint.index },
+        {
+          commandClass: CommandClasses['Multilevel Switch'],
+          property: 'targetValue',
+          endpoint: this.endpoint.index,
+        },
         targetValue,
       );
     } catch (err) {
-      this.platform.log.error(`Failed to set ON/OFF for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`, err);
+      this.platform.log.error(
+        `Failed to set ON/OFF for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`,
+        err,
+      );
       // SERVICE_COMMUNICATION_FAILURE = -70402
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
@@ -80,11 +91,18 @@ export class MultilevelSwitchFeature extends BaseFeature {
     const targetValue = Math.min(Math.max(value as number, 0), 99);
     try {
       await this.node.setValue(
-        { commandClass: CommandClasses['Multilevel Switch'], property: 'targetValue', endpoint: this.endpoint.index },
+        {
+          commandClass: CommandClasses['Multilevel Switch'],
+          property: 'targetValue',
+          endpoint: this.endpoint.index,
+        },
         targetValue,
       );
     } catch (err) {
-      this.platform.log.error(`Failed to set Brightness for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`, err);
+      this.platform.log.error(
+        `Failed to set Brightness for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`,
+        err,
+      );
       // SERVICE_COMMUNICATION_FAILURE = -70402
       throw new this.platform.api.hap.HapStatusError(-70402);
     }

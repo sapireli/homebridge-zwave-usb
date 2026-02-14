@@ -1,6 +1,7 @@
 import { Service, CharacteristicValue } from 'homebridge';
 import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
+import { ZWaveValueEvent } from '../zwave/interfaces';
 
 export class SirenFeature extends BaseFeature {
   private service!: Service;
@@ -16,7 +17,18 @@ export class SirenFeature extends BaseFeature {
       .onSet(this.handleSetState.bind(this));
   }
 
-  update(): void {
+  update(args?: ZWaveValueEvent): void {
+    if (args) {
+      if ((args.endpoint || 0) !== this.endpoint.index) {
+        return;
+      }
+      if (
+        args.commandClass !== CommandClasses['Sound Switch'] &&
+        args.commandClass !== CommandClasses['Binary Switch']
+      ) {
+        return;
+      }
+    }
     const val = this.handleGetState();
     this.service.updateCharacteristic(this.platform.Characteristic.On, val);
   }
@@ -25,17 +37,21 @@ export class SirenFeature extends BaseFeature {
     // CommandClasses['Sound Switch'] - Tone Identifier
     // 0 = Off, >0 = On (Playing a tone)
     const val = this.node.getValue({
-        commandClass: CommandClasses['Sound Switch'],
-        property: 'toneId',
-        endpoint: this.endpoint.index
+      commandClass: CommandClasses['Sound Switch'],
+      property: 'toneId',
+      endpoint: this.endpoint.index,
     });
 
     if (typeof val === 'number') {
-        return val > 0;
+      return val > 0;
     }
     // Fallback: Binary Switch (some sirens use this)
     // Handled by BinarySwitchFeature usually, but if this feature is forced:
-    const binVal = this.node.getValue({ commandClass: CommandClasses['Binary Switch'], property: 'currentValue', endpoint: this.endpoint.index });
+    const binVal = this.node.getValue({
+      commandClass: CommandClasses['Binary Switch'],
+      property: 'currentValue',
+      endpoint: this.endpoint.index,
+    });
     return !!binVal;
   }
 
@@ -43,12 +59,16 @@ export class SirenFeature extends BaseFeature {
     const on = value as boolean;
 
     try {
-        await this.node.setValue(
-            { commandClass: CommandClasses['Sound Switch'], property: 'toneId', endpoint: this.endpoint.index },
-            on ? 255 : 0 // 255 = Default Tone
-        );
+      await this.node.setValue(
+        {
+          commandClass: CommandClasses['Sound Switch'],
+          property: 'toneId',
+          endpoint: this.endpoint.index,
+        },
+        on ? 255 : 0, // 255 = Default Tone
+      );
     } catch (err) {
-        this.platform.log.error('Failed to set siren state:', err);
+      this.platform.log.error('Failed to set siren state:', err);
     }
   }
 }

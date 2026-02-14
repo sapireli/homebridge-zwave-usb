@@ -1,6 +1,7 @@
 import { Service } from 'homebridge';
 import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
+import { ZWaveValueEvent } from '../zwave/interfaces';
 
 export class BatteryFeature extends BaseFeature {
   private service!: Service;
@@ -18,7 +19,10 @@ export class BatteryFeature extends BaseFeature {
       .onGet(this.handleGetStatusLowBattery.bind(this));
   }
 
-  update(): void {
+  update(args?: ZWaveValueEvent): void {
+    if (!this.shouldUpdate(args, CommandClasses.Battery)) {
+      return;
+    }
     const value = this.node.getValue({
       commandClass: CommandClasses.Battery,
       property: 'level',
@@ -51,18 +55,26 @@ export class BatteryFeature extends BaseFeature {
     });
 
     if (typeof value === 'boolean') {
-      return value ? this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW : this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
+      return value
+        ? this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW
+        : this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
     }
 
     const level = this.getBatteryLevel();
     // Default to normal if level is 0 (could be unknown) or > 15
     if (level === 0) {
-        const rawValue = this.node.getValue({ commandClass: CommandClasses.Battery, property: 'level', endpoint: this.endpoint.index });
-        if (typeof rawValue !== 'number') {
-            return this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
-        }
+      const rawValue = this.node.getValue({
+        commandClass: CommandClasses.Battery,
+        property: 'level',
+        endpoint: this.endpoint.index,
+      });
+      if (typeof rawValue !== 'number') {
+        return this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
+      }
     }
-    return level <= 15 ? this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW : this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
+    return level <= 15
+      ? this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW
+      : this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
   }
 
   private handleGetBatteryLevel(): number {

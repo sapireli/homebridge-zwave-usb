@@ -1,6 +1,6 @@
 # Contributing to Homebridge Z-Wave USB
 
-First off, thank you for considering contributing to this project! 
+First off, thank you for considering contributing to this project!
 
 ## Code of Conduct
 

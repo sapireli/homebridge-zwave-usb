@@ -35,8 +35,8 @@ describe('SmokeSensorFeature', () => {
       } as any,
       Characteristic: {
         SmokeDetected: {
-            SMOKE_NOT_DETECTED: 0,
-            SMOKE_DETECTED: 1,
+          SMOKE_NOT_DETECTED: 0,
+          SMOKE_DETECTED: 1,
         },
         Name: 'Name',
         ConfiguredName: 'ConfiguredName',
@@ -45,7 +45,7 @@ describe('SmokeSensorFeature', () => {
         generate: jest.fn().mockReturnValue('test-uuid'),
       },
     } as any;
-    
+
     accessory = {
       getService: jest.fn(),
       getServiceById: jest.fn(),
@@ -56,7 +56,8 @@ describe('SmokeSensorFeature', () => {
       hap,
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
-      on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      on: jest.fn(),
+      user: { storagePath: jest.fn().mockReturnValue('/tmp') },
       user: {
         storagePath: jest.fn().mockReturnValue('/tmp'),
       },
@@ -88,7 +89,7 @@ describe('SmokeSensorFeature', () => {
       index: 0,
       node: node,
     } as any;
-    
+
     feature = new SmokeSensorFeature(platform, accessory, endpoint, node);
   });
 
@@ -102,11 +103,14 @@ describe('SmokeSensorFeature', () => {
     node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
     node.getValue.mockReturnValue(1);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.SmokeDetected, platform.Characteristic.SmokeDetected.SMOKE_DETECTED);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.SmokeDetected,
+      platform.Characteristic.SmokeDetected.SMOKE_DETECTED,
+    );
     expect(node.getValue).toHaveBeenCalledWith({
-        commandClass: CommandClasses.Notification,
-        property: 'Smoke Alarm',
-        endpoint: 0
+      commandClass: CommandClasses.Notification,
+      property: 'Smoke Alarm',
+      endpoint: 0,
     });
   });
 
@@ -115,11 +119,14 @@ describe('SmokeSensorFeature', () => {
     node.supportsCC.mockImplementation((cc) => cc === CommandClasses['Binary Sensor']);
     node.getValue.mockReturnValue(true);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.SmokeDetected, platform.Characteristic.SmokeDetected.SMOKE_DETECTED);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.SmokeDetected,
+      platform.Characteristic.SmokeDetected.SMOKE_DETECTED,
+    );
     expect(node.getValue).toHaveBeenCalledWith({
-        commandClass: CommandClasses['Binary Sensor'],
-        property: 'Smoke',
-        endpoint: 0
+      commandClass: CommandClasses['Binary Sensor'],
+      property: 'Smoke',
+      endpoint: 0,
     });
   });
 });

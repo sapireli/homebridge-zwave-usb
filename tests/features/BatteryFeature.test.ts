@@ -35,8 +35,8 @@ describe('BatteryFeature', () => {
       Characteristic: {
         BatteryLevel: 'BatteryLevel',
         StatusLowBattery: {
-            BATTERY_LEVEL_NORMAL: 0,
-            BATTERY_LEVEL_LOW: 1,
+          BATTERY_LEVEL_NORMAL: 0,
+          BATTERY_LEVEL_LOW: 1,
         },
         Name: 'Name',
         ConfiguredName: 'ConfiguredName',
@@ -45,12 +45,13 @@ describe('BatteryFeature', () => {
         generate: jest.fn().mockReturnValue('test-uuid'),
       },
     } as any;
-    
+
     api = {
       hap,
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
-      on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      on: jest.fn(),
+      user: { storagePath: jest.fn().mockReturnValue('/tmp') },
       user: {
         storagePath: jest.fn().mockReturnValue('/tmp'),
       },
@@ -94,33 +95,42 @@ describe('BatteryFeature', () => {
     feature.init();
     node.getValue.mockReturnValue(85);
     feature.update();
-    expect(batteryService.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.BatteryLevel, 85);
+    expect(batteryService.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.BatteryLevel,
+      85,
+    );
     expect(node.getValue).toHaveBeenCalledWith({
-        commandClass: CommandClasses.Battery,
-        property: 'level',
-        endpoint: 0
+      commandClass: CommandClasses.Battery,
+      property: 'level',
+      endpoint: 0,
     });
   });
 
   it('should report low battery status based on isLow property', () => {
     feature.init();
     node.getValue.mockImplementation((vid) => {
-        if (vid.property === 'isLow') return true;
-        if (vid.property === 'level') return 10;
-        return undefined;
+      if (vid.property === 'isLow') return true;
+      if (vid.property === 'level') return 10;
+      return undefined;
     });
     feature.update();
-    expect(batteryService.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.StatusLowBattery, platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW);
+    expect(batteryService.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.StatusLowBattery,
+      platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW,
+    );
   });
 
   it('should report low battery status based on level if isLow is missing', () => {
     feature.init();
     node.getValue.mockImplementation((vid) => {
-        if (vid.property === 'isLow') return undefined;
-        if (vid.property === 'level') return 5;
-        return undefined;
+      if (vid.property === 'isLow') return undefined;
+      if (vid.property === 'level') return 5;
+      return undefined;
     });
     feature.update();
-    expect(batteryService.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.StatusLowBattery, platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW);
+    expect(batteryService.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.StatusLowBattery,
+      platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW,
+    );
   });
 });

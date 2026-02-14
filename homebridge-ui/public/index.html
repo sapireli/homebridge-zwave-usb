@@ -1,174 +1,176 @@
 <div class="card card-body">
-    <form id="configForm">
-        <div class="form-group">
-            <label for="name">Name</label>
-            <input type="text" class="form-control" id="name" placeholder="Homebridge Z-Wave USB">
-        </div>
-        <div class="form-group">
-            <label for="serialPort">Serial Port Path</label>
-            <input type="text" class="form-control" id="serialPort" placeholder="/dev/ttyACM0" required>
-            <small class="form-text text-muted">
-                WARNING: Do not use /dev/ttyUSB0. Use /dev/serial/by-id/...
-            </small>
-        </div>
+  <form id="configForm">
+    <div class="form-group">
+      <label for="name">Name</label>
+      <input type="text" class="form-control" id="name" placeholder="Homebridge Z-Wave USB" />
+    </div>
+    <div class="form-group">
+      <label for="serialPort">Serial Port Path</label>
+      <input type="text" class="form-control" id="serialPort" placeholder="/dev/ttyACM0" required />
+      <small class="form-text text-muted">
+        WARNING: Do not use /dev/ttyUSB0. Use /dev/serial/by-id/...
+      </small>
+    </div>
 
-        <fieldset>
-            <legend>Z-Wave Security Keys</legend>
-            <p class="text-muted small">
-                Required for secure devices (Locks, Sensors).
-            </p>
-            <button type="button" class="btn btn-outline-primary btn-sm mb-3" id="generateKeys">
-                Auto-Generate Keys
-            </button>
+    <fieldset>
+      <legend>Z-Wave Security Keys</legend>
+      <p class="text-muted small">Required for secure devices (Locks, Sensors).</p>
+      <button type="button" class="btn btn-outline-primary btn-sm mb-3" id="generateKeys">
+        Auto-Generate Keys
+      </button>
 
-            <div class="form-group">
-                <label for="S0_Legacy">S0 Legacy</label>
-                <input type="text" class="form-control" id="S0_Legacy" maxlength="32">
-            </div>
-            <div class="form-group">
-                <label for="S2_Unauthenticated">S2 Unauthenticated</label>
-                <input type="text" class="form-control" id="S2_Unauthenticated" maxlength="32">
-            </div>
-            <div class="form-group">
-                <label for="S2_Authenticated">S2 Authenticated</label>
-                <input type="text" class="form-control" id="S2_Authenticated" maxlength="32">
-            </div>
-            <div class="form-group">
-                <label for="S2_AccessControl">S2 Access Control</label>
-                <input type="text" class="form-control" id="S2_AccessControl" maxlength="32">
-            </div>
+      <div class="form-group">
+        <label for="S0_Legacy">S0 Legacy</label>
+        <input type="text" class="form-control" id="S0_Legacy" maxlength="32" />
+      </div>
+      <div class="form-group">
+        <label for="S2_Unauthenticated">S2 Unauthenticated</label>
+        <input type="text" class="form-control" id="S2_Unauthenticated" maxlength="32" />
+      </div>
+      <div class="form-group">
+        <label for="S2_Authenticated">S2 Authenticated</label>
+        <input type="text" class="form-control" id="S2_Authenticated" maxlength="32" />
+      </div>
+      <div class="form-group">
+        <label for="S2_AccessControl">S2 Access Control</label>
+        <input type="text" class="form-control" id="S2_AccessControl" maxlength="32" />
+      </div>
 
-            <p class="text-muted small mt-3">
-                Optional: Long Range specific keys (defaults to Classic S2 if empty)
-            </p>
-            <div class="form-group">
-                <label for="S2_Authenticated_LR">S2 Authenticated (LR)</label>
-                <input type="text" class="form-control" id="S2_Authenticated_LR" maxlength="32">
-            </div>
-            <div class="form-group">
-                <label for="S2_AccessControl_LR">S2 Access Control (LR)</label>
-                <input type="text" class="form-control" id="S2_AccessControl_LR" maxlength="32">
-            </div>
-        </fieldset>
+      <p class="text-muted small mt-3">
+        Optional: Long Range specific keys (defaults to Classic S2 if empty)
+      </p>
+      <div class="form-group">
+        <label for="S2_Authenticated_LR">S2 Authenticated (LR)</label>
+        <input type="text" class="form-control" id="S2_Authenticated_LR" maxlength="32" />
+      </div>
+      <div class="form-group">
+        <label for="S2_AccessControl_LR">S2 Access Control (LR)</label>
+        <input type="text" class="form-control" id="S2_AccessControl_LR" maxlength="32" />
+      </div>
+    </fieldset>
 
-        <fieldset>
-            <legend>Advanced</legend>
-            <div class="form-group">
-                <label for="inclusionTimeoutSeconds">Inclusion Timeout (Seconds)</label>
-                <input type="number" class="form-control" id="inclusionTimeoutSeconds" placeholder="60">
-            </div>
-            
-            <div class="form-check mt-3">
-                <input type="checkbox" class="form-check-input" id="debug">
-                <label class="form-check-label" for="debug">Enable Verbose Driver Logging</label>
-            </div>
-        </fieldset>
-    </form>
+    <fieldset>
+      <legend>Advanced</legend>
+      <div class="form-group">
+        <label for="inclusionTimeoutSeconds">Inclusion Timeout (Seconds)</label>
+        <input type="number" class="form-control" id="inclusionTimeoutSeconds" placeholder="60" />
+      </div>
+
+      <div class="form-check mt-3">
+        <input type="checkbox" class="form-check-input" id="debug" />
+        <label class="form-check-label" for="debug">Enable Verbose Driver Logging</label>
+      </div>
+    </fieldset>
+  </form>
 </div>
 
 <script>
-    (async () => {
-        const getInt = (id, def) => {
-            const el = document.getElementById(id);
-            if (!el) return def;
-            const val = parseInt(el.value, 10);
-            return isNaN(val) ? def : val;
+  (async () => {
+    const getInt = (id, def) => {
+      const el = document.getElementById(id);
+      if (!el) return def;
+      const val = parseInt(el.value, 10);
+      return isNaN(val) ? def : val;
+    };
+
+    const getConfig = () => {
+      const securityKeys = {
+        S0_Legacy: document.getElementById('S0_Legacy').value,
+        S2_Unauthenticated: document.getElementById('S2_Unauthenticated').value,
+        S2_Authenticated: document.getElementById('S2_Authenticated').value,
+        S2_AccessControl: document.getElementById('S2_AccessControl').value,
+        S2_Authenticated_LR: document.getElementById('S2_Authenticated_LR').value,
+        S2_AccessControl_LR: document.getElementById('S2_AccessControl_LR').value,
+      };
+
+      const newConfig = {
+        name: document.getElementById('name').value,
+        platform: 'ZWaveUSB',
+        serialPort: document.getElementById('serialPort').value,
+        inclusionTimeoutSeconds: getInt('inclusionTimeoutSeconds', 60),
+        debug: document.getElementById('debug').checked,
+      };
+
+      if (Object.values(securityKeys).some((k) => k && k.length > 0)) {
+        newConfig.securityKeys = securityKeys;
+      }
+
+      return newConfig;
+    };
+
+    const updateConfig = async () => {
+      if (window.homebridge) {
+        const newConfig = getConfig();
+        await window.homebridge.updatePluginConfig([newConfig]);
+      }
+    };
+
+    const init = async () => {
+      if (!window.homebridge) return;
+
+      // Load Config
+      const pluginConfig = await window.homebridge.getPluginConfig();
+      const config = pluginConfig[0] || {};
+
+      // Populate Form
+      document.getElementById('name').value = config.name || 'Homebridge Z-Wave USB';
+      document.getElementById('serialPort').value = config.serialPort || '';
+
+      // Keys
+      const keys = config.securityKeys || {};
+      document.getElementById('S0_Legacy').value = keys.S0_Legacy || '';
+      document.getElementById('S2_Unauthenticated').value = keys.S2_Unauthenticated || '';
+      document.getElementById('S2_Authenticated').value = keys.S2_Authenticated || '';
+      document.getElementById('S2_AccessControl').value = keys.S2_AccessControl || '';
+      document.getElementById('S2_Authenticated_LR').value = keys.S2_Authenticated_LR || '';
+      document.getElementById('S2_AccessControl_LR').value = keys.S2_AccessControl_LR || '';
+
+      // Advanced
+      document.getElementById('inclusionTimeoutSeconds').value =
+        config.inclusionTimeoutSeconds || 60;
+      document.getElementById('debug').checked = config.debug || false;
+
+      // Auto-save on change
+      document.getElementById('configForm').addEventListener('input', updateConfig);
+      document.getElementById('configForm').addEventListener('change', updateConfig);
+
+      // Generate Keys
+      document.getElementById('generateKeys').addEventListener('click', () => {
+        if (document.getElementById('S0_Legacy').value && !confirm('Overwrite existing keys?'))
+          return;
+
+        const gen = () => {
+          const arr = new Uint8Array(16);
+          window.crypto.getRandomValues(arr);
+          return Array.from(arr, (b) => b.toString(16).padStart(2, '0'))
+            .join('')
+            .toUpperCase();
         };
 
-        const getConfig = () => {
-            const securityKeys = {
-                S0_Legacy: document.getElementById('S0_Legacy').value,
-                S2_Unauthenticated: document.getElementById('S2_Unauthenticated').value,
-                S2_Authenticated: document.getElementById('S2_Authenticated').value,
-                S2_AccessControl: document.getElementById('S2_AccessControl').value,
-                S2_Authenticated_LR: document.getElementById('S2_Authenticated_LR').value,
-                S2_AccessControl_LR: document.getElementById('S2_AccessControl_LR').value
-            };
+        document.getElementById('S0_Legacy').value = gen();
+        document.getElementById('S2_Unauthenticated').value = gen();
+        document.getElementById('S2_Authenticated').value = gen();
+        document.getElementById('S2_AccessControl').value = gen();
+        document.getElementById('S2_Authenticated_LR').value = gen();
+        document.getElementById('S2_AccessControl_LR').value = gen();
 
-            const newConfig = {
-                name: document.getElementById('name').value,
-                platform: 'ZWaveUSB',
-                serialPort: document.getElementById('serialPort').value,
-                inclusionTimeoutSeconds: getInt('inclusionTimeoutSeconds', 60),
-                debug: document.getElementById('debug').checked
-            };
+        updateConfig();
+        window.homebridge.toast.success('Keys generated and configuration updated!');
+      });
 
-            if (Object.values(securityKeys).some(k => k && k.length > 0)) {
-                newConfig.securityKeys = securityKeys;
-            }
+      // Save event listener as a backup
+      window.homebridge.addEventListener('submitting', async () => {
+        await updateConfig();
+      });
+    };
 
-            return newConfig;
-        };
-
-        const updateConfig = async () => {
-            if (window.homebridge) {
-                const newConfig = getConfig();
-                await window.homebridge.updatePluginConfig([newConfig]);
-            }
-        };
-
-        const init = async () => {
-            if (!window.homebridge) return;
-
-            // Load Config
-            const pluginConfig = await window.homebridge.getPluginConfig();
-            const config = pluginConfig[0] || {};
-
-            // Populate Form
-            document.getElementById('name').value = config.name || 'Homebridge Z-Wave USB';
-            document.getElementById('serialPort').value = config.serialPort || '';
-            
-            // Keys
-            const keys = config.securityKeys || {};
-            document.getElementById('S0_Legacy').value = keys.S0_Legacy || '';
-            document.getElementById('S2_Unauthenticated').value = keys.S2_Unauthenticated || '';
-            document.getElementById('S2_Authenticated').value = keys.S2_Authenticated || '';
-            document.getElementById('S2_AccessControl').value = keys.S2_AccessControl || '';
-            document.getElementById('S2_Authenticated_LR').value = keys.S2_Authenticated_LR || '';
-            document.getElementById('S2_AccessControl_LR').value = keys.S2_AccessControl_LR || '';
-
-            // Advanced
-            document.getElementById('inclusionTimeoutSeconds').value = config.inclusionTimeoutSeconds || 60;
-            document.getElementById('debug').checked = config.debug || false;
-
-            // Auto-save on change
-            document.getElementById('configForm').addEventListener('input', updateConfig);
-            document.getElementById('configForm').addEventListener('change', updateConfig);
-
-            // Generate Keys
-            document.getElementById('generateKeys').addEventListener('click', () => {
-                if (document.getElementById('S0_Legacy').value && !confirm('Overwrite existing keys?')) return;
-
-                const gen = () => {
-                    const arr = new Uint8Array(16);
-                    window.crypto.getRandomValues(arr);
-                    return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-                };
-
-                document.getElementById('S0_Legacy').value = gen();
-                document.getElementById('S2_Unauthenticated').value = gen();
-                document.getElementById('S2_Authenticated').value = gen();
-                document.getElementById('S2_AccessControl').value = gen();
-                document.getElementById('S2_Authenticated_LR').value = gen();
-                document.getElementById('S2_AccessControl_LR').value = gen();
-                
-                updateConfig();
-                window.homebridge.toast.success('Keys generated and configuration updated!');
-            });
-
-            // Save event listener as a backup
-            window.homebridge.addEventListener('submitting', async () => {
-                await updateConfig();
-            });
-        };
-
-        // Try to initialize
-        if (window.homebridge && window.homebridge.getPluginConfig) {
-            init();
-        } else if (window.homebridge) {
-            window.homebridge.addEventListener('ready', init);
-        } else {
-            window.addEventListener('homebridgeReady', init);
-        }
-    })();
+    // Try to initialize
+    if (window.homebridge && window.homebridge.getPluginConfig) {
+      init();
+    } else if (window.homebridge) {
+      window.homebridge.addEventListener('ready', init);
+    } else {
+      window.addEventListener('homebridgeReady', init);
+    }
+  })();
 </script>

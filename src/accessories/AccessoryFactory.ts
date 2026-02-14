@@ -50,7 +50,7 @@ export class AccessoryFactory {
           CommandClasses['Door Lock'],
           CommandClasses['Color Switch'],
           CommandClasses['Sound Switch'],
-        ].forEach(cc => {
+        ].forEach((cc) => {
           if (ep.supportsCC(cc)) {
             handledByEndpoints.add(cc);
           }
@@ -73,43 +73,55 @@ export class AccessoryFactory {
     handledByEndpoints: Set<CommandClasses>,
   ): void {
     const allValues = node.getDefinedValueIDs();
-    const values = allValues.filter(v => v.endpoint === endpoint.index);
+    const values = allValues.filter((v) => v.endpoint === endpoint.index);
 
     const isRootOnMultiEndpoint = endpoint.index === 0 && handledByEndpoints.size > 0;
 
-    const hasSwitch = endpoint.supportsCC(CommandClasses['Binary Switch']) && 
+    const hasSwitch =
+      endpoint.supportsCC(CommandClasses['Binary Switch']) &&
       (!isRootOnMultiEndpoint || !handledByEndpoints.has(CommandClasses['Binary Switch']));
-    const hasMultilevelSwitch = endpoint.supportsCC(CommandClasses['Multilevel Switch']) && 
+    const hasMultilevelSwitch =
+      endpoint.supportsCC(CommandClasses['Multilevel Switch']) &&
       (!isRootOnMultiEndpoint || !handledByEndpoints.has(CommandClasses['Multilevel Switch']));
-    const hasLock = endpoint.supportsCC(CommandClasses.Lock) && 
+    const hasLock =
+      endpoint.supportsCC(CommandClasses.Lock) &&
       (!isRootOnMultiEndpoint || !handledByEndpoints.has(CommandClasses.Lock));
-    const hasSensorMultilevel = endpoint.supportsCC(CommandClasses['Multilevel Sensor']) && 
+    const hasSensorMultilevel =
+      endpoint.supportsCC(CommandClasses['Multilevel Sensor']) &&
       (!isRootOnMultiEndpoint || !handledByEndpoints.has(CommandClasses['Multilevel Sensor']));
-    const hasNotification = endpoint.supportsCC(CommandClasses.Notification) && 
+    const hasNotification =
+      endpoint.supportsCC(CommandClasses.Notification) &&
       (!isRootOnMultiEndpoint || !handledByEndpoints.has(CommandClasses.Notification));
-    const hasSensorBinary = endpoint.supportsCC(CommandClasses['Binary Sensor']) && 
+    const hasSensorBinary =
+      endpoint.supportsCC(CommandClasses['Binary Sensor']) &&
       (!isRootOnMultiEndpoint || !handledByEndpoints.has(CommandClasses['Binary Sensor']));
     const hasCentralScene = endpoint.supportsCC(CommandClasses['Central Scene']);
     const hasBattery = endpoint.supportsCC(CommandClasses.Battery);
     const hasThermostat = endpoint.supportsCC(CommandClasses['Thermostat Mode']);
     const hasWindowCovering = endpoint.supportsCC(CommandClasses['Window Covering']);
-    const hasGarageDoor = endpoint.supportsCC(CommandClasses['Door Lock']);
+    const hasGarageDoor = endpoint.supportsCC(CommandClasses['Barrier Operator']);
     const hasColor = endpoint.supportsCC(CommandClasses['Color Switch']);
     const hasSiren = endpoint.supportsCC(CommandClasses['Sound Switch']);
 
     // 1. Thermostat (High Priority)
     if (hasThermostat) {
-        accessory.addFeature(new ThermostatFeature(platform, accessory.platformAccessory, endpoint, node));
+      accessory.addFeature(
+        new ThermostatFeature(platform, accessory.platformAccessory, endpoint, node),
+      );
     }
 
     // 2. Window Covering
     if (hasWindowCovering) {
-        accessory.addFeature(new WindowCoveringFeature(platform, accessory.platformAccessory, endpoint, node));
+      accessory.addFeature(
+        new WindowCoveringFeature(platform, accessory.platformAccessory, endpoint, node),
+      );
     }
 
     // 3. Garage Door
     if (hasGarageDoor) {
-        accessory.addFeature(new GarageDoorFeature(platform, accessory.platformAccessory, endpoint, node));
+      accessory.addFeature(
+        new GarageDoorFeature(platform, accessory.platformAccessory, endpoint, node),
+      );
     }
 
     // 4. Lock
@@ -119,79 +131,154 @@ export class AccessoryFactory {
 
     // 5. Color Control (can coexist with Multilevel Switch)
     if (hasColor) {
-        accessory.addFeature(new ColorSwitchFeature(platform, accessory.platformAccessory, endpoint, node));
+      accessory.addFeature(
+        new ColorSwitchFeature(platform, accessory.platformAccessory, endpoint, node),
+      );
     }
 
     // 6. Multilevel Switch (Dimmer)
     if (hasMultilevelSwitch && !hasWindowCovering) {
-      accessory.addFeature(new MultilevelSwitchFeature(platform, accessory.platformAccessory, endpoint, node));
+      accessory.addFeature(
+        new MultilevelSwitchFeature(platform, accessory.platformAccessory, endpoint, node),
+      );
     }
 
     // 7. Binary Switch
     if (hasSwitch && !hasMultilevelSwitch && !hasWindowCovering && !hasGarageDoor && !hasSiren) {
-      accessory.addFeature(new BinarySwitchFeature(platform, accessory.platformAccessory, endpoint, node));
+      accessory.addFeature(
+        new BinarySwitchFeature(platform, accessory.platformAccessory, endpoint, node),
+      );
     }
 
     // 8. Siren
     if (hasSiren) {
-        accessory.addFeature(new SirenFeature(platform, accessory.platformAccessory, endpoint, node));
+      accessory.addFeature(new SirenFeature(platform, accessory.platformAccessory, endpoint, node));
     }
 
     // 9. Multilevel Sensor
     if (hasSensorMultilevel) {
-      accessory.addFeature(new MultilevelSensorFeature(platform, accessory.platformAccessory, endpoint, node));
+      accessory.addFeature(
+        new MultilevelSensorFeature(platform, accessory.platformAccessory, endpoint, node),
+      );
     }
 
     // 10. Notification Sensors
     if (hasNotification) {
       // Water Alarm
-      if (values.some((v: ValueID) => v.commandClass === CommandClasses.Notification && (v.property === 'Water Alarm' || v.propertyKey === 'Water leak status'))) {
-        accessory.addFeature(new LeakSensorFeature(platform, accessory.platformAccessory, endpoint, node));
+      if (
+        values.some(
+          (v: ValueID) =>
+            v.commandClass === CommandClasses.Notification &&
+            (v.property === 'Water Alarm' || v.propertyKey === 'Water leak status'),
+        )
+      ) {
+        accessory.addFeature(
+          new LeakSensorFeature(platform, accessory.platformAccessory, endpoint, node),
+        );
       }
 
       // Home Security - Motion
-      if (values.some((v: ValueID) => v.commandClass === CommandClasses.Notification && (v.property === 'Home Security' || v.propertyKey === 'Motion sensor status'))) {
-        accessory.addFeature(new MotionSensorFeature(platform, accessory.platformAccessory, endpoint, node));
+      if (
+        values.some(
+          (v: ValueID) =>
+            v.commandClass === CommandClasses.Notification &&
+            (v.property === 'Home Security' || v.propertyKey === 'Motion sensor status'),
+        )
+      ) {
+        accessory.addFeature(
+          new MotionSensorFeature(platform, accessory.platformAccessory, endpoint, node),
+        );
       }
 
       // Access Control - Door/Window
-      if (values.some((v: ValueID) => v.commandClass === CommandClasses.Notification && (v.property === 'Access Control' || v.propertyKey === 'Door status'))) {
-        accessory.addFeature(new ContactSensorFeature(platform, accessory.platformAccessory, endpoint, node));
+      if (
+        values.some(
+          (v: ValueID) =>
+            v.commandClass === CommandClasses.Notification &&
+            (v.property === 'Access Control' || v.propertyKey === 'Door status'),
+        )
+      ) {
+        accessory.addFeature(
+          new ContactSensorFeature(platform, accessory.platformAccessory, endpoint, node),
+        );
       }
 
       // Smoke Alarm
-      if (values.some((v: ValueID) => v.commandClass === CommandClasses.Notification && v.property === 'Smoke Alarm')) {
-        accessory.addFeature(new SmokeSensorFeature(platform, accessory.platformAccessory, endpoint, node));
+      if (
+        values.some(
+          (v: ValueID) =>
+            v.commandClass === CommandClasses.Notification && v.property === 'Smoke Alarm',
+        )
+      ) {
+        accessory.addFeature(
+          new SmokeSensorFeature(platform, accessory.platformAccessory, endpoint, node),
+        );
       }
 
       // CO Alarm
-      if (values.some((v: ValueID) => v.commandClass === CommandClasses.Notification && v.property === 'Carbon Monoxide Alarm')) {
-        accessory.addFeature(new CarbonMonoxideSensorFeature(platform, accessory.platformAccessory, endpoint, node));
+      if (
+        values.some(
+          (v: ValueID) =>
+            v.commandClass === CommandClasses.Notification &&
+            v.property === 'Carbon Monoxide Alarm',
+        )
+      ) {
+        accessory.addFeature(
+          new CarbonMonoxideSensorFeature(platform, accessory.platformAccessory, endpoint, node),
+        );
       }
     }
 
     // 11. Binary Sensor (Legacy)
     if (hasSensorBinary) {
-      if (values.some((v: ValueID) => v.commandClass === CommandClasses['Binary Sensor'] && v.property === 'Water')) {
-        accessory.addFeature(new LeakSensorFeature(platform, accessory.platformAccessory, endpoint, node));
-      } else if (values.some((v: ValueID) => v.commandClass === CommandClasses['Binary Sensor'] && v.property === 'Smoke')) {
-        accessory.addFeature(new SmokeSensorFeature(platform, accessory.platformAccessory, endpoint, node));
-      } else if (values.some((v: ValueID) => v.commandClass === CommandClasses['Binary Sensor'] && (v.property === 'CO' || v.property === 'CO2'))) {
-        accessory.addFeature(new CarbonMonoxideSensorFeature(platform, accessory.platformAccessory, endpoint, node));
+      if (
+        values.some(
+          (v: ValueID) =>
+            v.commandClass === CommandClasses['Binary Sensor'] && v.property === 'Water',
+        )
+      ) {
+        accessory.addFeature(
+          new LeakSensorFeature(platform, accessory.platformAccessory, endpoint, node),
+        );
+      } else if (
+        values.some(
+          (v: ValueID) =>
+            v.commandClass === CommandClasses['Binary Sensor'] && v.property === 'Smoke',
+        )
+      ) {
+        accessory.addFeature(
+          new SmokeSensorFeature(platform, accessory.platformAccessory, endpoint, node),
+        );
+      } else if (
+        values.some(
+          (v: ValueID) =>
+            v.commandClass === CommandClasses['Binary Sensor'] &&
+            (v.property === 'CO' || v.property === 'CO2'),
+        )
+      ) {
+        accessory.addFeature(
+          new CarbonMonoxideSensorFeature(platform, accessory.platformAccessory, endpoint, node),
+        );
       } else {
         // Default to ContactSensor for other generic binary sensors
-        accessory.addFeature(new ContactSensorFeature(platform, accessory.platformAccessory, endpoint, node));
+        accessory.addFeature(
+          new ContactSensorFeature(platform, accessory.platformAccessory, endpoint, node),
+        );
       }
     }
 
     // 12. Central Scene (Buttons)
     if (hasCentralScene) {
-      accessory.addFeature(new CentralSceneFeature(platform, accessory.platformAccessory, endpoint, node));
+      accessory.addFeature(
+        new CentralSceneFeature(platform, accessory.platformAccessory, endpoint, node),
+      );
     }
 
     // 13. Battery
     if (hasBattery) {
-      accessory.addFeature(new BatteryFeature(platform, accessory.platformAccessory, endpoint, node));
+      accessory.addFeature(
+        new BatteryFeature(platform, accessory.platformAccessory, endpoint, node),
+      );
     }
   }
 }

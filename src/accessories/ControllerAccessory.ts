@@ -1,7 +1,13 @@
 import { PlatformAccessory, Service, CharacteristicValue, Characteristic } from 'homebridge';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { IZWaveController } from '../zwave/interfaces';
-import { MANAGER_SERVICE_UUID, OBSOLETE_MANAGER_UUIDS, OBSOLETE_CHAR_UUIDS, HAPFormat, HAPPerm } from '../platform/settings';
+import {
+  MANAGER_SERVICE_UUID,
+  OBSOLETE_MANAGER_UUIDS,
+  OBSOLETE_CHAR_UUIDS,
+  HAPFormat,
+  HAPPerm,
+} from '../platform/settings';
 
 export class ControllerAccessory {
   private statusService: Service;
@@ -31,89 +37,105 @@ export class ControllerAccessory {
       this.platformAccessory = existingAccessory;
     } else {
       this.platform.log.info('Creating new Z-Wave Controller accessory');
-      this.platformAccessory = new this.platform.api.platformAccessory(
-        'Z-Wave Controller',
-        uuid,
-      );
-      this.platform.api.registerPlatformAccessories(
-        'homebridge-zwave-usb',
-        'ZWaveUSB',
-        [this.platformAccessory],
-      );
+      this.platformAccessory = new this.platform.api.platformAccessory('Z-Wave Controller', uuid);
+      this.platform.api.registerPlatformAccessories('homebridge-zwave-usb', 'ZWaveUSB', [
+        this.platformAccessory,
+      ]);
       this.platform.accessories.push(this.platformAccessory);
     }
 
     // Set accessory information
-    this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!
+    this.platformAccessory
+      .getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Aeotec / Z-Wave JS')
       .setCharacteristic(this.platform.Characteristic.Model, 'Z-Wave USB Controller')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, homeId.toString());
 
     // --- AGGRESSIVE CLEANUP: Remove ALL obsolete services and characteristics ---
-    this.platformAccessory.services.slice().forEach(service => {
-        const serviceUuid = service.UUID.toUpperCase();
-        
-        // Remove obsolete services
-        const isObsoleteManager = OBSOLETE_MANAGER_UUIDS.some(u => u.toUpperCase() === serviceUuid);
-        const isDuplicateCurrent = serviceUuid === MANAGER_SERVICE_UUID.toUpperCase() && 
-                                   service !== this.platformAccessory.getService(MANAGER_SERVICE_UUID);
+    this.platformAccessory.services.slice().forEach((service) => {
+      const serviceUuid = service.UUID.toUpperCase();
 
-        if (isObsoleteManager || isDuplicateCurrent) {
-            this.platform.log.info(`Pruning obsolete or duplicate service: ${service.displayName} (${service.UUID})`);
-            this.platformAccessory.removeService(service);
-            return; // Service gone
+      // Remove obsolete services
+      const isObsoleteManager = OBSOLETE_MANAGER_UUIDS.some((u) => u.toUpperCase() === serviceUuid);
+      const isDuplicateCurrent =
+        serviceUuid === MANAGER_SERVICE_UUID.toUpperCase() &&
+        service !== this.platformAccessory.getService(MANAGER_SERVICE_UUID);
+
+      if (isObsoleteManager || isDuplicateCurrent) {
+        this.platform.log.info(
+          `Pruning obsolete or duplicate service: ${service.displayName} (${service.UUID})`,
+        );
+        this.platformAccessory.removeService(service);
+        return; // Service gone
+      }
+
+      // Clean up obsolete characteristics from retained services (like Switch)
+      OBSOLETE_CHAR_UUIDS.forEach((charUuid) => {
+        const found = service.characteristics.find(
+          (c) => c.UUID.toUpperCase() === charUuid.toUpperCase(),
+        );
+        if (found) {
+          this.platform.log.info(
+            `Pruning obsolete characteristic: ${found.displayName} from ${service.displayName}`,
+          );
+          service.removeCharacteristic(found);
         }
-
-        // Clean up obsolete characteristics from retained services (like Switch)
-        OBSOLETE_CHAR_UUIDS.forEach(charUuid => {
-            const found = service.characteristics.find(c => c.UUID.toUpperCase() === charUuid.toUpperCase());
-            if (found) {
-                this.platform.log.info(`Pruning obsolete characteristic: ${found.displayName} from ${service.displayName}`);
-                service.removeCharacteristic(found);
-            }
-        });
-        
+      });
     });
 
     // Add ServiceLabelNamespace to AccessoryInformation to help with naming multi-service accessories
-    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
+    const infoService = this.platformAccessory.getService(
+      this.platform.Service.AccessoryInformation,
+    )!;
     if (!infoService.testCharacteristic(this.platform.Characteristic.ServiceLabelNamespace)) {
-        infoService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelNamespace);
+      infoService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelNamespace);
     }
     // 1 = Arabic numerals (1, 2, 3...)
-    infoService.getCharacteristic(this.platform.Characteristic.ServiceLabelNamespace).updateValue(1);
+    infoService
+      .getCharacteristic(this.platform.Characteristic.ServiceLabelNamespace)
+      .updateValue(1);
 
     // --- 1. System Status Service (Custom Service) ---
-    this.statusService = this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        this.platformAccessory.addService(new (this.platform.Service as any).ZWaveManager('System Status', 'Status'));
-    this.syncConfiguredName(this.statusService, 'System Status');
-    
-    // Naming Identity - Strictly Name only
-    this.statusService.getCharacteristic(this.platform.Characteristic.Name)
+    this.statusService =
+      this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
+      this.platformAccessory.addService(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
-        .updateValue('System Status');
-    
+        new (this.platform.Service as any).ZWaveManager('System Status', 'Status'),
+      );
+    this.syncConfiguredName(this.statusService, 'System Status');
+
+    // Naming Identity - Strictly Name only
+    this.statusService
+      .getCharacteristic(this.platform.Characteristic.Name)
+      .setProps({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        format: HAPFormat.STRING as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        perms: [HAPPerm.PAIRED_READ as any],
+      })
+      .updateValue('System Status');
+
     // Service Label Index
     if (!this.statusService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
-        this.statusService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
+      this.statusService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
     }
-    this.statusService.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex).updateValue(1);
+    this.statusService
+      .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
+      .updateValue(1);
 
     // System Status Characteristic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const statusCharType = (this.platform.Characteristic as any).ZWaveStatus;
     if (!this.statusService.testCharacteristic(statusCharType)) {
-        this.statusService.addOptionalCharacteristic(statusCharType);
+      this.statusService.addOptionalCharacteristic(statusCharType);
     }
     this.statusChar = this.statusService.getCharacteristic(statusCharType);
     this.statusChar.setProps({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        format: HAPFormat.STRING as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
-        description: 'Controller Status'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      format: HAPFormat.STRING as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
+      description: 'Controller Status',
     });
     this.statusChar.updateValue('Driver Ready');
 
@@ -128,71 +150,105 @@ export class ControllerAccessory {
     // --- 2. Inclusion Mode Switch ---
     this.inclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Inclusion') ||
-      this.platformAccessory.addService(this.platform.Service.Switch, 'Inclusion Mode', 'Inclusion');
+      this.platformAccessory.addService(
+        this.platform.Service.Switch,
+        'Inclusion Mode',
+        'Inclusion',
+      );
     this.syncConfiguredName(this.inclusionService, 'Inclusion Mode');
-    
-    this.inclusionService.getCharacteristic(this.platform.Characteristic.Name)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
-        .updateValue('Inclusion Mode');
-    
-    if (!this.inclusionService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
-        this.inclusionService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
-    }
-    this.inclusionService.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex).updateValue(2);
-    this.setupPinEntryCharacteristic(this.inclusionService);
 
+    this.inclusionService
+      .getCharacteristic(this.platform.Characteristic.Name)
+      .setProps({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        format: HAPFormat.STRING as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        perms: [HAPPerm.PAIRED_READ as any],
+      })
+      .updateValue('Inclusion Mode');
+
+    if (!this.inclusionService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
+      this.inclusionService.addOptionalCharacteristic(
+        this.platform.Characteristic.ServiceLabelIndex,
+      );
+    }
+    this.inclusionService
+      .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
+      .updateValue(2);
+    this.setupPinEntryCharacteristic(this.inclusionService);
 
     // --- 3. Exclusion Mode Switch ---
     this.exclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Exclusion') ||
-      this.platformAccessory.addService(this.platform.Service.Switch, 'Exclusion Mode', 'Exclusion');
+      this.platformAccessory.addService(
+        this.platform.Service.Switch,
+        'Exclusion Mode',
+        'Exclusion',
+      );
     this.syncConfiguredName(this.exclusionService, 'Exclusion Mode');
-    
-    this.exclusionService.getCharacteristic(this.platform.Characteristic.Name)
+
+    this.exclusionService
+      .getCharacteristic(this.platform.Characteristic.Name)
+      .setProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
-        .updateValue('Exclusion Mode');
+        format: HAPFormat.STRING as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        perms: [HAPPerm.PAIRED_READ as any],
+      })
+      .updateValue('Exclusion Mode');
 
     if (!this.exclusionService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
-        this.exclusionService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
+      this.exclusionService.addOptionalCharacteristic(
+        this.platform.Characteristic.ServiceLabelIndex,
+      );
     }
-    this.exclusionService.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex).updateValue(3);
+    this.exclusionService
+      .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
+      .updateValue(3);
 
     // --- 4. Heal Network Switch ---
     this.healService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Heal') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
     this.syncConfiguredName(this.healService, 'Heal Network');
-    
-    this.healService.getCharacteristic(this.platform.Characteristic.Name)
+
+    this.healService
+      .getCharacteristic(this.platform.Characteristic.Name)
+      .setProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
-        .updateValue('Heal Network');
+        format: HAPFormat.STRING as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        perms: [HAPPerm.PAIRED_READ as any],
+      })
+      .updateValue('Heal Network');
 
     if (!this.healService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
-        this.healService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
+      this.healService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
     }
-    this.healService.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex).updateValue(4);
+    this.healService
+      .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
+      .updateValue(4);
 
     // Setup Switch characteristic Handlers
-    [this.inclusionService, this.exclusionService, this.healService].forEach(service => {
-        service.getCharacteristic(this.platform.Characteristic.On)
-            .onGet(() => false);
+    [this.inclusionService, this.exclusionService, this.healService].forEach((service) => {
+      service.getCharacteristic(this.platform.Characteristic.On).onGet(() => false);
     });
 
-    this.inclusionService.getCharacteristic(this.platform.Characteristic.On)
+    this.inclusionService
+      .getCharacteristic(this.platform.Characteristic.On)
       .onSet(this.handleSetInclusion.bind(this));
 
-    this.exclusionService.getCharacteristic(this.platform.Characteristic.On)
+    this.exclusionService
+      .getCharacteristic(this.platform.Characteristic.On)
       .onSet(this.handleSetExclusion.bind(this));
 
-    this.healService.getCharacteristic(this.platform.Characteristic.On)
+    this.healService
+      .getCharacteristic(this.platform.Characteristic.On)
       .onSet(this.handleSetHeal.bind(this));
 
     // --- Listen for controller events to sync state ---
     this.controller.on('status updated', (status: string) => {
-        this.statusChar.updateValue(status);
+      this.statusChar.updateValue(status);
     });
 
     this.controller.on('inclusion started', () => {
@@ -240,7 +296,9 @@ export class ControllerAccessory {
     if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
       service.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
     }
-    service.getCharacteristic(this.platform.Characteristic.ConfiguredName).updateValue(configuredNameValue);
+    service
+      .getCharacteristic(this.platform.Characteristic.ConfiguredName)
+      .updateValue(configuredNameValue);
   }
 
   private setupPinEntryCharacteristic(service: Service) {

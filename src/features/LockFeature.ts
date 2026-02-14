@@ -1,6 +1,7 @@
 import { Service, CharacteristicValue } from 'homebridge';
 import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
+import { ZWaveValueEvent } from '../zwave/interfaces';
 
 export class LockFeature extends BaseFeature {
   private service!: Service;
@@ -19,7 +20,10 @@ export class LockFeature extends BaseFeature {
       .onSet(this.handleSetLockTargetState.bind(this));
   }
 
-  update(): void {
+  update(args?: ZWaveValueEvent): void {
+    if (!this.shouldUpdate(args, CommandClasses['Door Lock'])) {
+      return;
+    }
     const value = this.node.getValue({
       commandClass: CommandClasses['Door Lock'],
       property: 'currentMode',
@@ -29,11 +33,12 @@ export class LockFeature extends BaseFeature {
     if (typeof value === 'number') {
       const state = this.mapZWaveToHomeKit(value);
       this.service.updateCharacteristic(this.platform.Characteristic.LockCurrentState, state);
-      
-      const target = state === this.platform.Characteristic.LockCurrentState.SECURED 
-          ? this.platform.Characteristic.LockTargetState.SECURED 
+
+      const target =
+        state === this.platform.Characteristic.LockCurrentState.SECURED
+          ? this.platform.Characteristic.LockTargetState.SECURED
           : this.platform.Characteristic.LockTargetState.UNSECURED;
-          
+
       this.service.updateCharacteristic(this.platform.Characteristic.LockTargetState, target);
     }
   }
@@ -51,35 +56,49 @@ export class LockFeature extends BaseFeature {
       property: 'currentMode',
       endpoint: this.endpoint.index,
     });
-    return typeof value === 'number' ? this.mapZWaveToHomeKit(value) : this.platform.Characteristic.LockCurrentState.UNKNOWN;
+    return typeof value === 'number'
+      ? this.mapZWaveToHomeKit(value)
+      : this.platform.Characteristic.LockCurrentState.UNKNOWN;
   }
 
   private handleGetLockTargetState(): number {
-    const value = this.node.getValue({
-      commandClass: CommandClasses['Door Lock'],
-      property: 'targetMode',
-      endpoint: this.endpoint.index,
-    }) ?? this.node.getValue({
-      commandClass: CommandClasses['Door Lock'],
-      property: 'currentMode',
-      endpoint: this.endpoint.index,
-    });
+    const value =
+      this.node.getValue({
+        commandClass: CommandClasses['Door Lock'],
+        property: 'targetMode',
+        endpoint: this.endpoint.index,
+      }) ??
+      this.node.getValue({
+        commandClass: CommandClasses['Door Lock'],
+        property: 'currentMode',
+        endpoint: this.endpoint.index,
+      });
 
-    const state = typeof value === 'number' ? this.mapZWaveToHomeKit(value) : this.platform.Characteristic.LockCurrentState.UNKNOWN;
-    return state === this.platform.Characteristic.LockCurrentState.SECURED 
-        ? this.platform.Characteristic.LockTargetState.SECURED 
-        : this.platform.Characteristic.LockTargetState.UNSECURED;
+    const state =
+      typeof value === 'number'
+        ? this.mapZWaveToHomeKit(value)
+        : this.platform.Characteristic.LockCurrentState.UNKNOWN;
+    return state === this.platform.Characteristic.LockCurrentState.SECURED
+      ? this.platform.Characteristic.LockTargetState.SECURED
+      : this.platform.Characteristic.LockTargetState.UNSECURED;
   }
 
   private async handleSetLockTargetState(value: CharacteristicValue) {
     const targetMode = value === this.platform.Characteristic.LockTargetState.SECURED ? 255 : 0;
     try {
       await this.node.setValue(
-        { commandClass: CommandClasses['Door Lock'], property: 'targetMode', endpoint: this.endpoint.index },
+        {
+          commandClass: CommandClasses['Door Lock'],
+          property: 'targetMode',
+          endpoint: this.endpoint.index,
+        },
         targetMode,
       );
     } catch (err) {
-      this.platform.log.error(`Failed to set Lock Target for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`, err);
+      this.platform.log.error(
+        `Failed to set Lock Target for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`,
+        err,
+      );
       // SERVICE_COMMUNICATION_FAILURE = -70402
       throw new this.platform.api.hap.HapStatusError(-70402);
     }

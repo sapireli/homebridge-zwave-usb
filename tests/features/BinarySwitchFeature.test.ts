@@ -37,40 +37,40 @@ describe('BinarySwitchFeature', () => {
         generate: jest.fn().mockReturnValue('test-uuid'),
       },
     } as any;
-    
+
     accessory = {
       getService: jest.fn(),
       getServiceById: jest.fn(),
       addService: jest.fn().mockImplementation((service) => {
-          if (typeof service === 'function') {
-              // Handle constructor case if needed
-              return {
-                  getCharacteristic: jest.fn().mockReturnValue({
-                    on: jest.fn().mockReturnThis(),
-                    onGet: jest.fn().mockReturnThis(),
-                    onSet: jest.fn().mockReturnThis(),
-                    updateValue: jest.fn(),
-                    setProps: jest.fn().mockReturnThis(),
-                  }),
-                  testCharacteristic: jest.fn().mockReturnValue(true),
-                  addOptionalCharacteristic: jest.fn(),
-                  setCharacteristic: jest.fn().mockReturnThis(),
-                  updateCharacteristic: jest.fn(),
-              };
-          }
-          // Handle instance case
-          service.setCharacteristic = jest.fn().mockReturnThis();
-          service.getCharacteristic = jest.fn().mockReturnValue({
-            on: jest.fn().mockReturnThis(),
-            onGet: jest.fn().mockReturnThis(),
-            onSet: jest.fn().mockReturnThis(),
-            updateValue: jest.fn(),
-            setProps: jest.fn().mockReturnThis(),
-          });
-          service.testCharacteristic = jest.fn().mockReturnValue(true);
-          service.addOptionalCharacteristic = jest.fn();
-          service.updateCharacteristic = jest.fn().mockReturnThis();
-          return service;
+        if (typeof service === 'function') {
+          // Handle constructor case if needed
+          return {
+            getCharacteristic: jest.fn().mockReturnValue({
+              on: jest.fn().mockReturnThis(),
+              onGet: jest.fn().mockReturnThis(),
+              onSet: jest.fn().mockReturnThis(),
+              updateValue: jest.fn(),
+              setProps: jest.fn().mockReturnThis(),
+            }),
+            testCharacteristic: jest.fn().mockReturnValue(true),
+            addOptionalCharacteristic: jest.fn(),
+            setCharacteristic: jest.fn().mockReturnThis(),
+            updateCharacteristic: jest.fn(),
+          };
+        }
+        // Handle instance case
+        service.setCharacteristic = jest.fn().mockReturnThis();
+        service.getCharacteristic = jest.fn().mockReturnValue({
+          on: jest.fn().mockReturnThis(),
+          onGet: jest.fn().mockReturnThis(),
+          onSet: jest.fn().mockReturnThis(),
+          updateValue: jest.fn(),
+          setProps: jest.fn().mockReturnThis(),
+        });
+        service.testCharacteristic = jest.fn().mockReturnValue(true);
+        service.addOptionalCharacteristic = jest.fn();
+        service.updateCharacteristic = jest.fn().mockReturnThis();
+        return service;
       }),
     };
 
@@ -78,7 +78,8 @@ describe('BinarySwitchFeature', () => {
       hap,
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
-      on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      on: jest.fn(),
+      user: { storagePath: jest.fn().mockReturnValue('/tmp') },
       user: {
         storagePath: jest.fn().mockReturnValue('/tmp'),
       },
@@ -114,7 +115,7 @@ describe('BinarySwitchFeature', () => {
       setValue: jest.fn().mockResolvedValue(undefined),
       node: node,
     } as any;
-    
+
     // Fix: make sure node returns the endpoint if asked (though not strictly needed if we pass endpoint directly)
     (node as any).getAllEndpoints = jest.fn().mockReturnValue([endpoint]);
 
@@ -123,9 +124,9 @@ describe('BinarySwitchFeature', () => {
 
   it('should initialize service', () => {
     feature.init();
-    // Since index is 0, subtype is "0". 
+    // Since index is 0, subtype is "0".
     // The BaseFeature.getService logic calls getServiceById if subType is present.
-    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.Switch, "0");
+    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.Switch, '0');
   });
 
   it('should update value', () => {
@@ -136,5 +137,33 @@ describe('BinarySwitchFeature', () => {
       property: 'currentValue',
       endpoint: 0,
     });
+  });
+
+  it('should ignore update if args command class does not match', () => {
+    feature.init();
+    // Access the service created in init
+    // Since 'service' is private, and our mock returns the service object which is also 'accessory.addService' return value.
+    // We can spy on the mock service returned by addService.
+    const service = accessory.addService.mock.results[0].value;
+
+    // updateCharacteristic is already a mock from beforeEach
+
+    // 1. Irrelevant Update
+    feature.update({
+      commandClass: CommandClasses.Battery, // Not Binary Switch
+      endpoint: 0,
+      property: 'level',
+    });
+
+    expect(service.updateCharacteristic).not.toHaveBeenCalled();
+
+    // 2. Relevant Update
+    feature.update({
+      commandClass: CommandClasses['Binary Switch'],
+      endpoint: 0,
+      property: 'currentValue',
+    });
+
+    expect(service.updateCharacteristic).toHaveBeenCalled();
   });
 });

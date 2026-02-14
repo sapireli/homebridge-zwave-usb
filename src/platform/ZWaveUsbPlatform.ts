@@ -1,10 +1,24 @@
-import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service, Characteristic } from 'homebridge';
+import {
+  API,
+  DynamicPlatformPlugin,
+  Logger,
+  PlatformAccessory,
+  PlatformConfig,
+  Service,
+  Characteristic,
+} from 'homebridge';
 import { ZWaveController } from '../zwave/ZWaveController';
-import { IZWaveController, IZWaveNode } from '../zwave/interfaces';
+import { IZWaveController, IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveAccessory } from '../accessories/ZWaveAccessory';
 import { AccessoryFactory } from '../accessories/AccessoryFactory';
 import { ControllerAccessory } from '../accessories/ControllerAccessory';
-import { STATUS_CHAR_UUID, PIN_CHAR_UUID, MANAGER_SERVICE_UUID, HAPFormat, HAPPerm } from './settings';
+import {
+  STATUS_CHAR_UUID,
+  PIN_CHAR_UUID,
+  MANAGER_SERVICE_UUID,
+  HAPFormat,
+  HAPPerm,
+} from './settings';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const packageJson = require('../../package.json');
 
@@ -31,7 +45,11 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       this.log.info(`Initializing Homebridge Z-Wave USB v${packageJson.version}`);
       this.log.debug('Finished initializing platform:', this.config.name);
 
-      if (!this.config.serialPort || typeof this.config.serialPort !== 'string' || this.config.serialPort.trim() === '') {
+      if (
+        !this.config.serialPort ||
+        typeof this.config.serialPort !== 'string' ||
+        this.config.serialPort.trim() === ''
+      ) {
         this.log.error('Invalid or missing "serialPort" configuration. Plugin will not start.');
         return;
       }
@@ -47,7 +65,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       this.zwaveController.on('node added', (node) => this.handleNodeAdded(node));
       this.zwaveController.on('node ready', (node) => this.handleNodeReady(node));
       this.zwaveController.on('node removed', (node) => this.handleNodeRemoved(node));
-      this.zwaveController.on('value updated', (node) => this.handleValueUpdated(node));
+      this.zwaveController.on('value updated', (node, args) => this.handleValueUpdated(node, args));
 
       this.api.on('didFinishLaunching', async () => {
         try {
@@ -72,52 +90,52 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   private registerCustomCharacteristics() {
     const { Characteristic, Service } = this.api.hap;
     this.log.debug('Registering custom HomeKit characteristics...');
-    
+
     // 1. Z-Wave Status Characteristic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (Characteristic as any).ZWaveStatus = class extends Characteristic {
-        static readonly UUID = STATUS_CHAR_UUID;
-        constructor() {
-            super('System Status', STATUS_CHAR_UUID, {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                format: HAPFormat.STRING as any,
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
-            });
-            this.value = 'Initializing...';
-        }
+      static readonly UUID = STATUS_CHAR_UUID;
+      constructor() {
+        super('System Status', STATUS_CHAR_UUID, {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          format: HAPFormat.STRING as any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
+        });
+        this.value = 'Initializing...';
+      }
     };
 
     // 2. S2 PIN Entry Characteristic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (Characteristic as any).S2PinEntry = class extends Characteristic {
-        static readonly UUID = PIN_CHAR_UUID;
-        constructor() {
-            super('S2 PIN Entry', PIN_CHAR_UUID, {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                format: HAPFormat.UINT32 as any,
-                minValue: 0,
-                maxValue: 99999,
-                minStep: 1,
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any, HAPPerm.PAIRED_WRITE as any],
-            });
-            this.value = 0;
-        }
+      static readonly UUID = PIN_CHAR_UUID;
+      constructor() {
+        super('S2 PIN Entry', PIN_CHAR_UUID, {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          format: HAPFormat.UINT32 as any,
+          minValue: 0,
+          maxValue: 99999,
+          minStep: 1,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any, HAPPerm.PAIRED_WRITE as any],
+        });
+        this.value = 0;
+      }
     };
 
     // 3. Z-Wave Manager Service
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (Service as any).ZWaveManager = class extends Service {
-        static readonly UUID = MANAGER_SERVICE_UUID;
-        constructor(displayName: string, subtype?: string) {
-            super(displayName, MANAGER_SERVICE_UUID, subtype);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            this.addOptionalCharacteristic((Characteristic as any).ZWaveStatus);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            this.addOptionalCharacteristic((Characteristic as any).S2PinEntry);
-            this.addOptionalCharacteristic(Characteristic.ServiceLabelIndex);
-        }
+      static readonly UUID = MANAGER_SERVICE_UUID;
+      constructor(displayName: string, subtype?: string) {
+        super(displayName, MANAGER_SERVICE_UUID, subtype);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.addOptionalCharacteristic((Characteristic as any).ZWaveStatus);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.addOptionalCharacteristic((Characteristic as any).S2PinEntry);
+        this.addOptionalCharacteristic(Characteristic.ServiceLabelIndex);
+      }
     };
   }
 
@@ -147,21 +165,23 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           managedUuids.add(acc.platformAccessory.UUID);
         }
 
-        this.log.debug(`Reconciliation: ${managedUuids.size} managed accessories, ${this.accessories.length} in cache.`);
+        this.log.debug(
+          `Reconciliation: ${managedUuids.size} managed accessories, ${this.accessories.length} in cache.`,
+        );
 
-        const orphaned = this.accessories.filter(acc => {
-            const isOrphaned = !managedUuids.has(acc.UUID);
-            if (isOrphaned) {
-                this.log.info(`Found orphaned accessory in cache: ${acc.displayName} (${acc.UUID})`);
-            }
-            return isOrphaned;
+        const orphaned = this.accessories.filter((acc) => {
+          const isOrphaned = !managedUuids.has(acc.UUID);
+          if (isOrphaned) {
+            this.log.info(`Found orphaned accessory in cache: ${acc.displayName} (${acc.UUID})`);
+          }
+          return isOrphaned;
         });
 
         if (orphaned.length > 0) {
           this.log.info(`Removing ${orphaned.length} orphaned accessories from cache...`);
           try {
             this.api.unregisterPlatformAccessories('homebridge-zwave-usb', 'ZWaveUSB', orphaned);
-            
+
             for (const orphan of orphaned) {
               const index = this.accessories.indexOf(orphan);
               if (index !== -1) {
@@ -174,7 +194,6 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           }
         }
       }, 10000);
-
     } catch (err) {
       this.log.error('Failed to connect to Z-Wave controller:', err);
     }
@@ -189,7 +208,9 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
     // Skip Node 1 (the controller itself) as it's handled by ControllerAccessory
     if (Number(node.nodeId) === 1) {
-      this.log.info('System: Controller node (Node 1) identified. Skipping generic accessory creation.');
+      this.log.info(
+        'System: Controller node (Node 1) identified. Skipping generic accessory creation.',
+      );
       return;
     }
 
@@ -234,11 +255,11 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     }
   }
 
-  private handleValueUpdated(node: IZWaveNode) {
+  private handleValueUpdated(node: IZWaveNode, args: ZWaveValueEvent) {
     this.log.debug(`Node ${node.nodeId} value updated`);
     const accessory = this.zwaveAccessories.get(node.nodeId);
     if (accessory) {
-      accessory.refresh();
+      accessory.refresh(args);
     }
   }
 }

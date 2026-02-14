@@ -1,9 +1,26 @@
 import { EventEmitter } from 'events';
-import { ZWaveNode, ValueID, ValueMetadata, Endpoint, InterviewStage, RebuildRoutesStatus, SetValueResult } from 'zwave-js';
+import {
+  ZWaveNode,
+  ValueID,
+  ValueMetadata,
+  Endpoint,
+  InterviewStage,
+  RebuildRoutesStatus,
+  SetValueResult,
+} from 'zwave-js';
+
+export interface ZWaveValueEvent {
+  commandClass: number;
+  endpoint?: number;
+  property: string | number;
+  propertyKey?: string | number;
+  newValue?: unknown;
+  prevValue?: unknown;
+}
 
 export interface IZWaveController extends EventEmitter {
   homeId: number | undefined;
-  nodes: Map<number, ZWaveNode>; 
+  nodes: Map<number, ZWaveNode>;
   start(): Promise<void>;
   stop(): Promise<void>;
   startInclusion(): Promise<boolean>;
@@ -13,18 +30,24 @@ export interface IZWaveController extends EventEmitter {
   startHealing(): Promise<boolean>;
   stopHealing(): Promise<boolean>;
   setS2Pin(pin: string): void;
-  
+
   on(event: 'status updated', listener: (status: string) => void): this;
   on(event: 'inclusion started', listener: (secure: boolean) => void): this;
   on(event: 'inclusion stopped', listener: () => void): this;
   on(event: 'exclusion started', listener: () => void): this;
   on(event: 'exclusion stopped', listener: () => void): this;
-  on(event: 'heal network progress', listener: (progress: ReadonlyMap<number, RebuildRoutesStatus>) => void): this;
-  on(event: 'heal network done', listener: (result: ReadonlyMap<number, RebuildRoutesStatus>) => void): this;
+  on(
+    event: 'heal network progress',
+    listener: (progress: ReadonlyMap<number, RebuildRoutesStatus>) => void,
+  ): this;
+  on(
+    event: 'heal network done',
+    listener: (result: ReadonlyMap<number, RebuildRoutesStatus>) => void,
+  ): this;
   on(event: 'node added', listener: (node: ZWaveNode) => void): this;
   on(event: 'node ready', listener: (node: ZWaveNode) => void): this;
   on(event: 'node removed', listener: (node: ZWaveNode) => void): this;
-  on(event: 'value updated', listener: (node: ZWaveNode) => void): this;
+  on(event: 'value updated', listener: (node: ZWaveNode, args: ZWaveValueEvent) => void): this;
 }
 
 export interface IZWaveNode {
@@ -37,7 +60,7 @@ export interface IZWaveNode {
   ready: boolean;
   interviewStage: InterviewStage;
   status: number;
-  
+
   // Methods
   getValue(valueId: ValueID): unknown;
   setValue(valueId: ValueID, value: unknown): Promise<SetValueResult>;
@@ -45,7 +68,7 @@ export interface IZWaveNode {
   getDefinedValueIDs(): ValueID[];
   getAllEndpoints(): Endpoint[];
   getValueMetadata(valueId: ValueID): ValueMetadata;
-  
+
   // Events
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   on(event: string, listener: (...args: any[]) => void): this;

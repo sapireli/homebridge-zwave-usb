@@ -1,12 +1,12 @@
 import { PlatformAccessory, Service, WithUUID } from 'homebridge';
 import { Endpoint } from 'zwave-js';
-import { IZWaveNode } from '../zwave/interfaces';
+import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { HAPFormat, HAPPerm } from '../platform/settings';
 
 export interface ZWaveFeature {
   init(): void;
-  update(): void;
+  update(args?: ZWaveValueEvent): void;
 }
 
 export abstract class BaseFeature implements ZWaveFeature {
@@ -18,9 +18,34 @@ export abstract class BaseFeature implements ZWaveFeature {
   ) {}
 
   abstract init(): void;
-  abstract update(): void;
+  abstract update(args?: ZWaveValueEvent): void;
 
-  protected getService(serviceType: WithUUID<typeof Service>, name?: string, subType?: string): Service {
+  protected shouldUpdate(
+    args: ZWaveValueEvent | undefined,
+    cc: number,
+    property?: string | number,
+  ): boolean {
+    if (!args) {
+      return true;
+    } // Force refresh
+    const endpoint = args.endpoint || 0;
+    if (endpoint !== this.endpoint.index) {
+      return false;
+    }
+    if (args.commandClass !== cc) {
+      return false;
+    }
+    if (property !== undefined && args.property !== property) {
+      return false;
+    }
+    return true;
+  }
+
+  protected getService(
+    serviceType: WithUUID<typeof Service>,
+    name?: string,
+    subType?: string,
+  ): Service {
     if (subType) {
       const existing = this.accessory.getServiceById(serviceType, subType);
       if (existing) {
@@ -33,10 +58,15 @@ export abstract class BaseFeature implements ZWaveFeature {
       }
     }
 
-    const serviceName = name || (this.endpoint.index > 0
-      ? `${this.accessory.displayName} ${this.endpoint.index}`
-      : this.accessory.displayName);
-    const ServiceConstructor = serviceType as unknown as new (displayName: string, subtype?: string) => Service;
+    const serviceName =
+      name ||
+      (this.endpoint.index > 0
+        ? `${this.accessory.displayName} ${this.endpoint.index}`
+        : this.accessory.displayName);
+    const ServiceConstructor = serviceType as unknown as new (
+      displayName: string,
+      subtype?: string,
+    ) => Service;
     const service = subType
       ? new ServiceConstructor(serviceName, subType)
       : new ServiceConstructor(serviceName);
@@ -44,8 +74,13 @@ export abstract class BaseFeature implements ZWaveFeature {
     const addedService = this.accessory.addService(service);
     // Explicitly set the name characteristic to ensure it's displayed correctly
     const nameChar = addedService.getCharacteristic(this.platform.Characteristic.Name);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    nameChar.setProps({ format: HAPFormat.STRING as any, perms: [HAPPerm.PAIRED_READ as any] })
+    nameChar
+      .setProps({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        format: HAPFormat.STRING as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        perms: [HAPPerm.PAIRED_READ as any],
+      })
       .updateValue(serviceName);
 
     // Add Service Label Index for multi-endpoint devices to help with ordering/naming
@@ -53,7 +88,9 @@ export abstract class BaseFeature implements ZWaveFeature {
       if (!addedService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
         addedService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
       }
-      addedService.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex).updateValue(this.endpoint.index);
+      addedService
+        .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
+        .updateValue(this.endpoint.index);
     }
 
     return addedService;

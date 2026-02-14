@@ -42,7 +42,7 @@ describe('MotionSensorFeature', () => {
         generate: jest.fn().mockReturnValue('test-uuid'),
       },
     } as any;
-    
+
     accessory = {
       getService: jest.fn(),
       getServiceById: jest.fn(),
@@ -53,7 +53,8 @@ describe('MotionSensorFeature', () => {
       hap,
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
-      on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      on: jest.fn(),
+      user: { storagePath: jest.fn().mockReturnValue('/tmp') },
       user: {
         storagePath: jest.fn().mockReturnValue('/tmp'),
       },
@@ -85,7 +86,7 @@ describe('MotionSensorFeature', () => {
       index: 0,
       node: node,
     } as any;
-    
+
     feature = new MotionSensorFeature(platform, accessory, endpoint, node);
   });
 
@@ -99,12 +100,15 @@ describe('MotionSensorFeature', () => {
     node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
     node.getValue.mockReturnValue(8);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.MotionDetected, true);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.MotionDetected,
+      true,
+    );
     expect(node.getValue).toHaveBeenCalledWith({
-        commandClass: CommandClasses.Notification,
-        property: 'Home Security',
-        propertyKey: 'Motion sensor status',
-        endpoint: 0
+      commandClass: CommandClasses.Notification,
+      property: 'Home Security',
+      propertyKey: 'Motion sensor status',
+      endpoint: 0,
     });
   });
 
@@ -113,7 +117,10 @@ describe('MotionSensorFeature', () => {
     node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
     node.getValue.mockReturnValue(0);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.MotionDetected, false);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.MotionDetected,
+      false,
+    );
   });
 
   it('should fallback to Binary Sensor CC (48) - True (Motion)', () => {
@@ -121,11 +128,14 @@ describe('MotionSensorFeature', () => {
     node.supportsCC.mockImplementation((cc) => cc === CommandClasses['Binary Sensor']);
     node.getValue.mockReturnValue(true);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.MotionDetected, true);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.MotionDetected,
+      true,
+    );
     expect(node.getValue).toHaveBeenCalledWith({
-        commandClass: CommandClasses['Binary Sensor'],
-        property: 'Motion',
-        endpoint: 0
+      commandClass: CommandClasses['Binary Sensor'],
+      property: 'Motion',
+      endpoint: 0,
     });
   });
 });

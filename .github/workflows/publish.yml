@@ -54,7 +54,7 @@ jobs:
         with:
           tag_name: v${{ steps.check_version.outputs.version }}
           name: v${{ steps.check_version.outputs.version }}
-          body: "See CHANGELOG.md for details."
+          body: 'See CHANGELOG.md for details.'
           draft: false
           prerelease: false
         env:

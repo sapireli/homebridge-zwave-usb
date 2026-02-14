@@ -35,8 +35,8 @@ describe('ContactSensorFeature', () => {
       } as any,
       Characteristic: {
         ContactSensorState: {
-            CONTACT_DETECTED: 0,
-            CONTACT_NOT_DETECTED: 1,
+          CONTACT_DETECTED: 0,
+          CONTACT_NOT_DETECTED: 1,
         },
         Name: 'Name',
         ConfiguredName: 'ConfiguredName',
@@ -45,7 +45,7 @@ describe('ContactSensorFeature', () => {
         generate: jest.fn().mockReturnValue('test-uuid'),
       },
     } as any;
-    
+
     accessory = {
       getService: jest.fn(),
       getServiceById: jest.fn(),
@@ -56,7 +56,8 @@ describe('ContactSensorFeature', () => {
       hap,
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
-      on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      on: jest.fn(),
+      user: { storagePath: jest.fn().mockReturnValue('/tmp') },
       user: {
         storagePath: jest.fn().mockReturnValue('/tmp'),
       },
@@ -88,7 +89,7 @@ describe('ContactSensorFeature', () => {
       index: 0,
       node: node,
     } as any;
-    
+
     feature = new ContactSensorFeature(platform, accessory, endpoint, node);
   });
 
@@ -102,12 +103,15 @@ describe('ContactSensorFeature', () => {
     node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
     node.getValue.mockReturnValue(23);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.ContactSensorState, platform.Characteristic.ContactSensorState.CONTACT_DETECTED);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.ContactSensorState,
+      platform.Characteristic.ContactSensorState.CONTACT_DETECTED,
+    );
     expect(node.getValue).toHaveBeenCalledWith({
-        commandClass: CommandClasses.Notification,
-        property: 'Access Control',
-        propertyKey: 'Door status',
-        endpoint: 0
+      commandClass: CommandClasses.Notification,
+      property: 'Access Control',
+      propertyKey: 'Door status',
+      endpoint: 0,
     });
   });
 
@@ -116,7 +120,10 @@ describe('ContactSensorFeature', () => {
     node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
     node.getValue.mockReturnValue(22);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.ContactSensorState, platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.ContactSensorState,
+      platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED,
+    );
   });
 
   it('should fallback to Binary Sensor CC (48) - True (Open)', () => {
@@ -124,11 +131,14 @@ describe('ContactSensorFeature', () => {
     node.supportsCC.mockImplementation((cc) => cc === CommandClasses['Binary Sensor']);
     node.getValue.mockReturnValue(true);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.ContactSensorState, platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.ContactSensorState,
+      platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED,
+    );
     expect(node.getValue).toHaveBeenCalledWith({
-        commandClass: CommandClasses['Binary Sensor'],
-        property: 'Door/Window',
-        endpoint: 0
+      commandClass: CommandClasses['Binary Sensor'],
+      property: 'Door/Window',
+      endpoint: 0,
     });
   });
 
@@ -137,6 +147,9 @@ describe('ContactSensorFeature', () => {
     node.supportsCC.mockImplementation((cc) => cc === CommandClasses['Binary Sensor']);
     node.getValue.mockReturnValue(false);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.ContactSensorState, platform.Characteristic.ContactSensorState.CONTACT_DETECTED);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.ContactSensorState,
+      platform.Characteristic.ContactSensorState.CONTACT_DETECTED,
+    );
   });
 });

@@ -1,6 +1,7 @@
 import { Service, CharacteristicValue } from 'homebridge';
 import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
+import { ZWaveValueEvent } from '../zwave/interfaces';
 
 export class BinarySwitchFeature extends BaseFeature {
   private service!: Service;
@@ -15,7 +16,10 @@ export class BinarySwitchFeature extends BaseFeature {
       .onSet(this.handleSetOn.bind(this));
   }
 
-  update(): void {
+  update(args?: ZWaveValueEvent): void {
+    if (!this.shouldUpdate(args, CommandClasses['Binary Switch'])) {
+      return;
+    }
     const value = this.node.getValue({
       commandClass: CommandClasses['Binary Switch'],
       property: 'currentValue',
@@ -36,11 +40,18 @@ export class BinarySwitchFeature extends BaseFeature {
   private async handleSetOn(value: CharacteristicValue) {
     try {
       await this.node.setValue(
-        { commandClass: CommandClasses['Binary Switch'], property: 'targetValue', endpoint: this.endpoint.index },
+        {
+          commandClass: CommandClasses['Binary Switch'],
+          property: 'targetValue',
+          endpoint: this.endpoint.index,
+        },
         value,
       );
     } catch (err) {
-      this.platform.log.error(`Failed to set switch value for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`, err);
+      this.platform.log.error(
+        `Failed to set switch value for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`,
+        err,
+      );
       // SERVICE_COMMUNICATION_FAILURE = -70402
       throw new this.platform.api.hap.HapStatusError(-70402);
     }

@@ -17,7 +17,8 @@ describe('ZWaveUsbPlatform', () => {
     api = {
       hap,
       registerPlatform: jest.fn(),
-      on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      on: jest.fn(),
+      user: { storagePath: jest.fn().mockReturnValue('/tmp') },
       user: {
         storagePath: jest.fn().mockReturnValue('/tmp'),
       },
@@ -26,9 +27,9 @@ describe('ZWaveUsbPlatform', () => {
 
   afterEach(async () => {
     const shutdownListeners = (api.on as jest.Mock).mock.calls
-      .filter(call => call[0] === 'shutdown')
-      .map(call => call[1]);
-    
+      .filter((call) => call[0] === 'shutdown')
+      .map((call) => call[1]);
+
     for (const listener of shutdownListeners) {
       await listener();
     }

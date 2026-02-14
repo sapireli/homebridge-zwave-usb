@@ -44,7 +44,7 @@ describe('MultilevelSwitchFeature', () => {
         generate: jest.fn().mockReturnValue('test-uuid'),
       },
     } as any;
-    
+
     accessory = {
       getService: jest.fn(),
       getServiceById: jest.fn(),
@@ -55,7 +55,8 @@ describe('MultilevelSwitchFeature', () => {
       hap,
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
-      on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      on: jest.fn(),
+      user: { storagePath: jest.fn().mockReturnValue('/tmp') },
       platformAccessory: jest.fn().mockImplementation(() => accessory),
     } as any;
 
@@ -85,7 +86,7 @@ describe('MultilevelSwitchFeature', () => {
       index: 0,
       node: node,
     } as any;
-    
+
     feature = new MultilevelSwitchFeature(platform, accessory, endpoint, node);
   });
 
@@ -112,27 +113,38 @@ describe('MultilevelSwitchFeature', () => {
     feature.init();
     node.getValue.mockReturnValue(75);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.Brightness, 75);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.Brightness,
+      75,
+    );
   });
 
   it('should set Target Value to 255 when turning On', async () => {
     feature.init();
-    
+
     await (feature as any).handleSetOn(true);
-    
+
     expect(node.setValue).toHaveBeenCalledWith(
-        { commandClass: CommandClasses['Multilevel Switch'], property: 'targetValue', endpoint: 0 }, 
-        255
+      {
+        commandClass: CommandClasses['Multilevel Switch'],
+        property: 'targetValue',
+        endpoint: 0,
+      },
+      255,
     );
   });
 
   it('should set Target Value to 0 when turning Off', async () => {
     feature.init();
     await (feature as any).handleSetOn(false);
-    
+
     expect(node.setValue).toHaveBeenCalledWith(
-        { commandClass: CommandClasses['Multilevel Switch'], property: 'targetValue', endpoint: 0 }, 
-        0
+      {
+        commandClass: CommandClasses['Multilevel Switch'],
+        property: 'targetValue',
+        endpoint: 0,
+      },
+      0,
     );
   });
 });

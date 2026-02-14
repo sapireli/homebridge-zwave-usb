@@ -1,7 +1,7 @@
 import { Logger } from 'homebridge';
 import { Driver, ZWaveNode, InclusionStrategy } from 'zwave-js';
 import { EventEmitter } from 'events';
-import { IZWaveController } from './interfaces';
+import { IZWaveController, ZWaveValueEvent } from './interfaces';
 import path from 'path';
 import fs from 'fs';
 
@@ -22,15 +22,18 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
   private driver: Driver;
   public readonly nodes = new Map<number, ZWaveNode>();
   private pendingS2Pin: string | undefined;
-  
-  private nodeListeners = new Map<number, { 
-    ready: () => void;
-    value: () => void;
-    interviewStageCompleted?: (node: ZWaveNode, stageName: string) => void;
-    interviewFailed?: (node: ZWaveNode, args: { errorMessage: string }) => void;
-    onWakeUp?: (node: ZWaveNode) => void;
-    onSleep?: (node: ZWaveNode) => void;
-  }>();
+
+  private nodeListeners = new Map<
+    number,
+    {
+      ready: () => void;
+      value: (node: ZWaveNode, args: ZWaveValueEvent) => void;
+      interviewStageCompleted?: (node: ZWaveNode, stageName: string) => void;
+      interviewFailed?: (node: ZWaveNode, args: { errorMessage: string }) => void;
+      onWakeUp?: (node: ZWaveNode) => void;
+      onSleep?: (node: ZWaveNode) => void;
+    }
+  >();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private controllerListeners: Record<string, (...args: any[]) => void> = {};
 
@@ -40,34 +43,36 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     private readonly options: ZWaveControllerOptions = {},
   ) {
     super();
-    
+
     const securityKeys: Record<string, Buffer> = {};
     const securityKeysLongRange: Record<string, Buffer> = {};
 
     if (this.options.securityKeys) {
       const keys = this.options.securityKeys;
-      
+
       // Helper to parse key - must be 32 hex characters
       const parse = (val: string | undefined) => {
-          if (val && val.length === 32 && /^[0-9a-fA-F]+$/.test(val)) {
-              return Buffer.from(val, 'hex');
-          }
-          if (val && val.length > 0) {
-              this.log.warn(`Security key "${val.substring(0, 5)}..." is invalid (must be 32 hex characters). Skipping.`);
-          }
-          return undefined;
+        if (val && val.length === 32 && /^[0-9a-fA-F]+$/.test(val)) {
+          return Buffer.from(val, 'hex');
+        }
+        if (val && val.length > 0) {
+          this.log.warn(
+            `Security key "${val.substring(0, 5)}..." is invalid (must be 32 hex characters). Skipping.`,
+          );
+        }
+        return undefined;
       };
 
       // Classic Keys
       const s0 = parse(keys.S0_Legacy);
       if (s0) securityKeys.S0_Legacy = s0;
-      
+
       const s2u = parse(keys.S2_Unauthenticated);
       if (s2u) securityKeys.S2_Unauthenticated = s2u;
-      
+
       const s2a = parse(keys.S2_Authenticated);
       if (s2a) securityKeys.S2_Authenticated = s2a;
-      
+
       const s2c = parse(keys.S2_AccessControl);
       if (s2c) securityKeys.S2_AccessControl = s2c;
 
@@ -81,103 +86,176 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
 
     // Z-Wave JS logging configuration
     const logConfig = {
-        enabled: true,
-        level: this.options.debug ? 'debug' : 'warn',
-        forceConsole: true,
-        showLogo: false,
+      enabled: true,
+      level: this.options.debug ? 'debug' : 'warn',
+      forceConsole: true,
+      showLogo: false,
     };
 
     const storagePath = this.options.storagePath || process.cwd();
 
     try {
-        this.driver = new Driver(this.serialPort, {
-          securityKeys: Object.keys(securityKeys).length > 0 ? securityKeys : undefined,
-          securityKeysLongRange: Object.keys(securityKeysLongRange).length > 0 ? securityKeysLongRange : undefined,
-          logConfig,
-          storage: {
-              cacheDir: path.join(storagePath, 'zwave-js-cache'),
-              deviceConfigPriorityDir: path.join(storagePath, 'zwave-js-config'),
+      this.driver = new Driver(this.serialPort, {
+        securityKeys: Object.keys(securityKeys).length > 0 ? securityKeys : undefined,
+        securityKeysLongRange:
+          Object.keys(securityKeysLongRange).length > 0 ? securityKeysLongRange : undefined,
+        logConfig,
+        storage: {
+          cacheDir: path.join(storagePath, 'zwave-js-cache'),
+          deviceConfigPriorityDir: path.join(storagePath, 'zwave-js-config'),
+        },
+        features: {
+          softReset: false,
+        },
+        emitValueUpdateAfterSetValue: true,
+        inclusionUserCallbacks: {
+          grantSecurityClasses: async (request) => {
+            this.log.info(`[S2] Granting security classes: ${request.securityClasses.join(', ')}`);
+            return request;
           },
-          features: {
-            softReset: false,
-          },
-          emitValueUpdateAfterSetValue: true,
-          inclusionUserCallbacks: {
-            grantSecurityClasses: async (request) => {
-              this.log.info(`[S2] Granting security classes: ${request.securityClasses.join(', ')}`);
-              return request;
-            },
-            validateDSKAndEnterPIN: async (dsk) => {
-              this.pendingS2Pin = undefined; // Reset
-              this.emit('status updated', 'S2 PIN REQUIRED - Check App or Logs');
-              this.log.warn('**********************************************************');
-              this.log.warn('[S2] SECURITY PIN REQUIRED FOR INCLUSION');
-              this.log.warn(`[S2] DEVICE DSK: ${dsk}`);
-              this.log.warn('[S2] Please enter the 5-digit PIN from the device label.');
-              this.log.warn(' ');
-              this.log.warn('[S2] OPTION 1: Enter PIN in HomeKit App (Controller/Eve)');
-              this.log.warn('[S2] OPTION 2: Terminal Instruction:');
-              this.log.warn(`     echo "12345" > ${path.join(storagePath, 's2_pin.txt')}`);
-              this.log.warn(' ');
-              this.log.warn('[S2] Waiting 3 minutes for PIN...');
-              this.log.warn('**********************************************************');
+          validateDSKAndEnterPIN: async (dsk) => {
+            this.pendingS2Pin = undefined; // Reset
+            this.emit('status updated', 'S2 PIN REQUIRED - Check App or Logs');
+            this.log.warn('**********************************************************');
+            this.log.warn('[S2] SECURITY PIN REQUIRED FOR INCLUSION');
+            this.log.warn(`[S2] DEVICE DSK: ${dsk}`);
+            this.log.warn('[S2] Please enter the 5-digit PIN from the device label.');
+            this.log.warn(' ');
+            this.log.warn('[S2] OPTION 1: Enter PIN in HomeKit App (Controller/Eve)');
+            this.log.warn('[S2] OPTION 2: Terminal Instruction:');
+            this.log.warn(`     echo "12345" > ${path.join(storagePath, 's2_pin.txt')}`);
+            this.log.warn(' ');
+            this.log.warn('[S2] Waiting 3 minutes for PIN...');
+            this.log.warn('**********************************************************');
 
+            return new Promise<string | boolean>((resolve) => {
               const pinFilePath = path.join(storagePath, 's2_pin.txt');
-              const startTime = Date.now();
-              const timeout = 180000; // 3 minutes
+              let resolved = false;
+              let watcher: fs.FSWatcher | undefined;
+              let timer: NodeJS.Timeout | undefined;
 
-              while (Date.now() - startTime < timeout) {
-                  // Check for terminal file
-                  if (fs.existsSync(pinFilePath)) {
-                      try {
-                          const pin = fs.readFileSync(pinFilePath, 'utf8').trim();
-                          fs.unlinkSync(pinFilePath); 
-                          if (/^\d{5}$/.test(pin)) {
-                              this.log.info('[S2] PIN received from terminal! Proceeding...');
-                              this.emit('status updated', 'PIN Received - Pairing...');
-                              return pin;
-                          }
-                      } catch (err) {
-                          this.log.error('[S2] Error reading PIN file:', err);
-                      }
-                  }
+              const cleanup = () => {
+                if (watcher) {
+                  watcher.close();
+                }
+                this.off('pin-received', checkPin);
+                if (timer) {
+                  clearTimeout(timer);
+                }
+              };
 
-                  // Check for characteristic input
-                  if (this.pendingS2Pin && /^\d{5}$/.test(this.pendingS2Pin)) {
-                      const pin = this.pendingS2Pin;
-                      this.pendingS2Pin = undefined;
-                      this.log.info('[S2] PIN received from HomeKit! Proceeding...');
+              function checkPin(this: ZWaveController) {
+                if (resolved) {
+                  return;
+                }
+
+                // 1. Check HomeKit characteristic input
+                if (this.pendingS2Pin && /^\d{5}$/.test(this.pendingS2Pin)) {
+                  this.log.info('[S2] PIN received from HomeKit! Proceeding...');
+                  this.emit('status updated', 'PIN Received - Pairing...');
+                  resolved = true;
+                  cleanup();
+                  resolve(this.pendingS2Pin);
+                  this.pendingS2Pin = undefined;
+                  return;
+                }
+
+                // 2. Check File input
+                if (fs.existsSync(pinFilePath)) {
+                  try {
+                    const pin = fs.readFileSync(pinFilePath, 'utf8').trim();
+                    fs.unlinkSync(pinFilePath);
+                    if (/^\d{5}$/.test(pin)) {
+                      this.log.info('[S2] PIN received from terminal! Proceeding...');
                       this.emit('status updated', 'PIN Received - Pairing...');
-                      return pin;
+                      resolved = true;
+                      cleanup();
+                      resolve(pin);
+                      return;
+                    }
+                  } catch (err) {
+                    this.log.error('[S2] Error reading PIN file:', err);
                   }
-
-                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
               }
 
-              this.log.error('[S2] PIN entry timed out. Inclusion aborted.');
-              this.emit('status updated', 'PIN Entry Timed Out');
-              return false;
-            },
-            abort: () => {
-              this.log.warn('[S2] Inclusion aborted.');
-            },
+              try {
+                // Watch for file creation
+                watcher = fs.watch(storagePath, (eventType, filename) => {
+                  if (filename === 's2_pin.txt') {
+                    checkPin.call(this);
+                  }
+                });
+              } catch (err) {
+                this.log.warn('[S2] Failed to setup file watcher (polling fallback active):', err);
+                // Fallback for systems where fs.watch is flaky
+                const interval = setInterval(() => {
+                  if (resolved) {
+                    clearInterval(interval);
+                    return;
+                  }
+                  checkPin.call(this);
+                }, 1000);
+                timer = setTimeout(() => {
+                  // Override timer cleanup to clear interval
+                  clearInterval(interval);
+                  if (!resolved) {
+                    this.log.error('[S2] PIN entry timed out. Inclusion aborted.');
+                    this.emit('status updated', 'PIN Entry Timed Out');
+                    resolved = true;
+                    cleanup();
+                    resolve(false);
+                  }
+                }, 180000);
+                // Listen for HomeKit updates
+                this.on('pin-received', checkPin.bind(this));
+                // Initial check
+                checkPin.call(this);
+                return;
+              }
+
+              // Listen for HomeKit updates
+              this.on('pin-received', checkPin);
+
+              // Listen for HomeKit updates
+              this.on('pin-received', checkPin.bind(this));
+
+              // Timeout
+              timer = setTimeout(() => {
+                if (!resolved) {
+                  this.log.error('[S2] PIN entry timed out. Inclusion aborted.');
+                  this.emit('status updated', 'PIN Entry Timed Out');
+                  resolved = true;
+                  cleanup();
+                  resolve(false);
+                }
+              }, 180000); // 3 minutes
+
+              // Initial check
+              checkPin.call(this);
+            }) as Promise<string | false>;
           },
-        });
+          abort: () => {
+            this.log.warn('[S2] Inclusion aborted.');
+          },
+        },
+      });
 
-        this.driver.on('error', (err: Error) => {
-          this.log.error('Z-Wave driver error:', err);
-        });
+      this.driver.on('error', (err: Error) => {
+        this.log.error('Z-Wave driver error:', err);
+      });
 
-        this.setupControllerListeners();
+      this.setupControllerListeners();
     } catch (err) {
-        this.log.error('Failed to initialize Z-Wave Driver:', err);
-        throw err;
+      this.log.error('Failed to initialize Z-Wave Driver:', err);
+      throw err;
     }
   }
 
   public setS2Pin(pin: string): void {
-      this.log.info(`[S2] Received PIN input: ${pin}`);
-      this.pendingS2Pin = pin.trim();
+    this.log.info(`[S2] Received PIN input: ${pin}`);
+    this.pendingS2Pin = pin.trim();
+    this.emit('pin-received');
   }
 
   private setupControllerListeners() {
@@ -211,13 +289,13 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           'rebuild routes progress': (progress: any) => {
-              this.emit('heal network progress', progress);
+            this.emit('heal network progress', progress);
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           'rebuild routes done': (result: any) => {
-              this.emit('status updated', 'Heal Network Done');
-              setTimeout(() => this.emit('status updated', 'Driver Ready'), 5000);
-              this.emit('heal network done', result);
+            this.emit('status updated', 'Heal Network Done');
+            setTimeout(() => this.emit('status updated', 'Driver Ready'), 5000);
+            this.emit('heal network done', result);
           },
           'node added': (node: ZWaveNode) => {
             this.log.info(`Node ${node.nodeId} added to controller`);
@@ -233,12 +311,30 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
         };
 
         // Attach controller listeners
-        this.driver.controller.on('inclusion started', this.controllerListeners['inclusion started']);
-        this.driver.controller.on('inclusion stopped', this.controllerListeners['inclusion stopped']);
-        this.driver.controller.on('exclusion started', this.controllerListeners['exclusion started']);
-        this.driver.controller.on('exclusion stopped', this.controllerListeners['exclusion stopped']);
-        this.driver.controller.on('rebuild routes progress', this.controllerListeners['rebuild routes progress']);
-        this.driver.controller.on('rebuild routes done', this.controllerListeners['rebuild routes done']);
+        this.driver.controller.on(
+          'inclusion started',
+          this.controllerListeners['inclusion started'],
+        );
+        this.driver.controller.on(
+          'inclusion stopped',
+          this.controllerListeners['inclusion stopped'],
+        );
+        this.driver.controller.on(
+          'exclusion started',
+          this.controllerListeners['exclusion started'],
+        );
+        this.driver.controller.on(
+          'exclusion stopped',
+          this.controllerListeners['exclusion stopped'],
+        );
+        this.driver.controller.on(
+          'rebuild routes progress',
+          this.controllerListeners['rebuild routes progress'],
+        );
+        this.driver.controller.on(
+          'rebuild routes done',
+          this.controllerListeners['rebuild routes done'],
+        );
         this.driver.controller.on('node added', this.controllerListeners['node added']);
         this.driver.controller.on('node removed', this.controllerListeners['node removed']);
 
@@ -266,10 +362,12 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       return;
     }
     this.nodes.set(node.nodeId, node);
-    
+
     const statusMap = ['Unknown', 'Alive', 'Awake', 'Asleep', 'Dead'];
     const status = statusMap[node.status] || node.status.toString();
-    this.log.info(`Node ${node.nodeId} added to controller (Status: ${status}, Interview Stage: ${node.interviewStage})`);
+    this.log.info(
+      `Node ${node.nodeId} added to controller (Status: ${status}, Interview Stage: ${node.interviewStage})`,
+    );
 
     const onReady = () => {
       this.log.info(`Node ${node.nodeId} is ready (Interview Stage: ${node.interviewStage})`);
@@ -277,9 +375,10 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       this.emit('node ready', node);
     };
 
-    const onValueUpdated = () => {
+    // Updated onValueUpdated signature to accept args
+    const onValueUpdated = (node: ZWaveNode, args: ZWaveValueEvent) => {
       this.log.debug(`Node ${node.nodeId} value updated`);
-      this.emit('value updated', node);
+      this.emit('value updated', node, args);
     };
 
     const onInterviewStageCompleted = (_node: ZWaveNode, stage: string) => {
@@ -301,13 +400,13 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       this.emit('status updated', `Node ${node.nodeId} Asleep`);
     };
 
-    this.nodeListeners.set(node.nodeId, { 
-      ready: onReady, 
+    this.nodeListeners.set(node.nodeId, {
+      ready: onReady,
       value: onValueUpdated,
       interviewStageCompleted: onInterviewStageCompleted,
       interviewFailed: onInterviewFailed,
       onWakeUp,
-      onSleep
+      onSleep,
     });
 
     node.on('ready', onReady);
@@ -355,7 +454,9 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
   public async start(): Promise<void> {
     const readyPromise = new Promise<void>((resolve, _reject) => {
       const timeout = setTimeout(() => {
-        this.log.warn('Z-Wave driver start timed out waiting for "driver ready" event. Proceeding anyway...');
+        this.log.warn(
+          'Z-Wave driver start timed out waiting for "driver ready" event. Proceeding anyway...',
+        );
         resolve();
       }, 30000);
 
@@ -367,7 +468,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
 
     await this.driver.start();
     this.log.info('Z-Wave driver started');
-    
+
     await readyPromise;
   }
 

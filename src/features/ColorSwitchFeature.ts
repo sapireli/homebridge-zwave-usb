@@ -1,6 +1,7 @@
 import { Service, CharacteristicValue } from 'homebridge';
 import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
+import { ZWaveValueEvent } from '../zwave/interfaces';
 
 export class ColorSwitchFeature extends BaseFeature {
   private service!: Service;
@@ -22,7 +23,10 @@ export class ColorSwitchFeature extends BaseFeature {
       .onSet(this.handleSetSaturation.bind(this));
   }
 
-  update(): void {
+  update(args?: ZWaveValueEvent): void {
+    if (!this.shouldUpdate(args, CommandClasses['Color Switch'])) {
+      return;
+    }
     const hue = this.handleGetHue();
     const sat = this.handleGetSaturation();
     this.service.updateCharacteristic(this.platform.Characteristic.Hue, hue);
@@ -34,79 +38,95 @@ export class ColorSwitchFeature extends BaseFeature {
     // currentColor: { red: 0, green: 0, blue: 0, warmWhite: 0 ... }
     // We need to convert RGB to HSL
     const color = this.node.getValue({
-        commandClass: CommandClasses['Color Switch'],
-        property: 'currentColor',
-        endpoint: this.endpoint.index
+      commandClass: CommandClasses['Color Switch'],
+      property: 'currentColor',
+      endpoint: this.endpoint.index,
     });
 
     if (color && typeof color === 'object') {
-        const { r, g, b } = this.zwaveColorToRgb(color as Record<string, number>);
-        const [h, ,] = this.rgbToHsl(r, g, b);
-        return h;
+      const { r, g, b } = this.zwaveColorToRgb(color as Record<string, number>);
+      const [h, ,] = this.rgbToHsl(r, g, b);
+      return h;
     }
     return 0;
   }
 
   private handleGetSaturation(): number {
     const color = this.node.getValue({
-        commandClass: CommandClasses['Color Switch'],
-        property: 'currentColor',
-        endpoint: this.endpoint.index
+      commandClass: CommandClasses['Color Switch'],
+      property: 'currentColor',
+      endpoint: this.endpoint.index,
     });
 
     if (color && typeof color === 'object') {
-        const { r, g, b } = this.zwaveColorToRgb(color as Record<string, number>);
-        const [, s,] = this.rgbToHsl(r, g, b);
-        return s;
+      const { r, g, b } = this.zwaveColorToRgb(color as Record<string, number>);
+      const [, s] = this.rgbToHsl(r, g, b);
+      return s;
     }
     return 0;
   }
 
-  private zwaveColorToRgb(color: Record<string, number>): { r: number, g: number, b: number } {
-      // Z-Wave JS returns a dict like { red: 255, green: 0, blue: 0 }
-      return {
-          r: color.red || 0,
-          g: color.green || 0,
-          b: color.blue || 0
-      };
+  private zwaveColorToRgb(color: Record<string, number>): {
+    r: number;
+    g: number;
+    b: number;
+  } {
+    // Z-Wave JS returns a dict like { red: 255, green: 0, blue: 0 }
+    return {
+      r: color.red || 0,
+      g: color.green || 0,
+      b: color.blue || 0,
+    };
   }
 
   private async handleSetHue(value: CharacteristicValue) {
-      this.setLinkColor(value as number, this.handleGetSaturation());
+    this.setLinkColor(value as number, this.handleGetSaturation());
   }
 
   private async handleSetSaturation(value: CharacteristicValue) {
-      this.setLinkColor(this.handleGetHue(), value as number);
+    this.setLinkColor(this.handleGetHue(), value as number);
   }
 
   private async setLinkColor(hue: number, saturation: number) {
-      // Convert HSL -> RGB
-      const { r, g, b } = this.hslToRgb(hue, saturation, 50); // Assume 50% lightness for full color
-      
-      try {
-          await this.node.setValue(
-              { commandClass: CommandClasses['Color Switch'], property: 'targetColor', endpoint: this.endpoint.index },
-              { red: r, green: g, blue: b }
-          );
-      } catch (err) {
-          this.platform.log.error('Failed to set color:', err);
-      }
+    // Convert HSL -> RGB
+    const { r, g, b } = this.hslToRgb(hue, saturation, 50); // Assume 50% lightness for full color
+
+    try {
+      await this.node.setValue(
+        {
+          commandClass: CommandClasses['Color Switch'],
+          property: 'targetColor',
+          endpoint: this.endpoint.index,
+        },
+        { red: r, green: g, blue: b },
+      );
+    } catch (err) {
+      this.platform.log.error('Failed to set color:', err);
+    }
   }
 
   // --- Helpers ---
   private rgbToHsl(r: number, g: number, b: number) {
-    r /= 255, g /= 255, b /= 255;
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    let h = 0, s = 0;
+    ((r /= 255), (g /= 255), (b /= 255));
+    const max = Math.max(r, g, b),
+      min = Math.min(r, g, b);
+    let h = 0,
+      s = 0;
     const l = (max + min) / 2;
 
     if (max !== min) {
       const d = max - min;
       s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
       switch (max) {
-        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-        case g: h = (b - r) / d + 2; break;
-        case b: h = (r - g) / d + 4; break;
+        case r:
+          h = (g - b) / d + (g < b ? 6 : 0);
+          break;
+        case g:
+          h = (b - r) / d + 2;
+          break;
+        case b:
+          h = (r - g) / d + 4;
+          break;
       }
       h /= 6;
     }
@@ -114,7 +134,9 @@ export class ColorSwitchFeature extends BaseFeature {
   }
 
   private hslToRgb(h: number, s: number, l: number) {
-    h /= 360; s /= 100; l /= 100;
+    h /= 360;
+    s /= 100;
+    l /= 100;
     let r, g, b;
 
     if (s === 0) {
@@ -134,6 +156,10 @@ export class ColorSwitchFeature extends BaseFeature {
       g = hue2rgb(p, q, h);
       b = hue2rgb(p, q, h - 1 / 3);
     }
-    return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+    return {
+      r: Math.round(r * 255),
+      g: Math.round(g * 255),
+      b: Math.round(b * 255),
+    };
   }
 }

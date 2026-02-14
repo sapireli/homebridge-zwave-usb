@@ -36,13 +36,13 @@ describe('LockFeature', () => {
       } as any,
       Characteristic: {
         LockCurrentState: {
-            UNSECURED: 0,
-            SECURED: 1,
-            UNKNOWN: 3,
+          UNSECURED: 0,
+          SECURED: 1,
+          UNKNOWN: 3,
         },
         LockTargetState: {
-            UNSECURED: 0,
-            SECURED: 1,
+          UNSECURED: 0,
+          SECURED: 1,
         },
         Name: 'Name',
         ConfiguredName: 'ConfiguredName',
@@ -51,7 +51,7 @@ describe('LockFeature', () => {
         generate: jest.fn().mockReturnValue('test-uuid'),
       },
     } as any;
-    
+
     accessory = {
       getService: jest.fn(),
       getServiceById: jest.fn(),
@@ -62,7 +62,8 @@ describe('LockFeature', () => {
       hap,
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
-      on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      on: jest.fn(),
+      user: { storagePath: jest.fn().mockReturnValue('/tmp') },
       user: {
         storagePath: jest.fn().mockReturnValue('/tmp'),
       },
@@ -95,7 +96,7 @@ describe('LockFeature', () => {
       index: 0,
       node: node,
     } as any;
-    
+
     feature = new LockFeature(platform, accessory, endpoint, node);
   });
 
@@ -108,11 +109,14 @@ describe('LockFeature', () => {
     feature.init();
     node.getValue.mockReturnValue(255);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.LockCurrentState, platform.Characteristic.LockCurrentState.SECURED);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.LockCurrentState,
+      platform.Characteristic.LockCurrentState.SECURED,
+    );
     expect(node.getValue).toHaveBeenCalledWith({
-        commandClass: CommandClasses['Door Lock'],
-        property: 'currentMode',
-        endpoint: 0
+      commandClass: CommandClasses['Door Lock'],
+      property: 'currentMode',
+      endpoint: 0,
     });
   });
 
@@ -120,13 +124,19 @@ describe('LockFeature', () => {
     feature.init();
     node.getValue.mockReturnValue(0);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.LockCurrentState, platform.Characteristic.LockCurrentState.UNSECURED);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.LockCurrentState,
+      platform.Characteristic.LockCurrentState.UNSECURED,
+    );
   });
 
   it('should update Lock Target State to match Current State', () => {
     feature.init();
     node.getValue.mockReturnValue(255);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.LockTargetState, platform.Characteristic.LockTargetState.SECURED);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.LockTargetState,
+      platform.Characteristic.LockTargetState.SECURED,
+    );
   });
 });

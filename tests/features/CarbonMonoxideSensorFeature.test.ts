@@ -35,8 +35,8 @@ describe('CarbonMonoxideSensorFeature', () => {
       } as any,
       Characteristic: {
         CarbonMonoxideDetected: {
-            CO_LEVELS_NORMAL: 0,
-            CO_LEVELS_ABNORMAL: 1,
+          CO_LEVELS_NORMAL: 0,
+          CO_LEVELS_ABNORMAL: 1,
         },
         Name: 'Name',
         ConfiguredName: 'ConfiguredName',
@@ -45,7 +45,7 @@ describe('CarbonMonoxideSensorFeature', () => {
         generate: jest.fn().mockReturnValue('test-uuid'),
       },
     } as any;
-    
+
     accessory = {
       getService: jest.fn(),
       getServiceById: jest.fn(),
@@ -56,7 +56,8 @@ describe('CarbonMonoxideSensorFeature', () => {
       hap,
       registerPlatform: jest.fn(),
       registerPlatformAccessories: jest.fn(),
-      on: jest.fn(), user: { storagePath: jest.fn().mockReturnValue("/tmp") },
+      on: jest.fn(),
+      user: { storagePath: jest.fn().mockReturnValue('/tmp') },
       user: {
         storagePath: jest.fn().mockReturnValue('/tmp'),
       },
@@ -88,13 +89,16 @@ describe('CarbonMonoxideSensorFeature', () => {
       index: 0,
       node: node,
     } as any;
-    
+
     feature = new CarbonMonoxideSensorFeature(platform, accessory, endpoint, node);
   });
 
   it('should initialize CarbonMonoxideSensor service', () => {
     feature.init();
-    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.CarbonMonoxideSensor, '0');
+    expect(accessory.getServiceById).toHaveBeenCalledWith(
+      platform.Service.CarbonMonoxideSensor,
+      '0',
+    );
   });
 
   it('should detect CO via Notification CC (CO Alarm - 1)', () => {
@@ -102,11 +106,14 @@ describe('CarbonMonoxideSensorFeature', () => {
     node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
     node.getValue.mockReturnValue(1);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.CarbonMonoxideDetected, platform.Characteristic.CarbonMonoxideDetected.CO_LEVELS_ABNORMAL);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.CarbonMonoxideDetected,
+      platform.Characteristic.CarbonMonoxideDetected.CO_LEVELS_ABNORMAL,
+    );
     expect(node.getValue).toHaveBeenCalledWith({
-        commandClass: CommandClasses.Notification,
-        property: 'Carbon Monoxide Alarm',
-        endpoint: 0
+      commandClass: CommandClasses.Notification,
+      property: 'Carbon Monoxide Alarm',
+      endpoint: 0,
     });
   });
 
@@ -115,11 +122,14 @@ describe('CarbonMonoxideSensorFeature', () => {
     node.supportsCC.mockImplementation((cc) => cc === CommandClasses['Binary Sensor']);
     node.getValue.mockReturnValue(true);
     feature.update();
-    expect(service.updateCharacteristic).toHaveBeenCalledWith(platform.Characteristic.CarbonMonoxideDetected, platform.Characteristic.CarbonMonoxideDetected.CO_LEVELS_ABNORMAL);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.CarbonMonoxideDetected,
+      platform.Characteristic.CarbonMonoxideDetected.CO_LEVELS_ABNORMAL,
+    );
     expect(node.getValue).toHaveBeenCalledWith({
-        commandClass: CommandClasses['Binary Sensor'],
-        property: 'CO',
-        endpoint: 0
+      commandClass: CommandClasses['Binary Sensor'],
+      property: 'CO',
+      endpoint: 0,
     });
   });
 });

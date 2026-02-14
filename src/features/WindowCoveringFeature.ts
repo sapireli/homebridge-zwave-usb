@@ -1,6 +1,7 @@
 import { Service, CharacteristicValue } from 'homebridge';
 import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
+import { ZWaveValueEvent } from '../zwave/interfaces';
 
 export class WindowCoveringFeature extends BaseFeature {
   private service!: Service;
@@ -23,11 +24,14 @@ export class WindowCoveringFeature extends BaseFeature {
       .onGet(this.handleGetPositionState.bind(this));
   }
 
-  update(): void {
+  update(args?: ZWaveValueEvent): void {
+    if (!this.shouldUpdate(args, CommandClasses['Window Covering'])) {
+      return;
+    }
     const current = this.handleGetCurrentPosition();
     this.service.updateCharacteristic(this.platform.Characteristic.CurrentPosition, current);
-    
-    // Optimistically update target if it's vastly different? 
+
+    // Optimistically update target if it's vastly different?
     // Usually Z-Wave JS reports intermediate values so we rely on that.
   }
 
@@ -35,33 +39,33 @@ export class WindowCoveringFeature extends BaseFeature {
     // 0 = Closed, 99 = Open.
     // Use CommandClasses['Multilevel Switch'] as generic cover, or CommandClasses['Window Covering']
     const val = this.node.getValue({
-        commandClass: CommandClasses['Multilevel Switch'],
-        property: 'currentValue',
-        endpoint: this.endpoint.index
+      commandClass: CommandClasses['Multilevel Switch'],
+      property: 'currentValue',
+      endpoint: this.endpoint.index,
     });
 
     if (val === undefined) {
-       // Try CommandClasses['Window Covering']?
-       // Not common in JS yet, usually mapped to Multilevel
+      // Try CommandClasses['Window Covering']?
+      // Not common in JS yet, usually mapped to Multilevel
     }
 
     if (typeof val === 'number') {
-        if (val === 99) return 100;
-        return val;
+      if (val === 99) return 100;
+      return val;
     }
     return 0;
   }
 
   private handleGetTargetPosition(): number {
     const val = this.node.getValue({
-        commandClass: CommandClasses['Multilevel Switch'],
-        property: 'targetValue',
-        endpoint: this.endpoint.index
+      commandClass: CommandClasses['Multilevel Switch'],
+      property: 'targetValue',
+      endpoint: this.endpoint.index,
     });
-    
+
     if (typeof val === 'number') {
-        if (val === 99) return 100;
-        return val;
+      if (val === 99) return 100;
+      return val;
     }
     // Fallback to current
     return this.handleGetCurrentPosition();
@@ -73,12 +77,16 @@ export class WindowCoveringFeature extends BaseFeature {
     if (target === 100) zwaveVal = 99;
 
     try {
-        await this.node.setValue(
-            { commandClass: CommandClasses['Multilevel Switch'], property: 'targetValue', endpoint: this.endpoint.index },
-            zwaveVal
-        );
+      await this.node.setValue(
+        {
+          commandClass: CommandClasses['Multilevel Switch'],
+          property: 'targetValue',
+          endpoint: this.endpoint.index,
+        },
+        zwaveVal,
+      );
     } catch (err) {
-        this.platform.log.error('Failed to set window covering position:', err);
+      this.platform.log.error('Failed to set window covering position:', err);
     }
   }
 
