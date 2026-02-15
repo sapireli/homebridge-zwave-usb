@@ -700,8 +700,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     this.log.warn('**********************************************************');
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (this.driver.controller as any).hardReset();
+                  await (this.driver.controller as any)._factoryReset();
       this.log.info('Factory reset complete. The controller is now empty.');
       this.emit('status updated', 'Factory Reset Done');
       // After a hard reset, the driver instance is often in a weird state.
