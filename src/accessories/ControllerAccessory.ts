@@ -24,14 +24,15 @@ export class ControllerAccessory {
   private isInclusionActive = false;
   private isExclusionActive = false;
   private isHealActive = false;
-    private isPruneActive = false;
-   
-    // Track listeners for cleanup
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    private handlers: Record<string, (...args: any[]) => void> = {};
-   
-    constructor(
-      private readonly platform: ZWaveUsbPlatform,    private readonly controller: IZWaveController,
+  private isPruneActive = false;
+
+  // Track listeners for cleanup
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private handlers: Record<string, (...args: any[]) => void> = {};
+
+  constructor(
+    private readonly platform: ZWaveUsbPlatform,
+    private readonly controller: IZWaveController,
   ) {
     const homeId = this.controller.homeId;
     if (!homeId) {
@@ -337,13 +338,14 @@ export class ControllerAccessory {
         this.isHealActive = false;
         this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
       },
-        };
-     
-        for (const [event, handler] of Object.entries(this.handlers)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          this.controller.on(event as any, handler);
-        }
-      }
+    };
+
+    for (const [event, handler] of Object.entries(this.handlers)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.controller.on(event as any, handler);
+    }
+  }
+
   private syncConfiguredName(service: Service, value?: string) {
     const configuredNameValue = value || service.displayName;
     if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
@@ -534,7 +536,12 @@ export class ControllerAccessory {
       for (const [nodeId, node] of this.controller.nodes) {
         /**
          * PRUNE FIX: Check for correct Dead status (3).
-         * CONTROLLER FIX: Explicitly NEVER prune Node 1.
+         * NodeStatus Enum (zwave-js):
+         * 0: Unknown
+         * 1: Asleep
+         * 2: Awake
+         * 3: Dead
+         * 4: Alive
          */
         if (nodeId !== 1 && node.status === 3) {
           deadNodeIds.push(nodeId);

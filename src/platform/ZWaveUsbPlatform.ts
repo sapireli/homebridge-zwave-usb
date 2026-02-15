@@ -303,7 +303,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       this.zwaveAccessories.delete(node.nodeId);
 
       /**
-       * CACHE LEAK FIX: Also remove from the primary accessories array
+       * CALE LEAK FIX: Also remove from the primary accessories array
        * to prevent memory leaks and reconciliation ghosts.
        */
       const index = this.accessories.indexOf(accessory.platformAccessory);

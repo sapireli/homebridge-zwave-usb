@@ -7,7 +7,7 @@ export const MANAGER_SERVICE_UUID = '00000001-0000-1000-8000-0026BB765297';
 export const STATUS_CHAR_UUID = '00000002-0000-1000-8000-0026BB765297';
 export const PIN_CHAR_UUID = '00000004-0000-1000-8000-0026BB765297';
 
-// HAP Constants
+// HAP Constants (Enums for cleaner code)
 export enum HAPFormat {
   STRING = 'string',
   BOOL = 'bool',
