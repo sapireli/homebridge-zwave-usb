@@ -1,5 +1,5 @@
 # Homebridge Z-Wave USB
-
+[![verified-by-homebridge](https://img.shields.io/badge/homebridge-verified-blueviolet?color=%23491F59&style=flat)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
 [![NPM Version](https://img.shields.io/npm/v/homebridge-zwave-usb.svg)](https://www.npmjs.com/package/homebridge-zwave-usb)
 [![NPM Downloads](https://img.shields.io/npm/dt/homebridge-zwave-usb.svg)](https://www.npmjs.com/package/homebridge-zwave-usb)
 [![Build and Test](https://github.com/sapireli/homebridge-zwave-usb/actions/workflows/build.yml/badge.svg)](https://github.com/sapireli/homebridge-zwave-usb/actions/workflows/build.yml)
