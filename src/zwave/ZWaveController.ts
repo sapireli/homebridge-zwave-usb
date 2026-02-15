@@ -342,7 +342,14 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     const { securityKeys, securityKeysLongRange } = this.parseSecurityKeys();
     const storagePath = this.options.storagePath || process.cwd();
 
-    const logLevel = this.options.debug ? 'debug' : 'warn';
+    /**
+     * CHILD BRIDGE DEBUG FIX:
+     * In child bridges, Homebridge may not reliably capture the raw stdout/stderr
+     * produced by 'forceConsole: true'. To ensure logs are visible, we use
+     * 'silly' level when debug is enabled and explicitly pipe all 'logging'
+     * events to the Homebridge 'log' instance.
+     */
+    const logLevel = this.options.debug ? 'silly' : 'info';
 
     // Re-create driver instance to support hot-recovery
     this.driver = new Driver(this.serialPort, {
@@ -351,7 +358,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       logConfig: {
         enabled: true,
         level: logLevel,
-        forceConsole: true,
+        forceConsole: true, // Required for verifier script
         showLogo: false,
       },
       storage: {
@@ -424,6 +431,17 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
         },
         abort: () => this.log.warn('[S2] Aborted'),
       },
+    });
+
+    /**
+     * Explicit log piping for Homebridge Child Bridge visibility.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.driver as any).on('logging', (message: any) => {
+      const prefix = `[Z-Wave JS] [${message.label || 'Driver'}]`;
+      if (this.options.debug) {
+        this.log.info(`${prefix} ${message.message}`);
+      }
     });
 
     this.driver.on('error', (err: Error) => {
