@@ -342,13 +342,15 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     const { securityKeys, securityKeysLongRange } = this.parseSecurityKeys();
     const storagePath = this.options.storagePath || process.cwd();
 
+    const logLevel = this.options.debug ? 'debug' : 'warn';
+
     // Re-create driver instance to support hot-recovery
     this.driver = new Driver(this.serialPort, {
       securityKeys,
       securityKeysLongRange,
       logConfig: {
         enabled: true,
-        level: this.options.debug ? 'debug' : 'warn',
+        level: logLevel,
         forceConsole: true,
         showLogo: false,
       },
@@ -544,7 +546,9 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     }
 
     this.nodes.clear();
-    this.removeAllListeners();
+    // CRITICAL REGRESSION FIX: DO NOT call removeAllListeners() here.
+    // This instance of ZWaveController persists across driver restarts,
+    // and its listeners (from Platform and ControllerAccessory) must remain intact.
   }
 
   public async startInclusion(): Promise<boolean> {
