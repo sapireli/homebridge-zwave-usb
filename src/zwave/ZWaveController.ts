@@ -369,10 +369,25 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       features: { softReset: false },
       emitValueUpdateAfterSetValue: true,
       inclusionUserCallbacks: {
-        grantSecurityClasses: async (req) => req,
-        validateDSKAndEnterPIN: async (_dsk) => {
+        grantSecurityClasses: async (req) => {
+          this.log.info(`[S2] Granting security classes: ${req.securityClasses.join(', ')}`);
+          return req;
+        },
+        validateDSKAndEnterPIN: async (dsk) => {
           this.pendingS2Pin = undefined;
           this.emit('status updated', 'S2 PIN REQUIRED');
+          this.log.warn('**********************************************************');
+          this.log.warn('[S2] SECURITY PIN REQUIRED FOR INCLUSION');
+          this.log.warn(`[S2] DEVICE DSK: ${dsk}`);
+          this.log.warn('[S2] Please enter the 5-digit PIN from the device label.');
+          this.log.warn(' ');
+          this.log.warn('[S2] OPTION 1: Enter PIN in HomeKit App (Controller/Eve)');
+          this.log.warn('[S2] OPTION 2: Terminal Instruction:');
+          this.log.warn(`     echo "12345" > ${path.join(storagePath, 's2_pin.txt')}`);
+          this.log.warn(' ');
+          this.log.warn('[S2] Waiting 3 minutes for PIN...');
+          this.log.warn('**********************************************************');
+
           return new Promise<string | false>((resolve) => {
             const pinFilePath = path.join(storagePath, 's2_pin.txt');
             let resolved = false;
@@ -430,7 +445,10 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
             checkPin.call(this);
           }) as Promise<string | false>;
         },
-        abort: () => this.log.warn('[S2] Aborted'),
+        abort: () => {
+          this.log.warn('[S2] Inclusion aborted.');
+          this.emit('status updated', 'Inclusion Aborted');
+        },
       },
     });
 
