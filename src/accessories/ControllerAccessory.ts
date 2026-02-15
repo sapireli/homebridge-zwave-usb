@@ -267,22 +267,30 @@ export class ControllerAccessory {
     this.inclusionService
       .getCharacteristic(this.platform.Characteristic.On)
       .onGet(() => this.isInclusionActive)
-      .onSet(this.handleSetInclusion.bind(this));
+      .onSet((value: CharacteristicValue) => {
+        void this.handleSetInclusion(value);
+      });
 
     this.exclusionService
       .getCharacteristic(this.platform.Characteristic.On)
       .onGet(() => this.isExclusionActive)
-      .onSet(this.handleSetExclusion.bind(this));
+      .onSet((value: CharacteristicValue) => {
+        void this.handleSetExclusion(value);
+      });
 
     this.healService
       .getCharacteristic(this.platform.Characteristic.On)
       .onGet(() => this.isHealActive)
-      .onSet(this.handleSetHeal.bind(this));
+      .onSet((value: CharacteristicValue) => {
+        void this.handleSetHeal(value);
+      });
 
     this.pruneService
       .getCharacteristic(this.platform.Characteristic.On)
       .onGet(() => this.isPruneActive)
-      .onSet(this.handleSetPrune.bind(this));
+      .onSet((value: CharacteristicValue) => {
+        void this.handleSetPrune(value);
+      });
 
     // --- Listen for controller events to sync state ---
     this.setupControllerHandlers();
@@ -548,85 +556,91 @@ export class ControllerAccessory {
   }
 
   private async handleSetPrune(value: CharacteristicValue) {
-    if (value) {
-      const wasInclusionActive = this.isInclusionActive;
-      const wasExclusionActive = this.isExclusionActive;
-      const wasHealActive = this.isHealActive;
+    try {
+      if (value) {
+        const wasInclusionActive = this.isInclusionActive;
+        const wasExclusionActive = this.isExclusionActive;
+        const wasHealActive = this.isHealActive;
 
-      this.isPruneActive = true;
-      this.isInclusionActive = false;
-      this.isExclusionActive = false;
-      this.isHealActive = false;
-      this.pruneService.updateCharacteristic(this.platform.Characteristic.On, true);
-      this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
-      this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
-      this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
+        this.isPruneActive = true;
+        this.isInclusionActive = false;
+        this.isExclusionActive = false;
+        this.isHealActive = false;
+        this.pruneService.updateCharacteristic(this.platform.Characteristic.On, true);
+        this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+        this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+        this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
 
-      /**
-       * MUTEX FIX: Ensure only one management task is active.
-       */
-      try {
-        if (wasInclusionActive) {
-          await this.controller.stopInclusion();
-        }
-        if (wasExclusionActive) {
-          await this.controller.stopExclusion();
-        }
-        if (wasHealActive) {
-          await this.controller.stopHealing();
-        }
-      } catch { /* ignore */ }
-
-      this.platform.log.info('Requesting Prune Dead Nodes...');
-
-      // Find all Dead nodes
-      const deadNodeIds: number[] = [];
-      for (const [nodeId, node] of this.controller.nodes) {
         /**
-         * PRUNE FIX: Check for correct Dead status (3).
-         * NodeStatus Enum (zwave-js):
-         * 0: Unknown
-         * 1: Asleep
-         * 2: Awake
-         * 3: Dead
-         * 4: Alive
+         * MUTEX FIX: Ensure only one management task is active.
          */
-        if (nodeId !== 1 && node.status === 3) {
-          deadNodeIds.push(nodeId);
-        } else if (node.status === 1) {
-          this.platform.log.debug(`Prune: Node ${nodeId} is ASLEEP (Battery). Skipping.`);
-        }
-      }
+        try {
+          if (wasInclusionActive) {
+            await this.controller.stopInclusion();
+          }
+          if (wasExclusionActive) {
+            await this.controller.stopExclusion();
+          }
+          if (wasHealActive) {
+            await this.controller.stopHealing();
+          }
+        } catch { /* ignore */ }
 
-      if (deadNodeIds.length === 0) {
-        this.platform.log.info('No Dead nodes found to prune.');
+        this.platform.log.info('Requesting Prune Dead Nodes...');
+
+        // Find all Dead nodes
+        const deadNodeIds: number[] = [];
+        for (const [nodeId, node] of this.controller.nodes) {
+          /**
+           * PRUNE FIX: Check for correct Dead status (3).
+           * NodeStatus Enum (zwave-js):
+           * 0: Unknown
+           * 1: Asleep
+           * 2: Awake
+           * 3: Dead
+           * 4: Alive
+           */
+          if (nodeId !== 1 && node.status === 3) {
+            deadNodeIds.push(nodeId);
+          } else if (node.status === 1) {
+            this.platform.log.debug(`Prune: Node ${nodeId} is ASLEEP (Battery). Skipping.`);
+          }
+        }
+
+        if (deadNodeIds.length === 0) {
+          this.platform.log.info('No Dead nodes found to prune.');
+          this.isPruneActive = false;
+          setTimeout(() => {
+            this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
+          }, 100);
+          return;
+        }
+
+        this.platform.log.info(`Found ${deadNodeIds.length} dead nodes: ${deadNodeIds.join(', ')}`);
+
+        for (const nodeId of deadNodeIds) {
+          if (!this.isPruneActive) {
+            this.platform.log.info('Pruning interrupted by user.');
+            break;
+          }
+          try {
+            await this.controller.removeFailedNode(nodeId);
+          } catch (err) {
+            this.platform.log.error(`Failed to prune node ${nodeId}:`, err);
+          }
+        }
+
+        this.platform.log.info('Pruning complete.');
         this.isPruneActive = false;
         setTimeout(() => {
           this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
-        }, 100);
-        return;
-      }
-
-      this.platform.log.info(`Found ${deadNodeIds.length} dead nodes: ${deadNodeIds.join(', ')}`);
-
-      for (const nodeId of deadNodeIds) {
-        if (!this.isPruneActive) {
-          this.platform.log.info('Pruning interrupted by user.');
-          break;
-        }
-        try {
-          await this.controller.removeFailedNode(nodeId);
-        } catch (err) {
-          this.platform.log.error(`Failed to prune node ${nodeId}:`, err);
-        }
-      }
-
-      this.platform.log.info('Pruning complete.');
-      this.isPruneActive = false;
-      setTimeout(() => {
+        }, 500);
+      } else {
+        this.isPruneActive = false;
         this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
-      }, 500);
-    } else {
+      }
+    } catch (err) {
+      this.platform.log.error('Failed to set prune state:', err);
       this.isPruneActive = false;
       this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
     }
