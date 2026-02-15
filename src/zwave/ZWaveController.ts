@@ -350,14 +350,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     const { securityKeys, securityKeysLongRange } = this.parseSecurityKeys();
     const storagePath = this.options.storagePath || process.cwd();
 
-    /**
-     * CHILD BRIDGE DEBUG FIX:
-     * In child bridges, Homebridge may not reliably capture the raw stdout/stderr
-     * produced by 'forceConsole: true'. To ensure logs are visible, we use
-     * 'silly' level when debug is enabled and explicitly pipe all 'logging'
-     * events to the Homebridge 'log' instance.
-     */
-    const logLevel = this.options.debug ? 'silly' : 'info';
+    const logLevel = this.options.debug ? 'debug' : 'info';
 
     // Re-create driver instance to support hot-recovery
     this.driver = new Driver(this.serialPort, {
@@ -578,8 +571,11 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
   }
 
   public async startInclusion(): Promise<boolean> {
+    if (!this.driver) {
+      return false;
+    }
     try {
-      return await this.driver!.controller.beginInclusion({ strategy: InclusionStrategy.Default });
+      return await this.driver.controller.beginInclusion({ strategy: InclusionStrategy.Default });
     } catch (err) {
       this.log.error('Failed to start inclusion:', err);
       return false;
@@ -587,8 +583,11 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
   }
 
   public async stopInclusion(): Promise<boolean> {
+    if (!this.driver) {
+      return false;
+    }
     try {
-      return await this.driver!.controller.stopInclusion();
+      return await this.driver.controller.stopInclusion();
     } catch (err) {
       this.log.error('Failed to stop inclusion:', err);
       return false;
@@ -596,8 +595,11 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
   }
 
   public async startExclusion(): Promise<boolean> {
+    if (!this.driver) {
+      return false;
+    }
     try {
-      return await this.driver!.controller.beginExclusion();
+      return await this.driver.controller.beginExclusion();
     } catch (err) {
       this.log.error('Failed to start exclusion:', err);
       return false;
@@ -605,8 +607,11 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
   }
 
   public async stopExclusion(): Promise<boolean> {
+    if (!this.driver) {
+      return false;
+    }
     try {
-      return await this.driver!.controller.stopExclusion();
+      return await this.driver.controller.stopExclusion();
     } catch (err) {
       this.log.error('Failed to stop exclusion:', err);
       return false;
@@ -614,8 +619,11 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
   }
 
   public async startHealing(): Promise<boolean> {
+    if (!this.driver) {
+      return false;
+    }
     try {
-      return await this.driver!.controller.beginRebuildingRoutes();
+      return await this.driver.controller.beginRebuildingRoutes();
     } catch (err) {
       this.log.error('Failed to start network heal:', err);
       return false;
@@ -623,8 +631,11 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
   }
 
   public async stopHealing(): Promise<boolean> {
+    if (!this.driver) {
+      return false;
+    }
     try {
-      return await this.driver!.controller.stopRebuildingRoutes();
+      return await this.driver.controller.stopRebuildingRoutes();
     } catch (err) {
       this.log.error('Failed to stop network heal:', err);
       return false;

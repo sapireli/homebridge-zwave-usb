@@ -24,14 +24,14 @@ export class ControllerAccessory {
   private isInclusionActive = false;
   private isExclusionActive = false;
   private isHealActive = false;
-  private isPruneActive = false;
-
-  // Track listeners for cleanup
-  private handlers: Record<string, (...args: any[]) => void> = {};
-
-  constructor(
-    private readonly platform: ZWaveUsbPlatform,
-    private readonly controller: IZWaveController,
+    private isPruneActive = false;
+   
+    // Track listeners for cleanup
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private handlers: Record<string, (...args: any[]) => void> = {};
+   
+    constructor(
+      private readonly platform: ZWaveUsbPlatform,    private readonly controller: IZWaveController,
   ) {
     const homeId = this.controller.homeId;
     if (!homeId) {
@@ -110,12 +110,11 @@ export class ControllerAccessory {
       .updateValue(1);
 
     // --- 1. System Status Service (Custom Service) ---
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const managerServiceType = (this.platform.Service as any).ZWaveManager;
     this.statusService =
       this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
-      this.platformAccessory.addService(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        new (this.platform.Service as any).ZWaveManager('System Status', 'Status'),
-      );
+      this.platformAccessory.addService(new managerServiceType('System Status', 'Status'));
     this.syncConfiguredName(this.statusService, 'System Status');
 
     this.statusService
@@ -297,8 +296,10 @@ export class ControllerAccessory {
         this.platform.log.info('Controller event: Inclusion Started');
         this.isInclusionActive = true;
         this.isExclusionActive = false;
+        this.isPruneActive = false;
         this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, true);
         this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+        this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
       },
       'inclusion stopped': () => {
         this.platform.log.info('Controller event: Inclusion Stopped');
@@ -313,12 +314,14 @@ export class ControllerAccessory {
         this.platform.log.info('Controller event: Exclusion Started');
         this.isExclusionActive = true;
         this.isInclusionActive = false;
+        this.isPruneActive = false;
         if (this.inclusionTimer) {
           clearTimeout(this.inclusionTimer);
           this.inclusionTimer = undefined;
         }
         this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, true);
         this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+        this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
       },
       'exclusion stopped': () => {
         this.platform.log.info('Controller event: Exclusion Stopped');
@@ -334,13 +337,13 @@ export class ControllerAccessory {
         this.isHealActive = false;
         this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
       },
-    };
-
-    for (const [event, handler] of Object.entries(this.handlers)) {
-      this.controller.on(event as any, handler);
-    }
-  }
-
+        };
+     
+        for (const [event, handler] of Object.entries(this.handlers)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          this.controller.on(event as any, handler);
+        }
+      }
   private syncConfiguredName(service: Service, value?: string) {
     const configuredNameValue = value || service.displayName;
     if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
@@ -392,36 +395,42 @@ export class ControllerAccessory {
       this.inclusionTimer = undefined;
     }
 
-    if (value) {
-      /**
-       * MUTEX FIX: Ensure only one management task is active.
-       */
-      if (this.isExclusionActive) {
-        await this.handleSetExclusion(false);
-      }
-      if (this.isHealActive) {
-        await this.handleSetHeal(false);
-      }
-      if (this.isPruneActive) {
+    try {
+      if (value) {
+        // MUTEX: Turn off others
+        if (this.isExclusionActive) {
+          await this.controller.stopExclusion();
+        }
+        if (this.isHealActive) {
+          await this.controller.stopHealing();
+        }
         this.isPruneActive = false;
-        this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
-      }
 
-      const timeoutSeconds = this.platform.config.inclusionTimeoutSeconds || 60;
-      this.platform.log.info(`Requesting Inclusion Mode ON (Timeout: ${timeoutSeconds}s)`);
-      this.isInclusionActive = true;
-      await this.controller.startInclusion();
-
-      this.inclusionTimer = setTimeout(async () => {
-        this.platform.log.info('Inclusion Mode timed out');
-        await this.controller.stopInclusion();
+        const timeoutSeconds = this.platform.config.inclusionTimeoutSeconds || 60;
+        this.platform.log.info(`Requesting Inclusion Mode ON (Timeout: ${timeoutSeconds}s)`);
+        
+        const success = await this.controller.startInclusion();
+        if (success) {
+          this.isInclusionActive = true;
+          this.inclusionTimer = setTimeout(async () => {
+            this.platform.log.info('Inclusion Mode timed out');
+            await this.controller.stopInclusion();
+            this.isInclusionActive = false;
+            this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+          }, timeoutSeconds * 1000);
+        } else {
+          this.isInclusionActive = false;
+          this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+        }
+      } else {
+        this.platform.log.info('Requesting Inclusion Mode OFF');
         this.isInclusionActive = false;
-        this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
-      }, timeoutSeconds * 1000);
-    } else {
-      this.platform.log.info('Requesting Inclusion Mode OFF');
+        await this.controller.stopInclusion();
+      }
+    } catch (err) {
+      this.platform.log.error('Failed to set inclusion mode:', err);
       this.isInclusionActive = false;
-      await this.controller.stopInclusion();
+      this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
     }
   }
 
@@ -431,62 +440,72 @@ export class ControllerAccessory {
       this.exclusionTimer = undefined;
     }
 
-    if (value) {
-      /**
-       * MUTEX FIX: Ensure only one management task is active.
-       */
-      if (this.isInclusionActive) {
-        await this.handleSetInclusion(false);
-      }
-      if (this.isHealActive) {
-        await this.handleSetHeal(false);
-      }
-      if (this.isPruneActive) {
+    try {
+      if (value) {
+        // MUTEX: Turn off others
+        if (this.isInclusionActive) {
+          await this.controller.stopInclusion();
+        }
+        if (this.isHealActive) {
+          await this.controller.stopHealing();
+        }
         this.isPruneActive = false;
-        this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
-      }
 
-      const timeoutSeconds = this.platform.config.inclusionTimeoutSeconds || 60;
-      this.platform.log.info(`Requesting Exclusion Mode ON (Timeout: ${timeoutSeconds}s)`);
-      this.isExclusionActive = true;
-      await this.controller.startExclusion();
-
-      this.exclusionTimer = setTimeout(async () => {
-        this.platform.log.info('Exclusion Mode timed out');
-        await this.controller.stopExclusion();
+        const timeoutSeconds = this.platform.config.inclusionTimeoutSeconds || 60;
+        this.platform.log.info(`Requesting Exclusion Mode ON (Timeout: ${timeoutSeconds}s)`);
+        
+        const success = await this.controller.startExclusion();
+        if (success) {
+          this.isExclusionActive = true;
+          this.exclusionTimer = setTimeout(async () => {
+            this.platform.log.info('Exclusion Mode timed out');
+            await this.controller.stopExclusion();
+            this.isExclusionActive = false;
+            this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+          }, timeoutSeconds * 1000);
+        } else {
+          this.isExclusionActive = false;
+          this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+        }
+      } else {
+        this.platform.log.info('Requesting Exclusion Mode OFF');
         this.isExclusionActive = false;
-        this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
-      }, timeoutSeconds * 1000);
-    } else {
-      this.platform.log.info('Requesting Exclusion Mode OFF');
+        await this.controller.stopExclusion();
+      }
+    } catch (err) {
+      this.platform.log.error('Failed to set exclusion mode:', err);
       this.isExclusionActive = false;
-      await this.controller.stopExclusion();
+      this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
     }
   }
 
   private async handleSetHeal(value: CharacteristicValue) {
-    if (value) {
-      /**
-       * MUTEX FIX: Ensure only one management task is active.
-       */
-      if (this.isInclusionActive) {
-        await this.handleSetInclusion(false);
-      }
-      if (this.isExclusionActive) {
-        await this.handleSetExclusion(false);
-      }
-      if (this.isPruneActive) {
+    try {
+      if (value) {
+        // MUTEX
+        if (this.isInclusionActive) {
+          await this.controller.stopInclusion();
+        }
+        if (this.isExclusionActive) {
+          await this.controller.stopExclusion();
+        }
         this.isPruneActive = false;
-        this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
-      }
 
-      this.platform.log.info('Requesting Heal Network ON');
-      this.isHealActive = true;
-      await this.controller.startHealing();
-    } else {
-      this.platform.log.info('Requesting Heal Network OFF');
+        this.platform.log.info('Requesting Heal Network ON');
+        const success = await this.controller.startHealing();
+        this.isHealActive = success;
+        if (!success) {
+          this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
+        }
+      } else {
+        this.platform.log.info('Requesting Heal Network OFF');
+        this.isHealActive = false;
+        await this.controller.stopHealing();
+      }
+    } catch (err) {
+      this.platform.log.error('Failed to set heal state:', err);
       this.isHealActive = false;
-      await this.controller.stopHealing();
+      this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
     }
   }
 
@@ -495,15 +514,17 @@ export class ControllerAccessory {
       /**
        * MUTEX FIX: Ensure only one management task is active.
        */
-      if (this.isInclusionActive) {
-        await this.handleSetInclusion(false);
-      }
-      if (this.isExclusionActive) {
-        await this.handleSetExclusion(false);
-      }
-      if (this.isHealActive) {
-        await this.handleSetHeal(false);
-      }
+      try {
+        if (this.isInclusionActive) {
+          await this.controller.stopInclusion();
+        }
+        if (this.isExclusionActive) {
+          await this.controller.stopExclusion();
+        }
+        if (this.isHealActive) {
+          await this.controller.stopHealing();
+        }
+      } catch { /* ignore */ }
 
       this.platform.log.info('Requesting Prune Dead Nodes...');
       this.isPruneActive = true;
@@ -513,14 +534,9 @@ export class ControllerAccessory {
       for (const [nodeId, node] of this.controller.nodes) {
         /**
          * PRUNE FIX: Check for correct Dead status (3).
-         * NodeStatus Enum (zwave-js):
-         * 0: Unknown
-         * 1: Asleep
-         * 2: Awake
-         * 3: Dead
-         * 4: Alive
+         * CONTROLLER FIX: Explicitly NEVER prune Node 1.
          */
-        if (node.status === 3) {
+        if (nodeId !== 1 && node.status === 3) {
           deadNodeIds.push(nodeId);
         } else if (node.status === 1) {
           this.platform.log.debug(`Prune: Node ${nodeId} is ASLEEP (Battery). Skipping.`);
@@ -539,9 +555,6 @@ export class ControllerAccessory {
       this.platform.log.info(`Found ${deadNodeIds.length} dead nodes: ${deadNodeIds.join(', ')}`);
 
       for (const nodeId of deadNodeIds) {
-        /**
-         * INTERRUPT FIX: Check if the user toggled the switch OFF while we were working.
-         */
         if (!this.isPruneActive) {
           this.platform.log.info('Pruning interrupted by user.');
           break;
@@ -564,7 +577,7 @@ export class ControllerAccessory {
   }
 
   public stop() {
-    this.isPruneActive = false; // Interruption signal for any running loop
+    this.isPruneActive = false;
     if (this.inclusionTimer) {
       clearTimeout(this.inclusionTimer);
     }
@@ -572,8 +585,9 @@ export class ControllerAccessory {
       clearTimeout(this.exclusionTimer);
     }
 
-    // Cleanup listeners to prevent double-firing and state corruption on re-creation
+    // Cleanup listeners
     for (const [event, handler] of Object.entries(this.handlers)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.controller.off(event as any, handler);
     }
     this.handlers = {};
