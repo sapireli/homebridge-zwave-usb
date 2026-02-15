@@ -494,6 +494,8 @@ export class ControllerAccessory {
         if (node.status === 4) {
           // 4 = Dead
           deadNodeIds.push(nodeId);
+        } else if (node.status === 3) {
+          this.platform.log.debug(`Prune: Node ${nodeId} is ASLEEP (Battery). Skipping.`);
         }
       }
 

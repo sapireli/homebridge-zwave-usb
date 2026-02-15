@@ -127,7 +127,7 @@ This plugin adds a management accessory to your Home app to handle network opera
 - **Inclusion Mode**: A switch to start/stop pairing new devices (active for 3 minutes).
 - **Exclusion Mode**: A switch to remove/reset existing devices.
 - **Heal Network**: A switch to trigger a background mesh network optimization.
-- **Prune Dead Nodes**: A convenient switch to automatically remove any devices marked as "Dead" from the Z-Wave network (useful for broken sensors).
+- **Prune Dead Nodes**: Automatically removes devices marked as "Dead" from the network. **Safe for battery devices**: This only removes nodes the controller has confirmed as failed; it will never remove a device that is simply "Asleep".
 
 ---
 
