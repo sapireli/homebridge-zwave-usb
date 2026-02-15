@@ -399,18 +399,29 @@ export class ControllerAccessory {
 
     try {
       if (value) {
+        const wasExclusionActive = this.isExclusionActive;
+        const wasHealActive = this.isHealActive;
+
+        this.isInclusionActive = true;
+        this.isExclusionActive = false;
+        this.isHealActive = false;
+        this.isPruneActive = false;
+        this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, true);
+        this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+        this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
+        this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
+
         // MUTEX: Turn off others
-        if (this.isExclusionActive) {
+        if (wasExclusionActive) {
           await this.controller.stopExclusion();
         }
-        if (this.isHealActive) {
+        if (wasHealActive) {
           await this.controller.stopHealing();
         }
-        this.isPruneActive = false;
 
         const timeoutSeconds = this.platform.config.inclusionTimeoutSeconds || 60;
         this.platform.log.info(`Requesting Inclusion Mode ON (Timeout: ${timeoutSeconds}s)`);
-        
+
         const success = await this.controller.startInclusion();
         if (success) {
           this.isInclusionActive = true;
@@ -427,6 +438,7 @@ export class ControllerAccessory {
       } else {
         this.platform.log.info('Requesting Inclusion Mode OFF');
         this.isInclusionActive = false;
+        this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
         await this.controller.stopInclusion();
       }
     } catch (err) {
@@ -444,18 +456,29 @@ export class ControllerAccessory {
 
     try {
       if (value) {
+        const wasInclusionActive = this.isInclusionActive;
+        const wasHealActive = this.isHealActive;
+
+        this.isExclusionActive = true;
+        this.isInclusionActive = false;
+        this.isHealActive = false;
+        this.isPruneActive = false;
+        this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, true);
+        this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+        this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
+        this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
+
         // MUTEX: Turn off others
-        if (this.isInclusionActive) {
+        if (wasInclusionActive) {
           await this.controller.stopInclusion();
         }
-        if (this.isHealActive) {
+        if (wasHealActive) {
           await this.controller.stopHealing();
         }
-        this.isPruneActive = false;
 
         const timeoutSeconds = this.platform.config.inclusionTimeoutSeconds || 60;
         this.platform.log.info(`Requesting Exclusion Mode ON (Timeout: ${timeoutSeconds}s)`);
-        
+
         const success = await this.controller.startExclusion();
         if (success) {
           this.isExclusionActive = true;
@@ -472,6 +495,7 @@ export class ControllerAccessory {
       } else {
         this.platform.log.info('Requesting Exclusion Mode OFF');
         this.isExclusionActive = false;
+        this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
         await this.controller.stopExclusion();
       }
     } catch (err) {
@@ -484,14 +508,25 @@ export class ControllerAccessory {
   private async handleSetHeal(value: CharacteristicValue) {
     try {
       if (value) {
+        const wasInclusionActive = this.isInclusionActive;
+        const wasExclusionActive = this.isExclusionActive;
+
+        this.isHealActive = true;
+        this.isInclusionActive = false;
+        this.isExclusionActive = false;
+        this.isPruneActive = false;
+        this.healService.updateCharacteristic(this.platform.Characteristic.On, true);
+        this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+        this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+        this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
+
         // MUTEX
-        if (this.isInclusionActive) {
+        if (wasInclusionActive) {
           await this.controller.stopInclusion();
         }
-        if (this.isExclusionActive) {
+        if (wasExclusionActive) {
           await this.controller.stopExclusion();
         }
-        this.isPruneActive = false;
 
         this.platform.log.info('Requesting Heal Network ON');
         const success = await this.controller.startHealing();
@@ -502,6 +537,7 @@ export class ControllerAccessory {
       } else {
         this.platform.log.info('Requesting Heal Network OFF');
         this.isHealActive = false;
+        this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
         await this.controller.stopHealing();
       }
     } catch (err) {
@@ -513,23 +549,35 @@ export class ControllerAccessory {
 
   private async handleSetPrune(value: CharacteristicValue) {
     if (value) {
+      const wasInclusionActive = this.isInclusionActive;
+      const wasExclusionActive = this.isExclusionActive;
+      const wasHealActive = this.isHealActive;
+
+      this.isPruneActive = true;
+      this.isInclusionActive = false;
+      this.isExclusionActive = false;
+      this.isHealActive = false;
+      this.pruneService.updateCharacteristic(this.platform.Characteristic.On, true);
+      this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+      this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+      this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
+
       /**
        * MUTEX FIX: Ensure only one management task is active.
        */
       try {
-        if (this.isInclusionActive) {
+        if (wasInclusionActive) {
           await this.controller.stopInclusion();
         }
-        if (this.isExclusionActive) {
+        if (wasExclusionActive) {
           await this.controller.stopExclusion();
         }
-        if (this.isHealActive) {
+        if (wasHealActive) {
           await this.controller.stopHealing();
         }
       } catch { /* ignore */ }
 
       this.platform.log.info('Requesting Prune Dead Nodes...');
-      this.isPruneActive = true;
 
       // Find all Dead nodes
       const deadNodeIds: number[] = [];
@@ -580,6 +628,7 @@ export class ControllerAccessory {
       }, 500);
     } else {
       this.isPruneActive = false;
+      this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
     }
   }
 

@@ -413,8 +413,28 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
                 return;
               }
               if (fs.existsSync(pinFilePath)) {
-                const pin = fs.readFileSync(pinFilePath, 'utf8').trim();
-                fs.unlinkSync(pinFilePath);
+                let pin: string;
+                try {
+                  pin = fs.readFileSync(pinFilePath, 'utf8').trim();
+                } catch (err) {
+                  this.log.warn(
+                    `Failed to read S2 PIN file ${pinFilePath}: ${
+                      err instanceof Error ? err.message : String(err)
+                    }`,
+                  );
+                  return;
+                }
+
+                try {
+                  fs.unlinkSync(pinFilePath);
+                } catch (err) {
+                  this.log.debug(
+                    `Failed to delete S2 PIN file ${pinFilePath}: ${
+                      err instanceof Error ? err.message : String(err)
+                    }`,
+                  );
+                }
+
                 if (/^\d{5}$/.test(pin)) {
                   resolved = true;
                   cleanup();
@@ -427,7 +447,15 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
             try {
               watcher = fs.watch(storagePath, (et, fn) => {
                 if (fn === 's2_pin.txt') {
-                  checkPin.call(this);
+                  try {
+                    checkPin.call(this);
+                  } catch (err) {
+                    this.log.warn(
+                      `Error while processing S2 PIN file event: ${
+                        err instanceof Error ? err.message : String(err)
+                      }`,
+                    );
+                  }
                 }
               });
             } catch {
@@ -686,29 +714,4 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     }
   }
 
-  /**
-   * FACTORY RESET: Clears the entire network and resets node IDs to 1.
-   * DANGER: This is destructive and cannot be undone.
-   */
-  public async factoryReset(): Promise<void> {
-    if (!this.driver) {
-      throw new Error('Driver not started');
-    }
-    this.log.warn('**********************************************************');
-    this.log.warn('!!! FACTORY RESET REQUESTED !!!');
-    this.log.warn('This will clear the entire Z-Wave network and all devices.');
-    this.log.warn('**********************************************************');
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (this.driver.controller as any)._factoryReset();
-      this.log.info('Factory reset complete. The controller is now empty.');
-      this.emit('status updated', 'Factory Reset Done');
-      // After a hard reset, the driver instance is often in a weird state.
-      // We emit a status update and let the user restart or wait for auto-recovery if implemented.
-    } catch (err) {
-      this.log.error('Failed to perform factory reset:', err);
-      throw err;
-    }
-  }
 }

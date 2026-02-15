@@ -34,7 +34,6 @@ describe('ZWaveController (Direct Mode)', () => {
     mockDriver.controller.stopExclusion = jest.fn().mockResolvedValue(true);
     mockDriver.controller.beginRebuildingRoutes = jest.fn().mockResolvedValue(true);
     mockDriver.controller.stopRebuildingRoutes = jest.fn().mockResolvedValue(true);
-    (mockDriver.controller as any)._factoryReset = jest.fn().mockResolvedValue(undefined);
 
     const DriverMock = Driver as jest.MockedClass<typeof Driver>;
     DriverMock.mockImplementation(() => mockDriver);
@@ -55,12 +54,5 @@ describe('ZWaveController (Direct Mode)', () => {
     await controller.start();
     await controller.startInclusion();
     expect(mockDriver.controller.beginInclusion).toHaveBeenCalled();
-  });
-
-  it('should handle factory reset', async () => {
-    controller = new ZWaveController(log, '/dev/ttyACM0');
-    await controller.start();
-    await controller.factoryReset();
-    expect((mockDriver.controller as any)._factoryReset).toHaveBeenCalled();
   });
 });

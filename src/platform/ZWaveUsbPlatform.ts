@@ -7,8 +7,6 @@ import {
   Service,
   Characteristic,
 } from 'homebridge';
-import fs from 'fs';
-import path from 'path';
 import { ZWaveController } from '../zwave/ZWaveController';
 import { IZWaveController, IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveAccessory } from '../accessories/ZWaveAccessory';
@@ -33,7 +31,6 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   private controllerAccessory: ControllerAccessory | undefined;
   private retryTimeout?: NodeJS.Timeout;
   private reconciliationTimeout?: NodeJS.Timeout;
-  private resetInterval?: NodeJS.Timeout;
 
   /**
    * RACE CONDITION FIX: Track which nodes are currently being created
@@ -85,7 +82,6 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
         try {
           this.log.debug('Executed didFinishLaunching callback');
           await this.connectToZWaveController();
-          this.setupManualResetTrigger();
         } catch (err) {
           this.log.error('Error during didFinishLaunching:', err);
         }
@@ -99,9 +95,6 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
         if (this.reconciliationTimeout) {
           clearTimeout(this.reconciliationTimeout);
         }
-        if (this.resetInterval) {
-          clearInterval(this.resetInterval);
-        }
         for (const acc of this.zwaveAccessories.values()) {
           acc.stop();
         }
@@ -112,33 +105,6 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       this.log.error('Critical error during plugin initialization. Plugin will be disabled.');
       this.log.error(err instanceof Error ? err.message : String(err));
     }
-  }
-
-  private setupManualResetTrigger() {
-    const storagePath = this.api.user.storagePath();
-    const triggerFilePath = path.join(storagePath, 'zwave_factory_reset.txt');
-
-    this.log.info(`Manual factory reset trigger is active. Checking for ${triggerFilePath} periodically.`);
-
-    this.resetInterval = setInterval(async () => {
-      if (fs.existsSync(triggerFilePath)) {
-        this.log.warn('MANUAL FACTORY RESET TRIGGER DETECTED!');
-        if (this.zwaveController) {
-          try {
-            await this.zwaveController.factoryReset();
-          } catch (err) {
-            this.log.error('Manual factory reset failed:', err);
-          } finally {
-            // Clean up the trigger file
-            fs.unlinkSync(triggerFilePath);
-          }
-        } else {
-          this.log.error('Cannot perform factory reset: Z-Wave controller not initialized.');
-          // Clean up the trigger file even if controller is not ready
-          fs.unlinkSync(triggerFilePath);
-        }
-      }
-    }, 15000); // Check every 15 seconds
   }
 
   private registerCustomCharacteristics() {
