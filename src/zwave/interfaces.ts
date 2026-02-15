@@ -30,6 +30,7 @@ export interface IZWaveController extends EventEmitter {
   startHealing(): Promise<boolean>;
   stopHealing(): Promise<boolean>;
   removeFailedNode(nodeId: number): Promise<void>;
+  factoryReset(): Promise<void>;
   setS2Pin(pin: string): void;
 
   on(event: 'status updated', listener: (status: string) => void): this;

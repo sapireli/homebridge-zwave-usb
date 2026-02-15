@@ -61,6 +61,16 @@
         <label class="form-check-label" for="debug">Enable Verbose Driver Logging</label>
       </div>
     </fieldset>
+
+    <fieldset class="mt-4 border-top pt-3">
+      <legend class="text-danger">DANGER ZONE</legend>
+      <p class="text-muted small">
+        These actions are destructive and cannot be undone.
+      </p>
+      <button type="button" class="btn btn-danger btn-sm" id="factoryReset">
+        Factory Reset Z-Wave Controller
+      </button>
+    </fieldset>
   </form>
 </div>
 
@@ -156,6 +166,27 @@
 
         updateConfig();
         window.homebridge.toast.success('Keys generated and configuration updated!');
+      });
+
+      // Factory Reset
+      document.getElementById('factoryReset').addEventListener('click', async () => {
+        const confirmed = confirm(
+          'WARNING: This will wipe your entire Z-Wave network and all devices. This cannot be undone. Are you absolutely sure?',
+        );
+        if (!confirmed) return;
+
+        const doubleConfirmed = confirm('Last chance: Destroy all network data?');
+        if (!doubleConfirmed) return;
+
+        try {
+          window.homebridge.showSpinner();
+          await window.homebridge.request('/factory-reset');
+          window.homebridge.hideSpinner();
+          window.homebridge.toast.success('Factory reset complete. Please restart Homebridge.');
+        } catch (err) {
+          window.homebridge.hideSpinner();
+          window.homebridge.toast.error(err.message || 'Failed to perform factory reset.');
+        }
       });
 
       // Save event listener as a backup

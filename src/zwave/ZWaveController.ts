@@ -685,4 +685,30 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       throw err;
     }
   }
+
+  /**
+   * FACTORY RESET: Clears the entire network and resets node IDs to 1.
+   * DANGER: This is destructive and cannot be undone.
+   */
+  public async factoryReset(): Promise<void> {
+    if (!this.driver) {
+      throw new Error('Driver not started');
+    }
+    this.log.warn('**********************************************************');
+    this.log.warn('!!! FACTORY RESET REQUESTED !!!');
+    this.log.warn('This will clear the entire Z-Wave network and all devices.');
+    this.log.warn('**********************************************************');
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (this.driver.controller as any).hardReset();
+      this.log.info('Factory reset complete. The controller is now empty.');
+      this.emit('status updated', 'Factory Reset Done');
+      // After a hard reset, the driver instance is often in a weird state.
+      // We emit a status update and let the user restart or wait for auto-recovery if implemented.
+    } catch (err) {
+      this.log.error('Failed to perform factory reset:', err);
+      throw err;
+    }
+  }
 }

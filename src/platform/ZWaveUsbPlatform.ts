@@ -46,6 +46,23 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     this.Service = this.api.hap.Service;
     this.Characteristic = this.api.hap.Characteristic;
 
+    // Handle UI requests (Factory Reset)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.api as any).ui?.onRequest('/factory-reset', async () => {
+      this.log.warn('FACTORY RESET REQUESTED FROM HOMEBRIDGE UI');
+      if (!this.zwaveController) {
+        throw new Error('Z-Wave controller not initialized.');
+      }
+      try {
+        await this.zwaveController.factoryReset();
+        this.log.info('Factory reset triggered successfully.');
+        return { success: true };
+      } catch (err) {
+        this.log.error('Factory reset failed:', err);
+        throw err;
+      }
+    });
+
     try {
       // Register Custom Characteristics for S2 PIN and Status
       this.registerCustomCharacteristics();
