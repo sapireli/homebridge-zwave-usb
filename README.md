@@ -3,7 +3,7 @@
 [![NPM Version](https://img.shields.io/npm/v/homebridge-zwave-usb.svg)](https://www.npmjs.com/package/homebridge-zwave-usb)
 [![NPM Downloads](https://img.shields.io/npm/dt/homebridge-zwave-usb.svg)](https://www.npmjs.com/package/homebridge-zwave-usb)
 [![Build and Test](https://github.com/sapireli/homebridge-zwave-usb/actions/workflows/build.yml/badge.svg)](https://github.com/sapireli/homebridge-zwave-usb/actions/workflows/build.yml)
-[![GitHub License](https://img.shields.io/github/license/sapireli/homebridge-zwave-usb.svg)](https://github.com/sapireli/homebridge-zwave-usb/blob/main/LICENSE)
+[![License: Polyform Noncommercial](https://img.shields.io/badge/License-Polyform_Noncommercial-blue.svg)](LICENSE)
 
 A high-performance, production-grade [Homebridge](https://homebridge.io) integration for Z-Wave networks. Built directly on the modern [Z-Wave JS](https://zwave-js.github.io/node-zwave-js/) driver, this plugin provides direct communication with USB controllers for ultra-low latency and maximum reliability.
 
@@ -146,7 +146,10 @@ This plugin adds a management accessory to your Home app to handle network opera
 
 ## ⚖️ Legal & Disclaimer
 
-### 1. Disclaimer of Warranty
+### 1. License & Commercial Use
+This software is licensed under the **Polyform Noncommercial License 1.0.0**. You are free to use, copy, and modify this software for personal or community non-commercial purposes. **Commercial sale or redistribution for monetary compensation is strictly prohibited.**
+
+### 2. Disclaimer of Warranty
 This software is provided **"as is"** and "with all faults," without warranty of any kind. As an open-source project shared for the love of the community, the author(s) make no warranties, express or implied, including but not limited to the warranties of merchantability or fitness for a particular purpose.
 
 ### 2. Limitation of Liability
