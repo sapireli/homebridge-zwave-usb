@@ -297,31 +297,33 @@ export class ControllerAccessory {
     // Setup Switch characteristic Handlers
     this.inclusionService
       .getCharacteristic(this.platform.Characteristic.On)
-      .onGet(() => this.isInclusionActive)
       .onSet((value: CharacteristicValue) => {
         void this.handleSetInclusion(value);
       });
 
     this.exclusionService
       .getCharacteristic(this.platform.Characteristic.On)
-      .onGet(() => this.isExclusionActive)
       .onSet((value: CharacteristicValue) => {
         void this.handleSetExclusion(value);
       });
 
     this.healService
       .getCharacteristic(this.platform.Characteristic.On)
-      .onGet(() => this.isHealActive)
       .onSet((value: CharacteristicValue) => {
         void this.handleSetHeal(value);
       });
 
     this.pruneService
       .getCharacteristic(this.platform.Characteristic.On)
-      .onGet(() => this.isPruneActive)
       .onSet((value: CharacteristicValue) => {
         void this.handleSetPrune(value);
       });
+
+    // Initialize all control switches to OFF in the cached characteristic state.
+    this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+    this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+    this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
+    this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
 
     // --- Listen for controller events to sync state ---
     this.setupControllerHandlers();
