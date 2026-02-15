@@ -385,6 +385,9 @@ export class ControllerAccessory {
     }
 
     if (value) {
+      /**
+       * MUTEX FIX: Ensure only one management task is active.
+       */
       if (this.isExclusionActive) {
         await this.handleSetExclusion(false);
       }
@@ -421,6 +424,9 @@ export class ControllerAccessory {
     }
 
     if (value) {
+      /**
+       * MUTEX FIX: Ensure only one management task is active.
+       */
       if (this.isInclusionActive) {
         await this.handleSetInclusion(false);
       }
@@ -452,6 +458,9 @@ export class ControllerAccessory {
 
   private async handleSetHeal(value: CharacteristicValue) {
     if (value) {
+      /**
+       * MUTEX FIX: Ensure only one management task is active.
+       */
       if (this.isInclusionActive) {
         await this.handleSetInclusion(false);
       }
@@ -475,6 +484,9 @@ export class ControllerAccessory {
 
   private async handleSetPrune(value: CharacteristicValue) {
     if (value) {
+      /**
+       * MUTEX FIX: Ensure only one management task is active.
+       */
       if (this.isInclusionActive) {
         await this.handleSetInclusion(false);
       }
@@ -501,16 +513,23 @@ export class ControllerAccessory {
 
       if (deadNodeIds.length === 0) {
         this.platform.log.info('No Dead nodes found to prune.');
+        this.isPruneActive = false;
         setTimeout(() => {
-          this.isPruneActive = false;
           this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
-        }, 1000);
+        }, 100);
         return;
       }
 
       this.platform.log.info(`Found ${deadNodeIds.length} dead nodes: ${deadNodeIds.join(', ')}`);
 
       for (const nodeId of deadNodeIds) {
+        /**
+         * INTERRUPT FIX: Check if the user toggled the switch OFF while we were working.
+         */
+        if (!this.isPruneActive) {
+          this.platform.log.info('Pruning interrupted by user.');
+          break;
+        }
         try {
           await this.controller.removeFailedNode(nodeId);
         } catch (err) {
@@ -519,16 +538,17 @@ export class ControllerAccessory {
       }
 
       this.platform.log.info('Pruning complete.');
+      this.isPruneActive = false;
       setTimeout(() => {
-        this.isPruneActive = false;
         this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
-      }, 2000);
+      }, 500);
     } else {
       this.isPruneActive = false;
     }
   }
 
   public stop() {
+    this.isPruneActive = false; // Interruption signal for any running loop
     if (this.inclusionTimer) {
       clearTimeout(this.inclusionTimer);
     }
