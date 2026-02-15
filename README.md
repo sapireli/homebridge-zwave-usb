@@ -134,8 +134,26 @@ This plugin adds a management accessory to your Home app to handle network opera
 The plugin provides additional tools for network maintenance:
 
 - **Dual S2 PIN Entry**: When a device requires a PIN, you can enter it via the Homebridge terminal (`echo "12345" > s2_pin.txt`) or via the `S2 PIN Entry` characteristic in third-party HomeKit apps.
-- **Factory Reset**: Available exclusively via the **Homebridge UI Settings** page. This is a destructive action that wipes the NVM memory of your USB stick, generates a new Home ID, and resets the node count to 1. **Warning:** This will require you to re-pair every device in your network and restart Homebridge to clear the accessory cache.
 - **Automated Reconciliation**: Orphaned accessories are automatically removed from HomeKit 60 seconds after startup if the node is no longer present in the Z-Wave network.
+
+---
+
+## ☢️ Danger Zone
+
+### Manual Factory Reset
+For maintenance or to recover a corrupt network, you can manually trigger a factory reset of your Z-Wave controller. This is a destructive action that will wipe the controller's memory, generate a new Home ID, and require you to re-pair all of your devices.
+
+**This process cannot be undone.**
+
+To perform a manual factory reset:
+1. Navigate to your Homebridge storage directory. This is usually `~/.homebridge` or `/var/lib/homebridge`.
+2. Create an empty file with the exact name `zwave_factory_reset.txt`.
+   ```bash
+   # Example command:
+   touch /var/lib/homebridge/zwave_factory_reset.txt
+   ```
+3. The plugin will automatically detect this file within 15 seconds, perform the factory reset, and then delete the file.
+4. You must restart Homebridge after the reset is complete to clear the accessory cache.
 
 ---
 

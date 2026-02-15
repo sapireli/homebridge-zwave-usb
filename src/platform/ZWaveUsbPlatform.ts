@@ -33,7 +33,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   private controllerAccessory: ControllerAccessory | undefined;
   private retryTimeout?: NodeJS.Timeout;
   private reconciliationTimeout?: NodeJS.Timeout;
-  private fsWatcher?: fs.FSWatcher;
+  private resetInterval?: NodeJS.Timeout;
 
   /**
    * RACE CONDITION FIX: Track which nodes are currently being created
@@ -48,8 +48,6 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   ) {
     this.Service = this.api.hap.Service;
     this.Characteristic = this.api.hap.Characteristic;
-
-    this.setupFileTrigger();
 
     try {
       // Register Custom Characteristics for S2 PIN and Status
@@ -87,6 +85,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
         try {
           this.log.debug('Executed didFinishLaunching callback');
           await this.connectToZWaveController();
+          this.setupManualResetTrigger();
         } catch (err) {
           this.log.error('Error during didFinishLaunching:', err);
         }
@@ -100,8 +99,8 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
         if (this.reconciliationTimeout) {
           clearTimeout(this.reconciliationTimeout);
         }
-        if (this.fsWatcher) {
-          this.fsWatcher.close();
+        if (this.resetInterval) {
+          clearInterval(this.resetInterval);
         }
         for (const acc of this.zwaveAccessories.values()) {
           acc.stop();
@@ -115,44 +114,31 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     }
   }
 
-  private setupFileTrigger() {
+  private setupManualResetTrigger() {
     const storagePath = this.api.user.storagePath();
-    const triggerFilePath = path.join(storagePath, 'zwave_factory_reset_trigger');
-    this.log.info(`[File Trigger] Setting up file watcher on directory: ${storagePath}`);
+    const triggerFilePath = path.join(storagePath, 'zwave_factory_reset.txt');
 
-    const handleRequest = async () => {
-      this.log.warn('FACTORY RESET TRIGGERED FROM FILE WATCHER');
-      if (!this.zwaveController) {
-        this.log.error('Cannot perform factory reset: Z-Wave controller not initialized.');
-        return;
-      }
-      try {
-        await this.zwaveController.factoryReset();
-        this.log.info('Factory reset complete. Accessories will be reconciled on next restart.');
-      } catch (err) {
-        this.log.error('Factory reset failed:', err);
-      } finally {
-        // Clean up the trigger file
-        if (fs.existsSync(triggerFilePath)) {
-          this.log.info('[File Trigger] Cleaning up trigger file.');
+    this.log.info(`Manual factory reset trigger is active. Checking for ${triggerFilePath} periodically.`);
+
+    this.resetInterval = setInterval(async () => {
+      if (fs.existsSync(triggerFilePath)) {
+        this.log.warn('MANUAL FACTORY RESET TRIGGER DETECTED!');
+        if (this.zwaveController) {
+          try {
+            await this.zwaveController.factoryReset();
+          } catch (err) {
+            this.log.error('Manual factory reset failed:', err);
+          } finally {
+            // Clean up the trigger file
+            fs.unlinkSync(triggerFilePath);
+          }
+        } else {
+          this.log.error('Cannot perform factory reset: Z-Wave controller not initialized.');
+          // Clean up the trigger file even if controller is not ready
           fs.unlinkSync(triggerFilePath);
         }
       }
-    };
-
-    // Watch for changes in the storage directory
-    this.fsWatcher = fs.watch(storagePath, (eventType, filename) => {
-      this.log.info(`[File Trigger] Watcher event: '${eventType}' on file '${filename}'`);
-      if (filename === 'zwave_factory_reset_trigger' && fs.existsSync(triggerFilePath)) {
-        handleRequest();
-      }
-    });
-
-    // Also check once on startup, in case the file was created while Homebridge was not running
-    if (fs.existsSync(triggerFilePath)) {
-      this.log.info('[File Trigger] Found trigger file on startup, processing...');
-      handleRequest();
-    }
+    }, 15000); // Check every 15 seconds
   }
 
   private registerCustomCharacteristics() {
