@@ -77,6 +77,8 @@
 
 <script>
   (async () => {
+    alert('Debug Step 1: Script start');
+
     const getInt = (id, def) => {
       const el = document.getElementById(id);
       if (!el) return def;
@@ -117,6 +119,7 @@
     };
 
     const init = async () => {
+      alert('Debug Step 2: Init function called');
       if (!window.homebridge) return;
 
       // Load Config
@@ -170,7 +173,9 @@
       });
 
       // Factory Reset
+      alert('Debug Step 3: Attaching factory reset listener');
       document.getElementById('factoryReset').addEventListener('click', async () => {
+        alert('Debug Step 4: Factory reset button clicked!');
         const confirmed = confirm(
           'WARNING: This will wipe your entire Z-Wave network and all devices. This cannot be undone. Are you absolutely sure?',
         );
