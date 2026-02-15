@@ -98,6 +98,37 @@ export class ControllerAccessory {
       });
     });
 
+    /**
+     * Homebridge Config UI X can show stale state if legacy/duplicate Switch services
+     * exist for the same logical controller action. Keep only canonical subtyped services.
+     */
+    const canonicalSwitchSubtypes = new Set(['Inclusion', 'Exclusion', 'Heal', 'Prune']);
+    const seenCanonicalSwitchSubtypes = new Set<string>();
+    this.platformAccessory.services.slice().forEach((service) => {
+      if (service.UUID !== this.platform.Service.Switch.UUID) {
+        return;
+      }
+
+      const subtype = (service as unknown as { subtype?: string }).subtype;
+      if (!subtype || !canonicalSwitchSubtypes.has(subtype)) {
+        this.platform.log.info(
+          `Pruning legacy controller switch service: ${service.displayName} (${service.UUID})`,
+        );
+        this.platformAccessory.removeService(service);
+        return;
+      }
+
+      if (seenCanonicalSwitchSubtypes.has(subtype)) {
+        this.platform.log.info(
+          `Pruning duplicate controller switch service (${subtype}): ${service.displayName}`,
+        );
+        this.platformAccessory.removeService(service);
+        return;
+      }
+
+      seenCanonicalSwitchSubtypes.add(subtype);
+    });
+
     // Add ServiceLabelNamespace to AccessoryInformation to help with naming multi-service accessories
     const infoService = this.platformAccessory.getService(
       this.platform.Service.AccessoryInformation,
@@ -430,19 +461,23 @@ export class ControllerAccessory {
         const timeoutSeconds = this.platform.config.inclusionTimeoutSeconds || 60;
         this.platform.log.info(`Requesting Inclusion Mode ON (Timeout: ${timeoutSeconds}s)`);
 
-        const success = await this.controller.startInclusion();
-        if (success) {
-          this.isInclusionActive = true;
-          this.inclusionTimer = setTimeout(async () => {
-            this.platform.log.info('Inclusion Mode timed out');
-            await this.controller.stopInclusion();
-            this.isInclusionActive = false;
-            this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
-          }, timeoutSeconds * 1000);
-        } else {
+        const started = await this.controller.startInclusion();
+        if (!started) {
+          /**
+           * Z-Wave JS returns false when inclusion is already active.
+           * Keep switch ON and let controller events/timeout converge the final state.
+           */
+          this.platform.log.warn(
+            'Inclusion start request returned false (possibly already active). Keeping UI state ON.',
+          );
+        }
+        this.isInclusionActive = true;
+        this.inclusionTimer = setTimeout(async () => {
+          this.platform.log.info('Inclusion Mode timed out');
+          await this.controller.stopInclusion();
           this.isInclusionActive = false;
           this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
-        }
+        }, timeoutSeconds * 1000);
       } else {
         this.platform.log.info('Requesting Inclusion Mode OFF');
         this.isInclusionActive = false;
@@ -487,19 +522,19 @@ export class ControllerAccessory {
         const timeoutSeconds = this.platform.config.inclusionTimeoutSeconds || 60;
         this.platform.log.info(`Requesting Exclusion Mode ON (Timeout: ${timeoutSeconds}s)`);
 
-        const success = await this.controller.startExclusion();
-        if (success) {
-          this.isExclusionActive = true;
-          this.exclusionTimer = setTimeout(async () => {
-            this.platform.log.info('Exclusion Mode timed out');
-            await this.controller.stopExclusion();
-            this.isExclusionActive = false;
-            this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
-          }, timeoutSeconds * 1000);
-        } else {
+        const started = await this.controller.startExclusion();
+        if (!started) {
+          this.platform.log.warn(
+            'Exclusion start request returned false (possibly already active). Keeping UI state ON.',
+          );
+        }
+        this.isExclusionActive = true;
+        this.exclusionTimer = setTimeout(async () => {
+          this.platform.log.info('Exclusion Mode timed out');
+          await this.controller.stopExclusion();
           this.isExclusionActive = false;
           this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
-        }
+        }, timeoutSeconds * 1000);
       } else {
         this.platform.log.info('Requesting Exclusion Mode OFF');
         this.isExclusionActive = false;
@@ -537,11 +572,13 @@ export class ControllerAccessory {
         }
 
         this.platform.log.info('Requesting Heal Network ON');
-        const success = await this.controller.startHealing();
-        this.isHealActive = success;
-        if (!success) {
-          this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
+        const started = await this.controller.startHealing();
+        if (!started) {
+          this.platform.log.warn(
+            'Heal start request returned false (possibly already active). Keeping UI state ON.',
+          );
         }
+        this.isHealActive = true;
       } else {
         this.platform.log.info('Requesting Heal Network OFF');
         this.isHealActive = false;
