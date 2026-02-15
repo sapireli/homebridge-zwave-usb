@@ -600,4 +600,30 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       return false;
     }
   }
+
+  /**
+   * REMOVE FAILED NODE FIX: Allows users to prune dead/broken devices
+   * that can no longer be physically excluded.
+   */
+  public async removeFailedNode(nodeId: number): Promise<void> {
+    if (!this.driver) {
+      throw new Error('Driver not started');
+    }
+    this.log.info(`Attempting to remove failed node ${nodeId}...`);
+    try {
+      // 1. Z-Wave JS requires checking if the node is actually failed first
+      const isFailed = await this.driver.controller.isFailedNode(nodeId);
+      if (!isFailed) {
+        throw new Error(`Node ${nodeId} is not marked as failed. Cannot remove.`);
+      }
+
+      // 2. Instruct controller to remove it
+      await this.driver.controller.removeFailedNode(nodeId);
+      this.log.info(`Node ${nodeId} removed successfully.`);
+      this.emit('status updated', `Node ${nodeId} Removed`);
+    } catch (err) {
+      this.log.error(`Failed to remove failed node ${nodeId}:`, err);
+      throw err;
+    }
+  }
 }

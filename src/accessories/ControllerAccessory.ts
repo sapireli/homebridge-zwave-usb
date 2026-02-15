@@ -14,6 +14,7 @@ export class ControllerAccessory {
   private inclusionService: Service;
   private exclusionService: Service;
   private healService: Service;
+  private pruneService: Service;
   public readonly platformAccessory: PlatformAccessory;
   private inclusionTimer?: NodeJS.Timeout;
   private exclusionTimer?: NodeJS.Timeout;
@@ -23,6 +24,7 @@ export class ControllerAccessory {
   private isInclusionActive = false;
   private isExclusionActive = false;
   private isHealActive = false;
+  private isPruneActive = false;
 
   constructor(
     private readonly platform: ZWaveUsbPlatform,
@@ -113,7 +115,6 @@ export class ControllerAccessory {
       );
     this.syncConfiguredName(this.statusService, 'System Status');
 
-    // Naming Identity - Strictly Name only
     this.statusService
       .getCharacteristic(this.platform.Characteristic.Name)
       .setProps({
@@ -124,7 +125,6 @@ export class ControllerAccessory {
       })
       .updateValue('System Status');
 
-    // Service Label Index
     if (!this.statusService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
       this.statusService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
     }
@@ -148,7 +148,6 @@ export class ControllerAccessory {
     });
     this.statusChar.updateValue('Driver Ready');
 
-    // Remove PIN from custom status service; Home app treats this custom service as display-only.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pinCharType = (this.platform.Characteristic as any).S2PinEntry;
     if (this.statusService.testCharacteristic(pinCharType)) {
@@ -238,6 +237,29 @@ export class ControllerAccessory {
       .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
       .updateValue(4);
 
+    // --- 5. Prune Dead Nodes Switch ---
+    this.pruneService =
+      this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Prune') ||
+      this.platformAccessory.addService(this.platform.Service.Switch, 'Prune Dead Nodes', 'Prune');
+    this.syncConfiguredName(this.pruneService, 'Prune Dead Nodes');
+
+    this.pruneService
+      .getCharacteristic(this.platform.Characteristic.Name)
+      .setProps({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        format: HAPFormat.STRING as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        perms: [HAPPerm.PAIRED_READ as any],
+      })
+      .updateValue('Prune Dead Nodes');
+
+    if (!this.pruneService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
+      this.pruneService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
+    }
+    this.pruneService
+      .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
+      .updateValue(5);
+
     // Setup Switch characteristic Handlers
     this.inclusionService
       .getCharacteristic(this.platform.Characteristic.On)
@@ -253,6 +275,11 @@ export class ControllerAccessory {
       .getCharacteristic(this.platform.Characteristic.On)
       .onGet(() => this.isHealActive)
       .onSet(this.handleSetHeal.bind(this));
+
+    this.pruneService
+      .getCharacteristic(this.platform.Characteristic.On)
+      .onGet(() => this.isPruneActive)
+      .onSet(this.handleSetPrune.bind(this));
 
     // --- Listen for controller events to sync state ---
     this.controller.on('status updated', (status: string) => {
@@ -358,14 +385,15 @@ export class ControllerAccessory {
     }
 
     if (value) {
-      /**
-       * MUTEX FIX: Ensure only one management task is active.
-       */
       if (this.isExclusionActive) {
         await this.handleSetExclusion(false);
       }
       if (this.isHealActive) {
         await this.handleSetHeal(false);
+      }
+      if (this.isPruneActive) {
+        this.isPruneActive = false;
+        this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
       }
 
       const timeoutSeconds = this.platform.config.inclusionTimeoutSeconds || 60;
@@ -393,14 +421,15 @@ export class ControllerAccessory {
     }
 
     if (value) {
-      /**
-       * MUTEX FIX: Ensure only one management task is active.
-       */
       if (this.isInclusionActive) {
         await this.handleSetInclusion(false);
       }
       if (this.isHealActive) {
         await this.handleSetHeal(false);
+      }
+      if (this.isPruneActive) {
+        this.isPruneActive = false;
+        this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
       }
 
       const timeoutSeconds = this.platform.config.inclusionTimeoutSeconds || 60;
@@ -423,14 +452,15 @@ export class ControllerAccessory {
 
   private async handleSetHeal(value: CharacteristicValue) {
     if (value) {
-      /**
-       * MUTEX FIX: Ensure only one management task is active.
-       */
       if (this.isInclusionActive) {
         await this.handleSetInclusion(false);
       }
       if (this.isExclusionActive) {
         await this.handleSetExclusion(false);
+      }
+      if (this.isPruneActive) {
+        this.isPruneActive = false;
+        this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
       }
 
       this.platform.log.info('Requesting Heal Network ON');
@@ -440,6 +470,59 @@ export class ControllerAccessory {
       this.platform.log.info('Requesting Heal Network OFF');
       this.isHealActive = false;
       await this.controller.stopHealing();
+    }
+  }
+
+  private async handleSetPrune(value: CharacteristicValue) {
+    if (value) {
+      if (this.isInclusionActive) {
+        await this.handleSetInclusion(false);
+      }
+      if (this.isExclusionActive) {
+        await this.handleSetExclusion(false);
+      }
+      if (this.isHealActive) {
+        await this.handleSetHeal(false);
+      }
+
+      this.platform.log.info('Requesting Prune Dead Nodes...');
+      this.isPruneActive = true;
+
+      // Find all Dead nodes
+      const deadNodeIds: number[] = [];
+      for (const [nodeId, node] of this.controller.nodes) {
+        if (node.status === 4) {
+          // 4 = Dead
+          deadNodeIds.push(nodeId);
+        }
+      }
+
+      if (deadNodeIds.length === 0) {
+        this.platform.log.info('No Dead nodes found to prune.');
+        setTimeout(() => {
+          this.isPruneActive = false;
+          this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
+        }, 1000);
+        return;
+      }
+
+      this.platform.log.info(`Found ${deadNodeIds.length} dead nodes: ${deadNodeIds.join(', ')}`);
+
+      for (const nodeId of deadNodeIds) {
+        try {
+          await this.controller.removeFailedNode(nodeId);
+        } catch (err) {
+          this.platform.log.error(`Failed to prune node ${nodeId}:`, err);
+        }
+      }
+
+      this.platform.log.info('Pruning complete.');
+      setTimeout(() => {
+        this.isPruneActive = false;
+        this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
+      }, 2000);
+    } else {
+      this.isPruneActive = false;
     }
   }
 
