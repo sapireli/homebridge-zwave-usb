@@ -118,6 +118,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   private setupFileTrigger() {
     const storagePath = this.api.user.storagePath();
     const triggerFilePath = path.join(storagePath, 'zwave_factory_reset_trigger');
+    this.log.info(`[File Trigger] Setting up file watcher on directory: ${storagePath}`);
 
     const handleRequest = async () => {
       this.log.warn('FACTORY RESET TRIGGERED FROM FILE WATCHER');
@@ -133,6 +134,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       } finally {
         // Clean up the trigger file
         if (fs.existsSync(triggerFilePath)) {
+          this.log.info('[File Trigger] Cleaning up trigger file.');
           fs.unlinkSync(triggerFilePath);
         }
       }
@@ -140,6 +142,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
     // Watch for changes in the storage directory
     this.fsWatcher = fs.watch(storagePath, (eventType, filename) => {
+      this.log.info(`[File Trigger] Watcher event: '${eventType}' on file '${filename}'`);
       if (filename === 'zwave_factory_reset_trigger' && fs.existsSync(triggerFilePath)) {
         handleRequest();
       }
@@ -147,6 +150,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
     // Also check once on startup, in case the file was created while Homebridge was not running
     if (fs.existsSync(triggerFilePath)) {
+      this.log.info('[File Trigger] Found trigger file on startup, processing...');
       handleRequest();
     }
   }
