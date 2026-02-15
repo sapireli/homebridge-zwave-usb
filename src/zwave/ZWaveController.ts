@@ -157,7 +157,15 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     }
     this.nodes.set(node.nodeId, node);
 
-    const statusMap = ['Unknown', 'Alive', 'Awake', 'Asleep', 'Dead'];
+    /**
+     * NodeStatus Enum (zwave-js):
+     * 0: Unknown
+     * 1: Asleep
+     * 2: Awake
+     * 3: Dead
+     * 4: Alive
+     */
+    const statusMap = ['Unknown', 'Asleep', 'Awake', 'Dead', 'Alive'];
     const status = statusMap[node.status] || node.status.toString();
     this.log.info(
       `Node ${node.nodeId} added to controller (Status: ${status}, Interview Stage: ${node.interviewStage})`,

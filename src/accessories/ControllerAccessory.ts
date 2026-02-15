@@ -26,6 +26,9 @@ export class ControllerAccessory {
   private isHealActive = false;
   private isPruneActive = false;
 
+  // Track listeners for cleanup
+  private handlers: Record<string, (...args: any[]) => void> = {};
+
   constructor(
     private readonly platform: ZWaveUsbPlatform,
     private readonly controller: IZWaveController,
@@ -282,55 +285,60 @@ export class ControllerAccessory {
       .onSet(this.handleSetPrune.bind(this));
 
     // --- Listen for controller events to sync state ---
-    this.controller.on('status updated', (status: string) => {
-      this.statusChar.updateValue(status);
-    });
+    this.setupControllerHandlers();
+  }
 
-    this.controller.on('inclusion started', () => {
-      this.platform.log.info('Controller event: Inclusion Started');
-      this.isInclusionActive = true;
-      this.isExclusionActive = false;
-      this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, true);
-      this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
-    });
+  private setupControllerHandlers() {
+    this.handlers = {
+      'status updated': (status: string) => {
+        this.statusChar.updateValue(status);
+      },
+      'inclusion started': () => {
+        this.platform.log.info('Controller event: Inclusion Started');
+        this.isInclusionActive = true;
+        this.isExclusionActive = false;
+        this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, true);
+        this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+      },
+      'inclusion stopped': () => {
+        this.platform.log.info('Controller event: Inclusion Stopped');
+        this.isInclusionActive = false;
+        if (this.inclusionTimer) {
+          clearTimeout(this.inclusionTimer);
+          this.inclusionTimer = undefined;
+        }
+        this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+      },
+      'exclusion started': () => {
+        this.platform.log.info('Controller event: Exclusion Started');
+        this.isExclusionActive = true;
+        this.isInclusionActive = false;
+        if (this.inclusionTimer) {
+          clearTimeout(this.inclusionTimer);
+          this.inclusionTimer = undefined;
+        }
+        this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, true);
+        this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+      },
+      'exclusion stopped': () => {
+        this.platform.log.info('Controller event: Exclusion Stopped');
+        this.isExclusionActive = false;
+        if (this.exclusionTimer) {
+          clearTimeout(this.exclusionTimer);
+          this.exclusionTimer = undefined;
+        }
+        this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
+      },
+      'heal network done': () => {
+        this.platform.log.info('Controller event: Heal Network Done');
+        this.isHealActive = false;
+        this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
+      },
+    };
 
-    this.controller.on('inclusion stopped', () => {
-      this.platform.log.info('Controller event: Inclusion Stopped');
-      this.isInclusionActive = false;
-      if (this.inclusionTimer) {
-        clearTimeout(this.inclusionTimer);
-        this.inclusionTimer = undefined;
-      }
-      this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
-    });
-
-    this.controller.on('exclusion started', () => {
-      this.platform.log.info('Controller event: Exclusion Started');
-      this.isExclusionActive = true;
-      this.isInclusionActive = false;
-      if (this.inclusionTimer) {
-        clearTimeout(this.inclusionTimer);
-        this.inclusionTimer = undefined;
-      }
-      this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, true);
-      this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
-    });
-
-    this.controller.on('exclusion stopped', () => {
-      this.platform.log.info('Controller event: Exclusion Stopped');
-      this.isExclusionActive = false;
-      if (this.exclusionTimer) {
-        clearTimeout(this.exclusionTimer);
-        this.exclusionTimer = undefined;
-      }
-      this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
-    });
-
-    this.controller.on('heal network done', () => {
-      this.platform.log.info('Controller event: Heal Network Done');
-      this.isHealActive = false;
-      this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
-    });
+    for (const [event, handler] of Object.entries(this.handlers)) {
+      this.controller.on(event as any, handler);
+    }
   }
 
   private syncConfiguredName(service: Service, value?: string) {
@@ -503,10 +511,18 @@ export class ControllerAccessory {
       // Find all Dead nodes
       const deadNodeIds: number[] = [];
       for (const [nodeId, node] of this.controller.nodes) {
-        if (node.status === 4) {
-          // 4 = Dead
+        /**
+         * PRUNE FIX: Check for correct Dead status (3).
+         * NodeStatus Enum (zwave-js):
+         * 0: Unknown
+         * 1: Asleep
+         * 2: Awake
+         * 3: Dead
+         * 4: Alive
+         */
+        if (node.status === 3) {
           deadNodeIds.push(nodeId);
-        } else if (node.status === 3) {
+        } else if (node.status === 1) {
           this.platform.log.debug(`Prune: Node ${nodeId} is ASLEEP (Battery). Skipping.`);
         }
       }
@@ -555,5 +571,11 @@ export class ControllerAccessory {
     if (this.exclusionTimer) {
       clearTimeout(this.exclusionTimer);
     }
+
+    // Cleanup listeners to prevent double-firing and state corruption on re-creation
+    for (const [event, handler] of Object.entries(this.handlers)) {
+      this.controller.off(event as any, handler);
+    }
+    this.handlers = {};
   }
 }
