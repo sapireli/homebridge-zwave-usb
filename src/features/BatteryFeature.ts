@@ -20,9 +20,27 @@ export class BatteryFeature extends BaseFeature {
   }
 
   update(args?: ZWaveValueEvent): void {
-    if (!this.shouldUpdate(args, CommandClasses.Battery)) {
+    if (
+      !this.shouldUpdate(args, CommandClasses.Battery) &&
+      !this.shouldUpdate(args, CommandClasses.Notification)
+    ) {
       return;
     }
+
+    /**
+     * NOTIFICATION FIX: Some devices report low battery via Power Management notifications.
+     */
+    if (args && args.commandClass === CommandClasses.Notification) {
+      if (args.property === 'Power Management' && args.newValue === 10) {
+        // 10 = Replace battery soon
+        this.service.updateCharacteristic(
+          this.platform.Characteristic.StatusLowBattery,
+          this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW,
+        );
+      }
+      return;
+    }
+
     const value = this.node.getValue({
       commandClass: CommandClasses.Battery,
       property: 'level',
@@ -48,31 +66,20 @@ export class BatteryFeature extends BaseFeature {
   }
 
   private getStatusLowBattery(): number {
-    const value = this.node.getValue({
+    const level = this.getBatteryLevel();
+    const isLowFlag = this.node.getValue({
       commandClass: CommandClasses.Battery,
       property: 'isLow',
       endpoint: this.endpoint.index,
     });
 
-    if (typeof value === 'boolean') {
-      return value
-        ? this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW
-        : this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
-    }
+    /**
+     * BATTERY CONSISTENCY FIX: Prioritize numerical level (<= 20%) for HomeKit.
+     * We also check the Z-Wave 'isLow' flag as a fallback.
+     */
+    const isLow = (typeof level === 'number' && level > 0 && level <= 20) || isLowFlag === true;
 
-    const level = this.getBatteryLevel();
-    // Default to normal if level is 0 (could be unknown) or > 15
-    if (level === 0) {
-      const rawValue = this.node.getValue({
-        commandClass: CommandClasses.Battery,
-        property: 'level',
-        endpoint: this.endpoint.index,
-      });
-      if (typeof rawValue !== 'number') {
-        return this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
-      }
-    }
-    return level <= 15
+    return isLow
       ? this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW
       : this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
   }

@@ -47,6 +47,7 @@ export interface IZWaveController extends EventEmitter {
   on(event: 'node added', listener: (node: ZWaveNode) => void): this;
   on(event: 'node ready', listener: (node: ZWaveNode) => void): this;
   on(event: 'node removed', listener: (node: ZWaveNode) => void): this;
+  on(event: 'value notification', listener: (node: ZWaveNode, args: ZWaveValueEvent) => void): this;
   on(event: 'value updated', listener: (node: ZWaveNode, args: ZWaveValueEvent) => void): this;
 }
 

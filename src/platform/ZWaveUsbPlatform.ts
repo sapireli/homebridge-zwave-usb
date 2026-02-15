@@ -29,6 +29,14 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   private zwaveController: IZWaveController | undefined;
   private readonly zwaveAccessories = new Map<number, ZWaveAccessory>();
   private controllerAccessory: ControllerAccessory | undefined;
+  private retryTimeout?: NodeJS.Timeout;
+  private reconciliationTimeout?: NodeJS.Timeout;
+
+  /**
+   * RACE CONDITION FIX: Track which nodes are currently being created
+   * to prevent duplicate accessories if multiple events fire rapidly.
+   */
+  private discoveryInFlight = new Set<number>();
 
   constructor(
     public readonly log: Logger,
@@ -65,6 +73,9 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       this.zwaveController.on('node added', (node) => this.handleNodeAdded(node));
       this.zwaveController.on('node ready', (node) => this.handleNodeReady(node));
       this.zwaveController.on('node removed', (node) => this.handleNodeRemoved(node));
+      this.zwaveController.on('value notification', (node, args) =>
+        this.handleValueNotification(node, args),
+      );
       this.zwaveController.on('value updated', (node, args) => this.handleValueUpdated(node, args));
 
       this.api.on('didFinishLaunching', async () => {
@@ -78,6 +89,15 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
       this.api.on('shutdown', async () => {
         this.log.info('Shutting down Z-Wave controller...');
+        if (this.retryTimeout) {
+          clearTimeout(this.retryTimeout);
+        }
+        if (this.reconciliationTimeout) {
+          clearTimeout(this.reconciliationTimeout);
+        }
+        for (const acc of this.zwaveAccessories.values()) {
+          acc.stop();
+        }
         this.controllerAccessory?.stop();
         await this.zwaveController?.stop();
       });
@@ -153,10 +173,22 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     try {
       await this.zwaveController.start();
       this.log.info('Z-Wave controller connected successfully.');
+
+      // RESOURCE LEAK FIX: Stop previous accessory instances before re-creating
+      if (this.controllerAccessory) {
+        this.controllerAccessory.stop();
+      }
       this.controllerAccessory = new ControllerAccessory(this, this.zwaveController);
 
-      // Reconciliation: Remove orphaned cached accessories
-      setTimeout(() => {
+      /**
+       * Startup Reconciliation:
+       * 60 seconds after startup, we compare the accessories found in the cache
+       * against the nodes actually present in the Z-Wave network.
+       */
+      if (this.reconciliationTimeout) {
+        clearTimeout(this.reconciliationTimeout);
+      }
+      this.reconciliationTimeout = setTimeout(() => {
         const managedUuids = new Set<string>();
         if (this.controllerAccessory) {
           managedUuids.add(this.controllerAccessory.platformAccessory.UUID);
@@ -182,20 +214,27 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           try {
             this.api.unregisterPlatformAccessories('homebridge-zwave-usb', 'ZWaveUSB', orphaned);
 
-            for (const orphan of orphaned) {
-              const index = this.accessories.indexOf(orphan);
-              if (index !== -1) {
-                this.accessories.splice(index, 1);
-              }
-            }
+            // Correctly update the local accessories list without dangerous splice during iteration
+            const orphanedUuids = new Set(orphaned.map((o) => o.UUID));
+            const remaining = this.accessories.filter((a) => !orphanedUuids.has(a.UUID));
+            this.accessories.length = 0;
+            this.accessories.push(...remaining);
+
             this.log.info('Successfully removed orphaned accessories.');
           } catch (err) {
             this.log.error('Failed to unregister orphaned accessories:', err);
           }
         }
-      }, 10000);
+      }, 60000);
     } catch (err) {
-      this.log.error('Failed to connect to Z-Wave controller:', err);
+      this.log.error(
+        `Failed to connect to Z-Wave controller: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      this.log.warn('Z-Wave stick may be unplugged or busy. Retrying in 30 seconds...');
+
+      this.retryTimeout = setTimeout(() => {
+        this.connectToZWaveController();
+      }, 30000);
     }
   }
 
@@ -225,22 +264,31 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       return;
     }
 
-    if (this.zwaveAccessories.has(node.nodeId)) {
-      this.zwaveAccessories.get(node.nodeId)?.refresh();
+    const existing = this.zwaveAccessories.get(node.nodeId);
+    if (existing || this.discoveryInFlight.has(node.nodeId)) {
+      if (existing) {
+        existing.updateNode(node);
+        existing.refresh();
+      }
       return;
     }
 
-    const accessory = AccessoryFactory.create(this, node, homeId);
-    this.zwaveAccessories.set(node.nodeId, accessory);
+    this.discoveryInFlight.add(node.nodeId);
+    try {
+      const accessory = AccessoryFactory.create(this, node, homeId);
+      this.zwaveAccessories.set(node.nodeId, accessory);
 
-    const nodeName = node.name || node.deviceConfig?.label || `Node ${node.nodeId}`;
-    if (accessory.platformAccessory.displayName !== nodeName) {
-      this.log.info(`Renaming accessory ${accessory.platformAccessory.displayName} -> ${nodeName}`);
-      accessory.platformAccessory.displayName = nodeName;
-      this.api.updatePlatformAccessories([accessory.platformAccessory]);
+      const nodeName = node.name || node.deviceConfig?.label || `Node ${node.nodeId}`;
+      if (accessory.platformAccessory.displayName !== nodeName) {
+        this.log.info(`Renaming accessory ${accessory.platformAccessory.displayName} -> ${nodeName}`);
+        accessory.platformAccessory.displayName = nodeName;
+        this.api.updatePlatformAccessories([accessory.platformAccessory]);
+      }
+
+      accessory.initialize();
+    } finally {
+      this.discoveryInFlight.delete(node.nodeId);
     }
-
-    accessory.initialize();
   }
 
   private handleNodeRemoved(node: IZWaveNode) {
@@ -248,15 +296,38 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
     const accessory = this.zwaveAccessories.get(node.nodeId);
     if (accessory) {
+      accessory.stop();
       this.api.unregisterPlatformAccessories('homebridge-zwave-usb', 'ZWaveUSB', [
         accessory.platformAccessory,
       ]);
       this.zwaveAccessories.delete(node.nodeId);
+
+      /**
+       * CACHE LEAK FIX: Also remove from the primary accessories array
+       * to prevent memory leaks and reconciliation ghosts.
+       */
+      const index = this.accessories.indexOf(accessory.platformAccessory);
+      if (index !== -1) {
+        this.accessories.splice(index, 1);
+      }
     }
   }
 
+  /**
+   * Event-Driven Updates:
+   * Instead of refreshing every accessory on every change, we route the specific
+   * Z-Wave change (args) to the corresponding accessory for granular updates.
+   */
   private handleValueUpdated(node: IZWaveNode, args: ZWaveValueEvent) {
     this.log.debug(`Node ${node.nodeId} value updated`);
+    const accessory = this.zwaveAccessories.get(node.nodeId);
+    if (accessory) {
+      accessory.refresh(args);
+    }
+  }
+
+  private handleValueNotification(node: IZWaveNode, args: ZWaveValueEvent) {
+    this.log.debug(`Node ${node.nodeId} value notification`);
     const accessory = this.zwaveAccessories.get(node.nodeId);
     if (accessory) {
       accessory.refresh(args);

@@ -3,6 +3,9 @@ import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
+/**
+ * LeakSensorFeature handles Water leak detection.
+ */
 export class LeakSensorFeature extends BaseFeature {
   private service!: Service;
 
@@ -26,8 +29,12 @@ export class LeakSensorFeature extends BaseFeature {
         return;
       }
     }
-    const value = this.getSensorValue();
-    this.service.updateCharacteristic(this.platform.Characteristic.LeakDetected, value);
+    try {
+      const value = this.getSensorValue();
+      this.service.updateCharacteristic(this.platform.Characteristic.LeakDetected, value);
+    } catch {
+      // ignore
+    }
   }
 
   private getSensorValue(): number {
@@ -52,7 +59,6 @@ export class LeakSensorFeature extends BaseFeature {
           endpoint: this.endpoint.index,
         });
 
-      // 2 = Water Leak Detected, 0 = Idle
       if (typeof val === 'number') {
         return val === 2
           ? this.platform.Characteristic.LeakDetected.LEAK_DETECTED
@@ -73,12 +79,15 @@ export class LeakSensorFeature extends BaseFeature {
           property: 'Any',
           endpoint: this.endpoint.index,
         });
-      return value
-        ? this.platform.Characteristic.LeakDetected.LEAK_DETECTED
-        : this.platform.Characteristic.LeakDetected.LEAK_NOT_DETECTED;
+
+      if (value !== undefined) {
+        return value
+          ? this.platform.Characteristic.LeakDetected.LEAK_DETECTED
+          : this.platform.Characteristic.LeakDetected.LEAK_NOT_DETECTED;
+      }
     }
 
-    return this.platform.Characteristic.LeakDetected.LEAK_NOT_DETECTED;
+    throw new this.platform.api.hap.HapStatusError(-70402);
   }
 
   private handleGetLeakDetected(): number {

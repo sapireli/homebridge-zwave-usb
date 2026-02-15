@@ -40,6 +40,7 @@ describe('CentralSceneFeature', () => {
         },
         Name: 'Name',
         ConfiguredName: 'ConfiguredName',
+        ServiceLabelIndex: 'ServiceLabelIndex',
       } as any,
       uuid: {
         generate: jest.fn().mockReturnValue('test-uuid'),
@@ -50,6 +51,8 @@ describe('CentralSceneFeature', () => {
       getService: jest.fn(),
       getServiceById: jest.fn(),
       addService: jest.fn().mockReturnValue(service),
+      displayName: 'Test Node',
+      services: [],
     };
 
     api = {
@@ -83,6 +86,7 @@ describe('CentralSceneFeature', () => {
       nodeId: 8,
       getValue: jest.fn(),
       getDefinedValueIDs: jest.fn(),
+      getValueMetadata: jest.fn(),
     } as any;
 
     endpoint = {
@@ -93,71 +97,82 @@ describe('CentralSceneFeature', () => {
     feature = new CentralSceneFeature(platform, accessory, endpoint, node);
   });
 
-  it('should initialize StatelessProgrammableSwitch service if Scene value exists', () => {
-    node.getDefinedValueIDs.mockReturnValue([
-      { commandClass: CommandClasses['Central Scene'], endpoint: 0 },
-    ]);
+  it('should initialize StatelessProgrammableSwitch services if metadata exists', () => {
+    node.getValueMetadata.mockReturnValue({ states: { '1': 'Button 1', '2': 'Button 2' } });
     feature.init();
+    // It should create 2 services: "0-1" and "0-2"
     expect(accessory.getServiceById).toHaveBeenCalledWith(
       platform.Service.StatelessProgrammableSwitch,
-      '0',
+      '0-1',
+    );
+    expect(accessory.getServiceById).toHaveBeenCalledWith(
+      platform.Service.StatelessProgrammableSwitch,
+      '0-2',
     );
   });
 
-  it('should trigger SINGLE_PRESS on Key Pressed (0)', () => {
-    node.getDefinedValueIDs.mockReturnValue([
-      { commandClass: CommandClasses['Central Scene'], endpoint: 0 },
-    ]);
+  it('should trigger SINGLE_PRESS on Key Pressed (0) for correct button', () => {
+    node.getValueMetadata.mockReturnValue({ states: { '1': 'Button 1' } });
     feature.init();
 
     node.getValue.mockImplementation((vid) => {
-      if (vid.property === 'scene') return 1;
       if (vid.property === 'keyAttribute') return 0;
       return undefined;
     });
 
-    feature.update();
+    feature.update({
+      commandClass: CommandClasses['Central Scene'],
+      endpoint: 0,
+      property: 'scene',
+      newValue: 1,
+    });
+
     expect(characteristic.updateValue).toHaveBeenCalledWith(
       platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS,
     );
-    expect(node.getValue).toHaveBeenCalledWith({
-      commandClass: CommandClasses['Central Scene'],
-      property: 'scene',
-      endpoint: 0,
-    });
+    expect(accessory.getServiceById).toHaveBeenCalledWith(
+      platform.Service.StatelessProgrammableSwitch,
+      '0-1',
+    );
   });
 
   it('should trigger DOUBLE_PRESS on Key Double Pressed (3)', () => {
-    node.getDefinedValueIDs.mockReturnValue([
-      { commandClass: CommandClasses['Central Scene'], endpoint: 0 },
-    ]);
+    node.getValueMetadata.mockReturnValue({ states: { '1': 'Button 1' } });
     feature.init();
 
     node.getValue.mockImplementation((vid) => {
-      if (vid.property === 'scene') return 1;
       if (vid.property === 'keyAttribute') return 3;
       return undefined;
     });
 
-    feature.update();
+    feature.update({
+      commandClass: CommandClasses['Central Scene'],
+      endpoint: 0,
+      property: 'scene',
+      newValue: 1,
+    });
+
     expect(characteristic.updateValue).toHaveBeenCalledWith(
       platform.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS,
     );
   });
 
   it('should trigger LONG_PRESS on Key Held (2)', () => {
-    node.getDefinedValueIDs.mockReturnValue([
-      { commandClass: CommandClasses['Central Scene'], endpoint: 0 },
-    ]);
+    node.getValueMetadata.mockReturnValue({ states: { '1': 'Button 1' } });
     feature.init();
 
     node.getValue.mockImplementation((vid) => {
-      if (vid.property === 'scene') return 1;
       if (vid.property === 'keyAttribute') return 2;
       return undefined;
     });
 
-    feature.update();
+    feature.update({
+      commandClass: CommandClasses['Central Scene'],
+      endpoint: 0,
+      property: 'scene',
+      newValue: 1,
+    });
+
     expect(characteristic.updateValue).toHaveBeenCalledWith(
       platform.Characteristic.ProgrammableSwitchEvent.LONG_PRESS,
     );

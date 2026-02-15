@@ -3,6 +3,9 @@ import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
+/**
+ * SirenFeature supports sirens using 'Sound Switch' CC or 'Binary Switch' fallback.
+ */
 export class SirenFeature extends BaseFeature {
   private service!: Service;
 
@@ -34,41 +37,88 @@ export class SirenFeature extends BaseFeature {
   }
 
   private handleGetState(): boolean {
-    // CommandClasses['Sound Switch'] - Tone Identifier
-    // 0 = Off, >0 = On (Playing a tone)
-    const val = this.node.getValue({
+    // 1. Try Sound Switch
+    const toneId = this.node.getValue({
       commandClass: CommandClasses['Sound Switch'],
       property: 'toneId',
       endpoint: this.endpoint.index,
     });
 
-    if (typeof val === 'number') {
-      return val > 0;
+    if (typeof toneId === 'number') {
+      return toneId > 0;
     }
-    // Fallback: Binary Switch (some sirens use this)
-    // Handled by BinarySwitchFeature usually, but if this feature is forced:
+
+    // 2. Fallback: Binary Switch
     const binVal = this.node.getValue({
       commandClass: CommandClasses['Binary Switch'],
       property: 'currentValue',
       endpoint: this.endpoint.index,
     });
-    return !!binVal;
+
+    if (binVal !== undefined) {
+      return !!binVal;
+    }
+
+    throw new this.platform.api.hap.HapStatusError(-70402);
   }
 
   private async handleSetState(value: CharacteristicValue) {
     const on = value as boolean;
 
-    try {
-      await this.node.setValue(
-        {
+    // Use Sound Switch if supported
+    if (this.endpoint.supportsCC(CommandClasses['Sound Switch'])) {
+      try {
+        /**
+         * TONE SELECTION FIX: We use Tone 1 as primary default,
+         * but we check for value metadata to see if 255 (default) is valid.
+         */
+        const toneMetadata = this.node.getValueMetadata({
           commandClass: CommandClasses['Sound Switch'],
           property: 'toneId',
           endpoint: this.endpoint.index,
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const targetTone =
+          on &&
+          toneMetadata &&
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          typeof (toneMetadata as any).max === 'number' &&
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (toneMetadata as any).max === 255
+            ? 255
+            : on
+              ? 1
+              : 0;
+
+        await this.node.setValue(
+          {
+            commandClass: CommandClasses['Sound Switch'],
+            property: 'toneId',
+            endpoint: this.endpoint.index,
+          },
+          targetTone,
+        );
+        return;
+      } catch (err) {
+        this.platform.log.error('Failed to set siren state (Sound Switch):', err);
+        throw new this.platform.api.hap.HapStatusError(-70402);
+      }
+    }
+
+    // Fallback to Binary Switch
+    try {
+      await this.node.setValue(
+        {
+          commandClass: CommandClasses['Binary Switch'],
+          property: 'targetValue',
+          endpoint: this.endpoint.index,
         },
-        on ? 255 : 0, // 255 = Default Tone
+        on,
       );
     } catch (err) {
-      this.platform.log.error('Failed to set siren state:', err);
+      this.platform.log.error('Failed to set siren state (Binary Switch):', err);
+      throw new this.platform.api.hap.HapStatusError(-70402);
     }
   }
 }

@@ -3,6 +3,9 @@ import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
+/**
+ * SmokeSensorFeature handles Z-Wave smoke detectors.
+ */
 export class SmokeSensorFeature extends BaseFeature {
   private service!: Service;
 
@@ -26,8 +29,12 @@ export class SmokeSensorFeature extends BaseFeature {
         return;
       }
     }
-    const value = this.getSensorValue();
-    this.service.updateCharacteristic(this.platform.Characteristic.SmokeDetected, value);
+    try {
+      const value = this.getSensorValue();
+      this.service.updateCharacteristic(this.platform.Characteristic.SmokeDetected, value);
+    } catch {
+      // Ignore background update errors
+    }
   }
 
   private getSensorValue(): number {
@@ -61,12 +68,18 @@ export class SmokeSensorFeature extends BaseFeature {
         property: 'Smoke',
         endpoint: this.endpoint.index,
       });
-      return value
-        ? this.platform.Characteristic.SmokeDetected.SMOKE_DETECTED
-        : this.platform.Characteristic.SmokeDetected.SMOKE_NOT_DETECTED;
+
+      if (value !== undefined) {
+        return value
+          ? this.platform.Characteristic.SmokeDetected.SMOKE_DETECTED
+          : this.platform.Characteristic.SmokeDetected.SMOKE_NOT_DETECTED;
+      }
     }
 
-    return this.platform.Characteristic.SmokeDetected.SMOKE_NOT_DETECTED;
+    /**
+     * SECURITY FALLBACK FIX: Throw error if data is missing to avoid false 'Safe' state.
+     */
+    throw new this.platform.api.hap.HapStatusError(-70402);
   }
 
   private handleGetSmokeDetected(): number {

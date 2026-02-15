@@ -31,7 +31,7 @@ export class AccessoryFactory {
     const isMultiEndpoint = endpoints.length > 1;
 
     // Track which CCs are handled by non-zero endpoints to avoid duplicates on root
-    const handledByEndpoints = new Set<CommandClasses>();
+    const handledByEndpoints = new Map<CommandClasses, Set<number>>();
     if (isMultiEndpoint) {
       for (const ep of endpoints) {
         if (ep.index === 0) {
@@ -50,9 +50,14 @@ export class AccessoryFactory {
           CommandClasses['Door Lock'],
           CommandClasses['Color Switch'],
           CommandClasses['Sound Switch'],
+          CommandClasses['Central Scene'],
+          CommandClasses.Battery,
         ].forEach((cc) => {
           if (ep.supportsCC(cc)) {
-            handledByEndpoints.add(cc);
+            if (!handledByEndpoints.has(cc)) {
+              handledByEndpoints.set(cc, new Set());
+            }
+            handledByEndpoints.get(cc)!.add(ep.index);
           }
         });
       }
@@ -70,7 +75,7 @@ export class AccessoryFactory {
     accessory: ZWaveAccessory,
     node: IZWaveNode,
     endpoint: Endpoint,
-    handledByEndpoints: Set<CommandClasses>,
+    handledByEndpoints: Map<CommandClasses, Set<number>>,
   ): void {
     const allValues = node.getDefinedValueIDs();
     const values = allValues.filter((v) => v.endpoint === endpoint.index);
@@ -103,11 +108,19 @@ export class AccessoryFactory {
     const hasColor = endpoint.supportsCC(CommandClasses['Color Switch']);
     const hasSiren = endpoint.supportsCC(CommandClasses['Sound Switch']);
 
+    /**
+     * FEATURE ATTACHMENT FIX: Use explicit priority grouping.
+     * Some devices report multiple CCs for the same function (e.g. Dimmer vs Covering).
+     * We use a 'handled' flag to ensure only the most specific feature is attached.
+     */
+    let handledAsActuator = false;
+
     // 1. Thermostat (High Priority)
     if (hasThermostat) {
       accessory.addFeature(
         new ThermostatFeature(platform, accessory.platformAccessory, endpoint, node),
       );
+      handledAsActuator = true;
     }
 
     // 2. Window Covering
@@ -115,6 +128,7 @@ export class AccessoryFactory {
       accessory.addFeature(
         new WindowCoveringFeature(platform, accessory.platformAccessory, endpoint, node),
       );
+      handledAsActuator = true;
     }
 
     // 3. Garage Door
@@ -122,11 +136,13 @@ export class AccessoryFactory {
       accessory.addFeature(
         new GarageDoorFeature(platform, accessory.platformAccessory, endpoint, node),
       );
+      handledAsActuator = true;
     }
 
     // 4. Lock
     if (hasLock) {
       accessory.addFeature(new LockFeature(platform, accessory.platformAccessory, endpoint, node));
+      handledAsActuator = true;
     }
 
     // 5. Color Control (can coexist with Multilevel Switch)
@@ -136,18 +152,20 @@ export class AccessoryFactory {
       );
     }
 
-    // 6. Multilevel Switch (Dimmer)
-    if (hasMultilevelSwitch && !hasWindowCovering) {
+    // 6. Multilevel Switch (Dimmer) - suppressed by Window Coverings/Garage Doors
+    if (hasMultilevelSwitch && !handledAsActuator) {
       accessory.addFeature(
         new MultilevelSwitchFeature(platform, accessory.platformAccessory, endpoint, node),
       );
+      handledAsActuator = true;
     }
 
-    // 7. Binary Switch
-    if (hasSwitch && !hasMultilevelSwitch && !hasWindowCovering && !hasGarageDoor && !hasSiren) {
+    // 7. Binary Switch - suppressed by higher-level actuators or specialized devices
+    if (hasSwitch && !handledAsActuator && !hasSiren) {
       accessory.addFeature(
         new BinarySwitchFeature(platform, accessory.platformAccessory, endpoint, node),
       );
+      handledAsActuator = true;
     }
 
     // 8. Siren
@@ -157,9 +175,11 @@ export class AccessoryFactory {
 
     // 9. Multilevel Sensor
     if (hasSensorMultilevel) {
-      accessory.addFeature(
-        new MultilevelSensorFeature(platform, accessory.platformAccessory, endpoint, node),
-      );
+      const feature = new MultilevelSensorFeature(platform, accessory.platformAccessory, endpoint, node);
+      if (hasThermostat) {
+        feature.skipTemperature = true;
+      }
+      accessory.addFeature(feature);
     }
 
     // 10. Notification Sensors
@@ -252,12 +272,21 @@ export class AccessoryFactory {
       } else if (
         values.some(
           (v: ValueID) =>
-            v.commandClass === CommandClasses['Binary Sensor'] &&
-            (v.property === 'CO' || v.property === 'CO2'),
+            v.commandClass === CommandClasses['Binary Sensor'] && v.property === 'CO',
         )
       ) {
         accessory.addFeature(
           new CarbonMonoxideSensorFeature(platform, accessory.platformAccessory, endpoint, node),
+        );
+      } else if (
+        values.some(
+          (v: ValueID) =>
+            v.commandClass === CommandClasses['Binary Sensor'] && v.property === 'CO2',
+        )
+      ) {
+        // Map binary CO2 to air quality sensor
+        accessory.addFeature(
+          new MultilevelSensorFeature(platform, accessory.platformAccessory, endpoint, node),
         );
       } else {
         // Default to ContactSensor for other generic binary sensors

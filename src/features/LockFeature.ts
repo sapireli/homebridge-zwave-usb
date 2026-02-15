@@ -3,6 +3,9 @@ import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
+/**
+ * LockFeature supports both basic 'Lock' CC (76) and 'Door Lock' CC (98/159).
+ */
 export class LockFeature extends BaseFeature {
   private service!: Service;
 
@@ -21,44 +24,61 @@ export class LockFeature extends BaseFeature {
   }
 
   update(args?: ZWaveValueEvent): void {
-    if (!this.shouldUpdate(args, CommandClasses['Door Lock'])) {
+    if (
+      !this.shouldUpdate(args, CommandClasses['Door Lock']) &&
+      !this.shouldUpdate(args, CommandClasses.Lock)
+    ) {
       return;
     }
-    const value = this.node.getValue({
-      commandClass: CommandClasses['Door Lock'],
-      property: 'currentMode',
-      endpoint: this.endpoint.index,
-    });
 
-    if (typeof value === 'number') {
-      const state = this.mapZWaveToHomeKit(value);
+    try {
+      const state = this.handleGetLockCurrentState();
+      const target = this.handleGetLockTargetState();
+
       this.service.updateCharacteristic(this.platform.Characteristic.LockCurrentState, state);
 
-      const target =
-        state === this.platform.Characteristic.LockCurrentState.SECURED
-          ? this.platform.Characteristic.LockTargetState.SECURED
-          : this.platform.Characteristic.LockTargetState.UNSECURED;
-
+      /**
+       * UI DESYNC FIX: Update TargetState to match CurrentState if changed manually.
+       * This prevents HomeKit from being stuck in "Locking..." or "Unlocking..."
+       */
       this.service.updateCharacteristic(this.platform.Characteristic.LockTargetState, target);
+    } catch {
+      // Ignore background update errors
     }
   }
 
   private mapZWaveToHomeKit(value: number): number {
-    // 255 = Secured, 0 = Unsecured
-    if (value === 255) return this.platform.Characteristic.LockCurrentState.SECURED;
-    if (value === 0) return this.platform.Characteristic.LockCurrentState.UNSECURED;
+    // Door Lock CC (255=Secured, 0=Unsecured) or Basic Lock (true=Secured, false=Unsecured)
+    if (value === 255 || value === 1 || value === 0xff) {
+      return this.platform.Characteristic.LockCurrentState.SECURED;
+    }
+    if (value === 0) {
+      return this.platform.Characteristic.LockCurrentState.UNSECURED;
+    }
     return this.platform.Characteristic.LockCurrentState.UNKNOWN;
   }
 
   private handleGetLockCurrentState(): number {
-    const value = this.node.getValue({
-      commandClass: CommandClasses['Door Lock'],
-      property: 'currentMode',
-      endpoint: this.endpoint.index,
-    });
-    return typeof value === 'number'
-      ? this.mapZWaveToHomeKit(value)
-      : this.platform.Characteristic.LockCurrentState.UNKNOWN;
+    const value =
+      this.node.getValue({
+        commandClass: CommandClasses['Door Lock'],
+        property: 'currentMode',
+        endpoint: this.endpoint.index,
+      }) ??
+      this.node.getValue({
+        commandClass: CommandClasses.Lock,
+        property: 'locked',
+        endpoint: this.endpoint.index,
+      });
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return this.mapZWaveToHomeKit(Number(value));
+    }
+
+    /**
+     * OFFLINE LOCK FIX: Throw error if state is unknown to avoid false UNSECURED report.
+     */
+    throw new this.platform.api.hap.HapStatusError(-70402);
   }
 
   private handleGetLockTargetState(): number {
@@ -72,34 +92,45 @@ export class LockFeature extends BaseFeature {
         commandClass: CommandClasses['Door Lock'],
         property: 'currentMode',
         endpoint: this.endpoint.index,
+      }) ??
+      this.node.getValue({
+        commandClass: CommandClasses.Lock,
+        property: 'locked',
+        endpoint: this.endpoint.index,
       });
 
-    const state =
-      typeof value === 'number'
-        ? this.mapZWaveToHomeKit(value)
-        : this.platform.Characteristic.LockCurrentState.UNKNOWN;
-    return state === this.platform.Characteristic.LockCurrentState.SECURED
-      ? this.platform.Characteristic.LockTargetState.SECURED
-      : this.platform.Characteristic.LockTargetState.UNSECURED;
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      const state = this.mapZWaveToHomeKit(Number(value));
+      return state === this.platform.Characteristic.LockCurrentState.SECURED
+        ? this.platform.Characteristic.LockTargetState.SECURED
+        : this.platform.Characteristic.LockTargetState.UNSECURED;
+    }
+
+    throw new this.platform.api.hap.HapStatusError(-70402);
   }
 
   private async handleSetLockTargetState(value: CharacteristicValue) {
-    const targetMode = value === this.platform.Characteristic.LockTargetState.SECURED ? 255 : 0;
+    const isSecure = value === this.platform.Characteristic.LockTargetState.SECURED;
+    const targetValue = isSecure ? 255 : 0;
+
+    const useDoorLock = this.endpoint.supportsCC(CommandClasses['Door Lock']);
+    const cc = useDoorLock ? CommandClasses['Door Lock'] : CommandClasses.Lock;
+    const property = useDoorLock ? 'targetMode' : 'locked';
+
     try {
       await this.node.setValue(
         {
-          commandClass: CommandClasses['Door Lock'],
-          property: 'targetMode',
+          commandClass: cc,
+          property: property,
           endpoint: this.endpoint.index,
         },
-        targetMode,
+        useDoorLock ? targetValue : !!isSecure,
       );
     } catch (err) {
       this.platform.log.error(
         `Failed to set Lock Target for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`,
         err,
       );
-      // SERVICE_COMMUNICATION_FAILURE = -70402
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
   }

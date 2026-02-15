@@ -3,6 +3,9 @@ import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
+/**
+ * ContactSensorFeature maps Z-Wave Access Control/Home Security notifications to HomeKit.
+ */
 export class ContactSensorFeature extends BaseFeature {
   private service!: Service;
 
@@ -26,8 +29,12 @@ export class ContactSensorFeature extends BaseFeature {
         return;
       }
     }
-    const value = this.getSensorValue();
-    this.service.updateCharacteristic(this.platform.Characteristic.ContactSensorState, value);
+    try {
+      const value = this.getSensorValue();
+      this.service.updateCharacteristic(this.platform.Characteristic.ContactSensorState, value);
+    } catch {
+      // Ignore background update errors
+    }
   }
 
   private getSensorValue(): number {
@@ -54,9 +61,12 @@ export class ContactSensorFeature extends BaseFeature {
         });
 
       if (typeof val === 'number') {
-        if (val === 22) return this.platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED; // Open
-        if (val === 23 || val === 0)
-          return this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED; // Closed / Idle
+        if (val === 22) {
+          return this.platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED; // Open
+        }
+        if (val === 23 || val === 0) {
+          return this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED; // Closed
+        }
       }
     }
 
@@ -73,12 +83,18 @@ export class ContactSensorFeature extends BaseFeature {
           property: 'Any',
           endpoint: this.endpoint.index,
         });
-      return value
-        ? this.platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED
-        : this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;
+
+      if (value !== undefined) {
+        return value
+          ? this.platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED
+          : this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;
+      }
     }
 
-    return this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;
+    /**
+     * SECURITY FALLBACK FIX: Throw error if data is missing to avoid false 'Safe' state.
+     */
+    throw new this.platform.api.hap.HapStatusError(-70402);
   }
 
   private handleGetContactSensorState(): number {

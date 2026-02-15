@@ -20,6 +20,10 @@ export class ControllerAccessory {
   private statusChar!: Characteristic;
   private pinChar!: Characteristic;
 
+  private isInclusionActive = false;
+  private isExclusionActive = false;
+  private isHealActive = false;
+
   constructor(
     private readonly platform: ZWaveUsbPlatform,
     private readonly controller: IZWaveController,
@@ -51,14 +55,21 @@ export class ControllerAccessory {
       .setCharacteristic(this.platform.Characteristic.Model, 'Z-Wave USB Controller')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, homeId.toString());
 
+    /**
+     * Helper to normalize UUIDs for reliable comparison during metadata pruning.
+     */
+    const normalizeUuid = (u: string) => u.replace(/-/g, '').toUpperCase();
+
     // --- AGGRESSIVE CLEANUP: Remove ALL obsolete services and characteristics ---
     this.platformAccessory.services.slice().forEach((service) => {
-      const serviceUuid = service.UUID.toUpperCase();
+      const serviceUuidNorm = normalizeUuid(service.UUID);
 
       // Remove obsolete services
-      const isObsoleteManager = OBSOLETE_MANAGER_UUIDS.some((u) => u.toUpperCase() === serviceUuid);
+      const isObsoleteManager = OBSOLETE_MANAGER_UUIDS.some(
+        (u) => normalizeUuid(u) === serviceUuidNorm,
+      );
       const isDuplicateCurrent =
-        serviceUuid === MANAGER_SERVICE_UUID.toUpperCase() &&
+        serviceUuidNorm === normalizeUuid(MANAGER_SERVICE_UUID) &&
         service !== this.platformAccessory.getService(MANAGER_SERVICE_UUID);
 
       if (isObsoleteManager || isDuplicateCurrent) {
@@ -70,11 +81,9 @@ export class ControllerAccessory {
       }
 
       // Clean up obsolete characteristics from retained services (like Switch)
-      OBSOLETE_CHAR_UUIDS.forEach((charUuid) => {
-        const found = service.characteristics.find(
-          (c) => c.UUID.toUpperCase() === charUuid.toUpperCase(),
-        );
-        if (found) {
+      service.characteristics.slice().forEach((found) => {
+        const charUuidNorm = normalizeUuid(found.UUID);
+        if (OBSOLETE_CHAR_UUIDS.some((u) => normalizeUuid(u) === charUuidNorm)) {
           this.platform.log.info(
             `Pruning obsolete characteristic: ${found.displayName} from ${service.displayName}`,
           );
@@ -230,20 +239,19 @@ export class ControllerAccessory {
       .updateValue(4);
 
     // Setup Switch characteristic Handlers
-    [this.inclusionService, this.exclusionService, this.healService].forEach((service) => {
-      service.getCharacteristic(this.platform.Characteristic.On).onGet(() => false);
-    });
-
     this.inclusionService
       .getCharacteristic(this.platform.Characteristic.On)
+      .onGet(() => this.isInclusionActive)
       .onSet(this.handleSetInclusion.bind(this));
 
     this.exclusionService
       .getCharacteristic(this.platform.Characteristic.On)
+      .onGet(() => this.isExclusionActive)
       .onSet(this.handleSetExclusion.bind(this));
 
     this.healService
       .getCharacteristic(this.platform.Characteristic.On)
+      .onGet(() => this.isHealActive)
       .onSet(this.handleSetHeal.bind(this));
 
     // --- Listen for controller events to sync state ---
@@ -253,12 +261,15 @@ export class ControllerAccessory {
 
     this.controller.on('inclusion started', () => {
       this.platform.log.info('Controller event: Inclusion Started');
+      this.isInclusionActive = true;
+      this.isExclusionActive = false;
       this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, true);
       this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
     });
 
     this.controller.on('inclusion stopped', () => {
       this.platform.log.info('Controller event: Inclusion Stopped');
+      this.isInclusionActive = false;
       if (this.inclusionTimer) {
         clearTimeout(this.inclusionTimer);
         this.inclusionTimer = undefined;
@@ -268,6 +279,8 @@ export class ControllerAccessory {
 
     this.controller.on('exclusion started', () => {
       this.platform.log.info('Controller event: Exclusion Started');
+      this.isExclusionActive = true;
+      this.isInclusionActive = false;
       if (this.inclusionTimer) {
         clearTimeout(this.inclusionTimer);
         this.inclusionTimer = undefined;
@@ -278,6 +291,7 @@ export class ControllerAccessory {
 
     this.controller.on('exclusion stopped', () => {
       this.platform.log.info('Controller event: Exclusion Stopped');
+      this.isExclusionActive = false;
       if (this.exclusionTimer) {
         clearTimeout(this.exclusionTimer);
         this.exclusionTimer = undefined;
@@ -287,6 +301,7 @@ export class ControllerAccessory {
 
     this.controller.on('heal network done', () => {
       this.platform.log.info('Controller event: Heal Network Done');
+      this.isHealActive = false;
       this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
     });
   }
@@ -343,17 +358,30 @@ export class ControllerAccessory {
     }
 
     if (value) {
+      /**
+       * MUTEX FIX: Ensure only one management task is active.
+       */
+      if (this.isExclusionActive) {
+        await this.handleSetExclusion(false);
+      }
+      if (this.isHealActive) {
+        await this.handleSetHeal(false);
+      }
+
       const timeoutSeconds = this.platform.config.inclusionTimeoutSeconds || 60;
       this.platform.log.info(`Requesting Inclusion Mode ON (Timeout: ${timeoutSeconds}s)`);
+      this.isInclusionActive = true;
       await this.controller.startInclusion();
 
       this.inclusionTimer = setTimeout(async () => {
         this.platform.log.info('Inclusion Mode timed out');
         await this.controller.stopInclusion();
+        this.isInclusionActive = false;
         this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
       }, timeoutSeconds * 1000);
     } else {
       this.platform.log.info('Requesting Inclusion Mode OFF');
+      this.isInclusionActive = false;
       await this.controller.stopInclusion();
     }
   }
@@ -365,27 +393,52 @@ export class ControllerAccessory {
     }
 
     if (value) {
+      /**
+       * MUTEX FIX: Ensure only one management task is active.
+       */
+      if (this.isInclusionActive) {
+        await this.handleSetInclusion(false);
+      }
+      if (this.isHealActive) {
+        await this.handleSetHeal(false);
+      }
+
       const timeoutSeconds = this.platform.config.inclusionTimeoutSeconds || 60;
       this.platform.log.info(`Requesting Exclusion Mode ON (Timeout: ${timeoutSeconds}s)`);
+      this.isExclusionActive = true;
       await this.controller.startExclusion();
 
       this.exclusionTimer = setTimeout(async () => {
         this.platform.log.info('Exclusion Mode timed out');
         await this.controller.stopExclusion();
+        this.isExclusionActive = false;
         this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
       }, timeoutSeconds * 1000);
     } else {
-      this.platform.log.info('Requesting Inclusion Mode OFF');
+      this.platform.log.info('Requesting Exclusion Mode OFF');
+      this.isExclusionActive = false;
       await this.controller.stopExclusion();
     }
   }
 
   private async handleSetHeal(value: CharacteristicValue) {
     if (value) {
+      /**
+       * MUTEX FIX: Ensure only one management task is active.
+       */
+      if (this.isInclusionActive) {
+        await this.handleSetInclusion(false);
+      }
+      if (this.isExclusionActive) {
+        await this.handleSetExclusion(false);
+      }
+
       this.platform.log.info('Requesting Heal Network ON');
+      this.isHealActive = true;
       await this.controller.startHealing();
     } else {
       this.platform.log.info('Requesting Heal Network OFF');
+      this.isHealActive = false;
       await this.controller.stopHealing();
     }
   }

@@ -3,13 +3,23 @@ import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
+/**
+ * MultilevelSwitchFeature implements support for Dimmers and other multilevel switches.
+ * It tracks brightness locally to ensure Z-Wave 'Restore Previous' (255) works correctly.
+ */
 export class MultilevelSwitchFeature extends BaseFeature {
   private service!: Service;
-  private lastKnownBrightness = 0;
+  private lastKnownBrightness = 100; // Default to full brightness
 
   init(): void {
     const subType = this.endpoint.index.toString();
     this.service = this.getService(this.platform.Service.Lightbulb, undefined, subType);
+
+    // Sync initial state
+    const currentBrightness = this.handleGetBrightness();
+    if (currentBrightness > 0) {
+      this.lastKnownBrightness = currentBrightness;
+    }
 
     this.service
       .getCharacteristic(this.platform.Characteristic.On)
@@ -36,14 +46,18 @@ export class MultilevelSwitchFeature extends BaseFeature {
       const isOn = value > 0;
       this.service.updateCharacteristic(this.platform.Characteristic.On, isOn);
 
-      if (value <= 99) {
+      if (value > 0 && value <= 99) {
+        /**
+         * BRIGHTNESS MEMORY FIX: Only update lastKnownBrightness if the light is actually ON.
+         */
         this.lastKnownBrightness = value;
         this.service.updateCharacteristic(this.platform.Characteristic.Brightness, value);
       } else if (value === 255 && isOn) {
         // 255 = restore previous level
-        // Use our tracked brightness, default to 100 if unknown
-        const brightness = this.lastKnownBrightness > 0 ? this.lastKnownBrightness : 100;
-        this.service.updateCharacteristic(this.platform.Characteristic.Brightness, brightness);
+        this.service.updateCharacteristic(
+          this.platform.Characteristic.Brightness,
+          this.lastKnownBrightness,
+        );
       }
     }
   }
@@ -73,8 +87,7 @@ export class MultilevelSwitchFeature extends BaseFeature {
         `Failed to set ON/OFF for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`,
         err,
       );
-      // SERVICE_COMMUNICATION_FAILURE = -70402
-      throw new this.platform.api.hap.HapStatusError(-70402);
+      throw new this.platform.api.hap.HapStatusError(-70402); // SERVICE_COMMUNICATION_FAILURE
     }
   }
 
@@ -84,7 +97,16 @@ export class MultilevelSwitchFeature extends BaseFeature {
       property: 'currentValue',
       endpoint: this.endpoint.index,
     });
-    return typeof value === 'number' ? Math.min(value, 100) : 0;
+
+    if (typeof value === 'number') {
+      if (value === 255 || (value > 0 && value <= 99)) {
+        return value === 255 ? this.lastKnownBrightness : value;
+      }
+      if (value === 0) {
+        return this.lastKnownBrightness;
+      }
+    }
+    return this.lastKnownBrightness;
   }
 
   private async handleSetBrightness(value: CharacteristicValue) {
@@ -103,8 +125,7 @@ export class MultilevelSwitchFeature extends BaseFeature {
         `Failed to set Brightness for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`,
         err,
       );
-      // SERVICE_COMMUNICATION_FAILURE = -70402
-      throw new this.platform.api.hap.HapStatusError(-70402);
+      throw new this.platform.api.hap.HapStatusError(-70402); // SERVICE_COMMUNICATION_FAILURE
     }
   }
 }

@@ -3,6 +3,9 @@ import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
+/**
+ * MotionSensorFeature maps Z-Wave Home Security notifications to HomeKit Motion Sensor.
+ */
 export class MotionSensorFeature extends BaseFeature {
   private service!: Service;
 
@@ -26,8 +29,12 @@ export class MotionSensorFeature extends BaseFeature {
         return;
       }
     }
-    const value = this.getSensorValue();
-    this.service.updateCharacteristic(this.platform.Characteristic.MotionDetected, value);
+    try {
+      const value = this.getSensorValue();
+      this.service.updateCharacteristic(this.platform.Characteristic.MotionDetected, value);
+    } catch {
+      // ignore
+    }
   }
 
   private getSensorValue(): boolean {
@@ -70,10 +77,13 @@ export class MotionSensorFeature extends BaseFeature {
           property: 'Any',
           endpoint: this.endpoint.index,
         });
-      return !!value;
+
+      if (value !== undefined) {
+        return !!value;
+      }
     }
 
-    return false;
+    throw new this.platform.api.hap.HapStatusError(-70402);
   }
 
   private handleGetMotionDetected(): boolean {

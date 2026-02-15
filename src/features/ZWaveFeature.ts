@@ -7,19 +7,47 @@ import { HAPFormat, HAPPerm } from '../platform/settings';
 export interface ZWaveFeature {
   init(): void;
   update(args?: ZWaveValueEvent): void;
+  getServices(): Service[];
+  getEndpointIndex(): number;
+  stop(): void;
+  updateNode(node: IZWaveNode, endpoint: Endpoint): void;
 }
 
 export abstract class BaseFeature implements ZWaveFeature {
+  protected managedServices: Service[] = [];
+
   constructor(
     protected readonly platform: ZWaveUsbPlatform,
     protected readonly accessory: PlatformAccessory,
-    protected readonly endpoint: Endpoint,
-    protected readonly node: IZWaveNode,
+    protected endpoint: Endpoint,
+    protected node: IZWaveNode,
   ) {}
 
   abstract init(): void;
   abstract update(args?: ZWaveValueEvent): void;
 
+  public stop(): void {
+    // Optional cleanup in subclasses
+  }
+
+  public updateNode(node: IZWaveNode, endpoint: Endpoint): void {
+    this.node = node;
+    this.endpoint = endpoint;
+  }
+
+  public getServices(): Service[] {
+    return this.managedServices;
+  }
+
+  public getEndpointIndex(): number {
+    return this.endpoint.index;
+  }
+
+  /**
+   * High-Performance Filter: determines if a specific Z-Wave value change is relevant
+   * to this feature. If 'args' is undefined, it's a full refresh (e.g. startup).
+   * Otherwise, we only proceed if the Command Class and Endpoint match this feature.
+   */
   protected shouldUpdate(
     args: ZWaveValueEvent | undefined,
     cc: number,
@@ -27,7 +55,7 @@ export abstract class BaseFeature implements ZWaveFeature {
   ): boolean {
     if (!args) {
       return true;
-    } // Force refresh
+    } // Force refresh (no args provided)
     const endpoint = args.endpoint || 0;
     if (endpoint !== this.endpoint.index) {
       return false;
@@ -46,34 +74,27 @@ export abstract class BaseFeature implements ZWaveFeature {
     name?: string,
     subType?: string,
   ): Service {
-    if (subType) {
-      const existing = this.accessory.getServiceById(serviceType, subType);
-      if (existing) {
-        return existing;
-      }
-    } else {
-      const existing = this.accessory.getService(serviceType);
-      if (existing) {
-        return existing;
-      }
-    }
-
     const serviceName =
       name ||
       (this.endpoint.index > 0
         ? `${this.accessory.displayName} ${this.endpoint.index}`
         : this.accessory.displayName);
-    const ServiceConstructor = serviceType as unknown as new (
-      displayName: string,
-      subtype?: string,
-    ) => Service;
-    const service = subType
-      ? new ServiceConstructor(serviceName, subType)
-      : new ServiceConstructor(serviceName);
 
-    const addedService = this.accessory.addService(service);
+    let service: Service;
+    if (subType) {
+      service =
+        this.accessory.getServiceById(serviceType, subType) ||
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.accessory.addService(new (serviceType as any)(serviceName, subType));
+    } else {
+      service =
+        this.accessory.getService(serviceType) ||
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.accessory.addService(new (serviceType as any)(serviceName));
+    }
+
     // Explicitly set the name characteristic to ensure it's displayed correctly
-    const nameChar = addedService.getCharacteristic(this.platform.Characteristic.Name);
+    const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
     nameChar
       .setProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -85,14 +106,30 @@ export abstract class BaseFeature implements ZWaveFeature {
 
     // Add Service Label Index for multi-endpoint devices to help with ordering/naming
     if (this.endpoint.index > 0) {
-      if (!addedService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
-        addedService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
+      if (!service.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
+        service.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
       }
-      addedService
+      service
         .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
         .updateValue(this.endpoint.index);
     }
 
-    return addedService;
+    /**
+     * HEALTH MONITORING FIX: Add StatusFault to functional services where appropriate.
+     * We skip this for 'StatelessProgrammableSwitch' (Buttons) as it's not standard there.
+     */
+    const skipUUID = '00000089-0000-1000-8000-0026BB765291'; // StatelessProgrammableSwitch
+    if (
+      !service.testCharacteristic(this.platform.Characteristic.StatusFault) &&
+      service.UUID !== skipUUID
+    ) {
+      service.addOptionalCharacteristic(this.platform.Characteristic.StatusFault);
+    }
+
+    if (!this.managedServices.includes(service)) {
+      this.managedServices.push(service);
+    }
+
+    return service;
   }
 }

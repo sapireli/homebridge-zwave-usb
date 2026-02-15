@@ -3,6 +3,9 @@ import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
+/**
+ * CarbonMonoxideSensorFeature handles Z-Wave CO detectors.
+ */
 export class CarbonMonoxideSensorFeature extends BaseFeature {
   private service!: Service;
 
@@ -26,8 +29,12 @@ export class CarbonMonoxideSensorFeature extends BaseFeature {
         return;
       }
     }
-    const value = this.getSensorValue();
-    this.service.updateCharacteristic(this.platform.Characteristic.CarbonMonoxideDetected, value);
+    try {
+      const value = this.getSensorValue();
+      this.service.updateCharacteristic(this.platform.Characteristic.CarbonMonoxideDetected, value);
+    } catch {
+      // Ignore background update errors
+    }
   }
 
   private getSensorValue(): number {
@@ -46,9 +53,9 @@ export class CarbonMonoxideSensorFeature extends BaseFeature {
           endpoint: this.endpoint.index,
         });
 
-      // 1 or 2 = CO Detected, 0 = Idle
+      // 1-5 = CO Detected (various levels/locations), 0 = Idle
       if (typeof val === 'number') {
-        return val === 1 || val === 2
+        return val >= 1 && val <= 5
           ? this.platform.Characteristic.CarbonMonoxideDetected.CO_LEVELS_ABNORMAL
           : this.platform.Characteristic.CarbonMonoxideDetected.CO_LEVELS_NORMAL;
       }
@@ -56,23 +63,27 @@ export class CarbonMonoxideSensorFeature extends BaseFeature {
 
     // 2. Fallback to Binary Sensor
     if (this.node.supportsCC(CommandClasses['Binary Sensor'])) {
-      const value =
-        this.node.getValue({
-          commandClass: CommandClasses['Binary Sensor'],
-          property: 'CO',
-          endpoint: this.endpoint.index,
-        }) ??
-        this.node.getValue({
-          commandClass: CommandClasses['Binary Sensor'],
-          property: 'CO2',
-          endpoint: this.endpoint.index,
-        });
-      return value
-        ? this.platform.Characteristic.CarbonMonoxideDetected.CO_LEVELS_ABNORMAL
-        : this.platform.Characteristic.CarbonMonoxideDetected.CO_LEVELS_NORMAL;
+      /**
+       * CO2 FIX: Do not check for CO2 property here. Binary CO2 sensors are now
+       * mapped to the MultilevelSensorFeature (Air Quality) in AccessoryFactory.
+       */
+      const value = this.node.getValue({
+        commandClass: CommandClasses['Binary Sensor'],
+        property: 'CO',
+        endpoint: this.endpoint.index,
+      });
+
+      if (value !== undefined) {
+        return value
+          ? this.platform.Characteristic.CarbonMonoxideDetected.CO_LEVELS_ABNORMAL
+          : this.platform.Characteristic.CarbonMonoxideDetected.CO_LEVELS_NORMAL;
+      }
     }
 
-    return this.platform.Characteristic.CarbonMonoxideDetected.CO_LEVELS_NORMAL;
+    /**
+     * SECURITY FALLBACK FIX: Throw error if data is missing to avoid false 'Safe' state.
+     */
+    throw new this.platform.api.hap.HapStatusError(-70402);
   }
 
   private handleGetCODetected(): number {

@@ -3,6 +3,9 @@ import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
+/**
+ * GarageDoorFeature implements support for Garage Door Openers (Barrier Operator CC).
+ */
 export class GarageDoorFeature extends BaseFeature {
   private service!: Service;
 
@@ -21,7 +24,7 @@ export class GarageDoorFeature extends BaseFeature {
 
     this.service
       .getCharacteristic(this.platform.Characteristic.ObstructionDetected)
-      .onGet(() => false); // Z-Wave doesn't map cleanly to this generic boolean often
+      .onGet(this.handleGetObstruction.bind(this));
   }
 
   update(args?: ZWaveValueEvent): void {
@@ -29,7 +32,27 @@ export class GarageDoorFeature extends BaseFeature {
       return;
     }
     const current = this.handleGetCurrentState();
+    const target = this.handleGetTargetState();
+    const obstruction = this.handleGetObstruction();
+
     this.service.updateCharacteristic(this.platform.Characteristic.CurrentDoorState, current);
+    this.service.updateCharacteristic(this.platform.Characteristic.ObstructionDetected, obstruction);
+
+    /**
+     * UI DESYNC FIX: Update TargetState to match CurrentState if changed manually.
+     * This ensures the Home app doesn't show "Opening..." forever if moved via wall button.
+     */
+    this.service.updateCharacteristic(this.platform.Characteristic.TargetDoorState, target);
+  }
+
+  private handleGetObstruction(): boolean {
+    return (
+      this.node.getValue({
+        commandClass: CommandClasses['Barrier Operator'],
+        property: 'obstruction',
+        endpoint: this.endpoint.index,
+      }) === true
+    );
   }
 
   private handleGetCurrentState(): number {
@@ -42,13 +65,28 @@ export class GarageDoorFeature extends BaseFeature {
     });
 
     if (typeof val === 'number') {
-      if (val === 0) return this.platform.Characteristic.CurrentDoorState.CLOSED;
-      if (val === 255) return this.platform.Characteristic.CurrentDoorState.OPEN;
-      if (val === 252) return this.platform.Characteristic.CurrentDoorState.CLOSING;
-      if (val === 254) return this.platform.Characteristic.CurrentDoorState.OPENING;
-      if (val === 253) return this.platform.Characteristic.CurrentDoorState.STOPPED;
+      if (val === 0) {
+        return this.platform.Characteristic.CurrentDoorState.CLOSED;
+      }
+      if (val === 255) {
+        return this.platform.Characteristic.CurrentDoorState.OPEN;
+      }
+      if (val === 252) {
+        return this.platform.Characteristic.CurrentDoorState.CLOSING;
+      }
+      if (val === 254) {
+        return this.platform.Characteristic.CurrentDoorState.OPENING;
+      }
+      if (val === 253) {
+        return this.platform.Characteristic.CurrentDoorState.STOPPED;
+      }
     }
-    return this.platform.Characteristic.CurrentDoorState.CLOSED;
+
+    /**
+     * DANGEROUS DEFAULT FIX: Throw error instead of returning CLOSED if data is missing.
+     * This ensures HomeKit shows 'No Response' instead of a false security state.
+     */
+    throw new this.platform.api.hap.HapStatusError(-70402);
   }
 
   private handleGetTargetState(): number {
@@ -60,10 +98,21 @@ export class GarageDoorFeature extends BaseFeature {
 
     if (typeof val === 'number') {
       // 0 = Closed, 255 = Open
-      if (val === 255) return this.platform.Characteristic.TargetDoorState.OPEN;
+      if (val === 255) {
+        return this.platform.Characteristic.TargetDoorState.OPEN;
+      }
       return this.platform.Characteristic.TargetDoorState.CLOSED;
     }
-    return this.platform.Characteristic.TargetDoorState.CLOSED;
+
+    // Fallback based on current state to keep UI sane
+    try {
+      const current = this.handleGetCurrentState();
+      return current === this.platform.Characteristic.CurrentDoorState.OPEN
+        ? this.platform.Characteristic.TargetDoorState.OPEN
+        : this.platform.Characteristic.TargetDoorState.CLOSED;
+    } catch {
+      return this.platform.Characteristic.TargetDoorState.CLOSED;
+    }
   }
 
   private async handleSetTargetState(value: CharacteristicValue) {
@@ -79,6 +128,10 @@ export class GarageDoorFeature extends BaseFeature {
       );
     } catch (err) {
       this.platform.log.error('Failed to set garage door state:', err);
+      /**
+       * SILENT FAILURE FIX: Inform HomeKit that the command failed.
+       */
+      throw new this.platform.api.hap.HapStatusError(-70402);
     }
   }
 }
