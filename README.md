@@ -127,7 +127,15 @@ This plugin adds a management accessory to your Home app to handle network opera
 - **Inclusion Mode**: A switch to start/stop pairing new devices (active for 3 minutes).
 - **Exclusion Mode**: A switch to remove/reset existing devices.
 - **Heal Network**: A switch to trigger a background mesh network optimization.
-- **Prune Dead Nodes**: Automatically removes devices marked as "Dead" from the network. **Safe for battery devices**: This only removes nodes the controller has confirmed as failed; it will never remove a device that is simply "Asleep".
+- **Prune Dead Nodes**: Automatically removes devices marked as "Dead" (failed) from the network. **Safe for battery devices**: This only removes nodes the controller has confirmed as failed (Status 3); it will never remove a device that is simply "Asleep" (Status 1).
+
+### 🛠️ Advanced Management
+
+The plugin provides additional tools for network maintenance:
+
+- **Dual S2 PIN Entry**: When a device requires a PIN, you can enter it via the Homebridge terminal (`echo "12345" > s2_pin.txt`) or via the `S2 PIN Entry` characteristic in third-party HomeKit apps.
+- **Factory Reset**: Available exclusively via the **Homebridge UI Settings** page. This is a destructive action that wipes the NVM memory of your USB stick, generates a new Home ID, and resets the node count to 1. **Warning:** This will require you to re-pair every device in your network and restart Homebridge to clear the accessory cache.
+- **Automated Reconciliation**: Orphaned accessories are automatically removed from HomeKit 60 seconds after startup if the node is no longer present in the Z-Wave network.
 
 ---
 

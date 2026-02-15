@@ -48,18 +48,20 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
     // Handle UI requests (Factory Reset)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.api as any).onUiRequest?.('/factory-reset', async () => {
-      this.log.warn('FACTORY RESET REQUESTED FROM HOMEBRIDGE UI');
-      if (!this.zwaveController) {
-        throw new Error('Z-Wave controller not initialized.');
-      }
-      try {
-        await this.zwaveController.factoryReset();
-        this.log.info('Factory reset triggered successfully.');
-        return { success: true };
-      } catch (err) {
-        this.log.error('Factory reset failed:', err);
-        return { error: err instanceof Error ? err.message : String(err) };
+    (this.api as any).onUiRequest?.(async (message: any) => {
+      if (message === '/factory-reset') {
+        this.log.warn('FACTORY RESET REQUESTED FROM HOMEBRIDGE UI');
+        if (!this.zwaveController) {
+          throw new Error('Z-Wave controller not initialized.');
+        }
+        try {
+          await this.zwaveController.factoryReset();
+          this.log.info('Factory reset triggered successfully.');
+          return { success: true };
+        } catch (err) {
+          this.log.error('Factory reset failed:', err);
+          return { error: err instanceof Error ? err.message : String(err) };
+        }
       }
     });
 
