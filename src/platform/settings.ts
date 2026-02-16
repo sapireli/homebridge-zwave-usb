@@ -1,11 +1,11 @@
 export const PLUGIN_NAME = 'homebridge-zwave-usb';
 export const PLATFORM_NAME = 'ZWaveUSB';
 
-// Custom UUIDs - Version 8 (RC2)
-// PIN characteristic UUID rotated to force fresh metadata with writable perms.
-export const MANAGER_SERVICE_UUID = '00000001-0000-1000-8000-0026BB765297';
-export const STATUS_CHAR_UUID = '00000002-0000-1000-8000-0026BB765297';
-export const PIN_CHAR_UUID = '00000004-0000-1000-8000-0026BB765297';
+// Custom UUIDs - Version 9
+// Use fully custom UUIDs to avoid collisions with built-in HAP services/characteristics.
+export const MANAGER_SERVICE_UUID = '9b0f7a10-6b3d-4fe8-8f6c-7e99b2d4a101';
+export const STATUS_CHAR_UUID = '9b0f7a10-6b3d-4fe8-8f6c-7e99b2d4a102';
+export const PIN_CHAR_UUID = '9b0f7a10-6b3d-4fe8-8f6c-7e99b2d4a104';
 
 // HAP Constants (Enums for cleaner code)
 export enum HAPFormat {
@@ -36,6 +36,7 @@ export const OBSOLETE_MANAGER_UUIDS = [
   '00000001-0000-1000-8000-0026BB765294',
   '00000001-0000-1000-8000-0026BB765295',
   '00000001-0000-1000-8000-0026BB765296', // v6
+  '00000001-0000-1000-8000-0026BB765297', // v8 (collided with a standard service UUID)
   '9f8e7d6c-5b4a-3f2e-1d0c-9b8a7f6e5d4c',
 ];
 
@@ -52,7 +53,9 @@ export const OBSOLETE_CHAR_UUIDS = [
   '00000003-0000-1000-8000-0026BB765295',
   '00000002-0000-1000-8000-0026BB765296',
   '00000003-0000-1000-8000-0026BB765296',
+  '00000002-0000-1000-8000-0026BB765297', // v8 status
   '00000003-0000-1000-8000-0026BB765297',
+  '00000004-0000-1000-8000-0026BB765297', // v8 pin
   '7f8e9d0a-1b2c-4d3e-8f9a-0b1c2d3e4f5a',
   '8a9b0c1d-2e3f-4a5b-9c6d-7e8f9a0b1c2d',
   'E863F108-079E-48FF-8F25-9C2566232931',

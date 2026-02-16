@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0] - 2026-02-16
+
+### Changed
+- **Controller Service UUID Migration:** Moved manager/status/PIN to fully custom UUIDs to avoid collisions with standard HAP UUIDs.
+- **Controller Action Switch Behavior:** Improved Inclusion/Exclusion/Heal/Prune state handling in Homebridge UI by making writes non-blocking and state-driven via characteristic updates/events.
+- **Config UI Restoration:** Restored the full custom UI config load/save script so existing `config.json` values populate correctly in Homebridge Config UI X.
+- **Driver Debug Logging Control:** Wired Z-Wave JS driver logging to plugin `debug` setting so verbose log piping stops when debug is disabled.
+
+### Fixed
+- Fixed repeated startup pruning of the same `System Status` service caused by UUID collision with standard `Switch` service UUID.
+- Fixed a reliability issue in S2 PIN file handling where file race conditions could throw from watcher callbacks.
+- Removed unsupported private factory reset implementation and related trigger/documentation paths.
+
 ## [1.9.5-beta.0] - 2026-02-14
 
 ### Fixed

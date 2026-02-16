@@ -357,9 +357,9 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       securityKeys,
       securityKeysLongRange,
       logConfig: {
-        enabled: true,
+        enabled: !!this.options.debug,
         level: logLevel,
-        forceConsole: true, // Required for verifier script
+        forceConsole: !!this.options.debug,
         showLogo: false,
       },
       storage: {
