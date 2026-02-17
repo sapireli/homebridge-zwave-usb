@@ -26,6 +26,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
   private driver: Driver | undefined;
   public readonly nodes = new Map<number, ZWaveNode>();
   private pendingS2Pin: string | undefined;
+  private healSafetyTimer: NodeJS.Timeout | undefined;
 
   private nodeListeners = new Map<
     number,
@@ -103,9 +104,25 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
             this.log.info(`Heal Network Progress: ${done}/${total} nodes completed`);
             this.emit('status updated', `Heal: ${done}/${total}`);
             this.emit('heal network progress', progress);
+
+            // Safety: if we are at 100%, but no 'done' event arrives within 5s, auto-complete
+            if (done === total && total > 0) {
+              if (this.healSafetyTimer) {
+                clearTimeout(this.healSafetyTimer);
+              }
+              this.healSafetyTimer = setTimeout(() => {
+                this.log.info('Heal Network Safety Timeout: Triggering completion.');
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (this.driver?.controller as any).emit('rebuild routes done', new Map());
+              }, 5000);
+            }
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           'rebuild routes done': (result: any) => {
+            if (this.healSafetyTimer) {
+              clearTimeout(this.healSafetyTimer);
+              this.healSafetyTimer = undefined;
+            }
             this.log.info('Heal Network Complete');
             this.emit('status updated', 'Heal Network Done');
             setTimeout(() => this.emit('status updated', 'Driver Ready'), 5000);
@@ -544,6 +561,10 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
 
   public async stop(): Promise<void> {
     this.log.debug('Stopping Z-Wave controller and cleaning up listeners...');
+    if (this.healSafetyTimer) {
+      clearTimeout(this.healSafetyTimer);
+      this.healSafetyTimer = undefined;
+    }
     for (const [nodeId, node] of this.nodes) {
       const listeners = this.nodeListeners.get(nodeId);
       if (listeners) {

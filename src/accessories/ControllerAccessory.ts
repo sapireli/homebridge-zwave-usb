@@ -375,9 +375,12 @@ export class ControllerAccessory {
         this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
       },
       'heal network progress': (progress: Map<number, unknown>) => {
-        const done = Array.from(progress.values()).filter((v) => v !== 0).length;
+        const doneCount = Array.from(progress.values()).filter((v) => v !== 0).length;
         const total = progress.size;
-        this.statusChar.updateValue(`Heal: ${done}/${total}`);
+        this.statusChar.updateValue(`Heal: ${doneCount}/${total}`);
+
+        // Safety: If we hit 100%, and the 'done' event hasn't fired yet, we'll wait for it.
+        // But if it stays at 100% and we are still 'active', the 'heal network done' handler will take care of it.
       },
       'heal network done': () => {
         this.platform.log.info('Controller event: Heal Network Done. Resetting UI switch.');
@@ -482,7 +485,6 @@ export class ControllerAccessory {
             'Inclusion start request returned false (possibly already active). Keeping UI state ON.',
           );
         }
-        this.isInclusionActive = true;
         this.inclusionTimer = setTimeout(async () => {
           this.platform.log.info('Inclusion Mode timed out');
           await this.controller.stopInclusion();
@@ -539,7 +541,6 @@ export class ControllerAccessory {
             'Exclusion start request returned false (possibly already active). Keeping UI state ON.',
           );
         }
-        this.isExclusionActive = true;
         this.exclusionTimer = setTimeout(async () => {
           this.platform.log.info('Exclusion Mode timed out');
           await this.controller.stopExclusion();
@@ -589,7 +590,6 @@ export class ControllerAccessory {
             'Heal start request returned false (possibly already active). Keeping UI state ON.',
           );
         }
-        this.isHealActive = true;
       } else {
         this.platform.log.info('Requesting Heal Network OFF');
         this.isHealActive = false;
