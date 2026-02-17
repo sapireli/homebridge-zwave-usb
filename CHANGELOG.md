@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0-beta.3] - 2026-02-16
+
+### Fixed
+- **Controller Node Handling:** Prevented firmware update operations on Node 1 (the Z-Wave controller stick), which does not support the standard node firmware update API. Updated the UI to display a "Controller" badge for Node 1.
+
 ## [2.1.0-beta.2] - 2026-02-16
 
 ### Changed

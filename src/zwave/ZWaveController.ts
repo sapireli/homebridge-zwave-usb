@@ -759,9 +759,12 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
         }
       }
     
-        public async getAvailableFirmwareUpdates(nodeId: number): Promise<unknown[]> {
-          const node = this.nodes.get(nodeId);
-          if (!node) {
+          public async getAvailableFirmwareUpdates(nodeId: number): Promise<unknown[]> {
+            if (nodeId === 1) {
+              this.log.debug('Node 1 is the controller; skipping firmware update check.');
+              return [];
+            }
+            const node = this.nodes.get(nodeId);          if (!node) {
             throw new Error(`Node ${nodeId} not found`);
           }
           this.log.info(`Checking for firmware updates for Node ${nodeId}...`);

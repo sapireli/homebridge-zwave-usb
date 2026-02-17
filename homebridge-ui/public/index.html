@@ -178,6 +178,8 @@
                 <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: ${pct}%">${pct}%</div>
               </div>
             `;
+          } else if (node.nodeId === 1) {
+            actionHtml = `<span class="badge badge-light">Controller</span>`;
           } else {
             actionHtml = `<button class="btn btn-sm btn-outline-primary check-update" data-nodeid="${node.nodeId}">Check Update</button>`;
           }
