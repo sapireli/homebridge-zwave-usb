@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0] - 2026-02-17
+
+### Added
+- **Deep Name Synchronization:** Renaming a node now correctly updates both the Homebridge accessory name and the names of all associated HomeKit services (Switch, Motion Sensor, etc.).
+- **Improved Logging:** Plugin logs now include the user-defined node name alongside the Node ID (e.g., "Node 4 (Basement Furnace Room) ready") for better readability.
+
+### Fixed
+- **Name Persistence Fix:** Ensured that renamed nodes maintain their names in the Home app after a plugin restart by synchronizing names during the discovery process for cached accessories.
+
 ## [2.3.1] - 2026-02-17
 
 ### Fixed

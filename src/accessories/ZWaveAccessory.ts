@@ -99,6 +99,28 @@ export class ZWaveAccessory {
   }
 
   /**
+   * Syncs the HomeKit name and service names when the node is renamed.
+   */
+  public rename(newName: string): void {
+    this.platform.log.info(`Syncing HomeKit name for Node ${this.node.nodeId} -> ${newName}`);
+    this.platformAccessory.displayName = newName;
+
+    // Update the Model and Serial if they were using the generic name
+    const model = this.node.deviceConfig?.label || newName;
+    this.platformAccessory
+      .getService(this.platform.Service.AccessoryInformation)!
+      .setCharacteristic(this.platform.Characteristic.Model, model);
+
+    // Update all features
+    for (const feature of this.features) {
+      feature.rename(newName);
+    }
+
+    // Notify Homebridge of changes
+    this.platform.api.updatePlatformAccessories([this.platformAccessory]);
+  }
+
+  /**
    * HOT-RECOVERY FIX: Update stale node references.
    * When the driver restarts (hot-plug), the IZWaveNode instance changes.
    * We must update all features with the new reference to ensure they

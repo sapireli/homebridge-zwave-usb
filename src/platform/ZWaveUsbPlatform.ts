@@ -171,9 +171,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
               // Update Homebridge Accessory Name
               const accessory = this.zwaveAccessories.get(nodeId);
               if (accessory) {
-                this.log.info(`Renaming HomeKit accessory for Node ${nodeId} to: ${name}`);
-                accessory.platformAccessory.displayName = name;
-                this.api.updatePlatformAccessories([accessory.platformAccessory]);
+                accessory.rename(name);
               }
 
               return sendJson({ success: true });
@@ -382,7 +380,8 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   }
 
   private handleNodeReady(node: IZWaveNode) {
-    this.log.info(`Node ${node.nodeId} ready`);
+    const nodeName = node.name || node.deviceConfig?.label || `Node ${node.nodeId}`;
+    this.log.info(`Node ${node.nodeId} (${nodeName}) ready`);
 
     // Skip Node 1 (the controller itself) as it's handled by ControllerAccessory
     if (Number(node.nodeId) === 1) {
@@ -407,6 +406,9 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     if (existing || this.discoveryInFlight.has(node.nodeId)) {
       if (existing) {
         existing.updateNode(node);
+        if (existing.platformAccessory.displayName !== nodeName) {
+          existing.rename(nodeName);
+        }
         existing.refresh();
       }
       return;
@@ -417,11 +419,8 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       const accessory = AccessoryFactory.create(this, node, homeId);
       this.zwaveAccessories.set(node.nodeId, accessory);
 
-      const nodeName = node.name || node.deviceConfig?.label || `Node ${node.nodeId}`;
       if (accessory.platformAccessory.displayName !== nodeName) {
-        this.log.info(`Renaming accessory ${accessory.platformAccessory.displayName} -> ${nodeName}`);
-        accessory.platformAccessory.displayName = nodeName;
-        this.api.updatePlatformAccessories([accessory.platformAccessory]);
+        accessory.rename(nodeName);
       }
 
       accessory.initialize();

@@ -11,6 +11,7 @@ export interface ZWaveFeature {
   getEndpointIndex(): number;
   stop(): void;
   updateNode(node: IZWaveNode, endpoint: Endpoint): void;
+  rename(newName: string): void;
 }
 
 export abstract class BaseFeature implements ZWaveFeature {
@@ -33,6 +34,20 @@ export abstract class BaseFeature implements ZWaveFeature {
   public updateNode(node: IZWaveNode, endpoint: Endpoint): void {
     this.node = node;
     this.endpoint = endpoint;
+  }
+
+  /**
+   * Dynamically updates the Name characteristic of all managed services.
+   */
+  public rename(newName: string): void {
+    const serviceName =
+      this.endpoint.index > 0 ? `${newName} ${this.endpoint.index}` : newName;
+
+    for (const service of this.managedServices) {
+      if (service.testCharacteristic(this.platform.Characteristic.Name)) {
+        service.getCharacteristic(this.platform.Characteristic.Name).updateValue(serviceName);
+      }
+    }
   }
 
   public getServices(): Service[] {
