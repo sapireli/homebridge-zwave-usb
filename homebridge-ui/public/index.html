@@ -319,6 +319,31 @@
           loadNodes();
         }
       }, 5000);
+
+      // Manual tab switching logic for environments without full Bootstrap JS
+      document.querySelectorAll('#mainTabs .nav-link').forEach((tab) => {
+        tab.addEventListener('click', (e) => {
+          e.preventDefault();
+          const targetId = tab.getAttribute('href').replace('#', '');
+          
+          // Update Tab Active State
+          document.querySelectorAll('#mainTabs .nav-link').forEach((t) => t.classList.remove('active'));
+          tab.classList.add('active');
+
+          // Update Content Active State
+          document.querySelectorAll('.tab-pane').forEach((pane) => {
+            pane.classList.remove('show', 'active');
+          });
+          const targetPane = document.getElementById(targetId);
+          if (targetPane) {
+            targetPane.classList.add('show', 'active');
+          }
+
+          if (targetId === 'maintenance') {
+            loadNodes();
+          }
+        });
+      });
     };
 
     // Try to initialize

@@ -125,14 +125,19 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
   private startIpcServer() {
     this.ipcServer = http.createServer((req, res) => {
-      const { url, method } = req;
+      const { method } = req;
+      const url = req.url?.split('?')[0] || ''; // Strip query params
+      const normalizedUrl = url.endsWith('/') && url.length > 1 ? url.slice(0, -1) : url;
+
+      this.log.debug(`IPC Management Request: ${method} ${normalizedUrl}`);
+
       const sendJson = (data: unknown, status = 200) => {
         res.writeHead(status, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(data));
       };
 
       try {
-        if (url === '/nodes' && method === 'GET') {
+        if (normalizedUrl === '/nodes' && method === 'GET') {
           const nodes = Array.from(this.zwaveController?.nodes.values() || []).map((node) => ({
             nodeId: node.nodeId,
             name: node.name,
@@ -148,19 +153,19 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           return sendJson(nodes);
         }
 
-        if (url?.startsWith('/firmware/updates/') && method === 'GET') {
-          const nodeId = parseInt(url.split('/').pop() || '0', 10);
+        if (normalizedUrl.startsWith('/firmware/updates/') && method === 'GET') {
+          const nodeId = parseInt(normalizedUrl.split('/').pop() || '0', 10);
           this.zwaveController?.getAvailableFirmwareUpdates(nodeId)
             .then((updates) => sendJson(updates))
             .catch((err) => sendJson({ error: err.message }, 500));
           return;
         }
 
-        if (url?.startsWith('/firmware/update/') && method === 'POST') {
+        if (normalizedUrl.startsWith('/firmware/update/') && method === 'POST') {
           let body = '';
           req.on('data', (chunk) => (body += chunk));
           req.on('end', () => {
-            const nodeId = parseInt(url.split('/').pop() || '0', 10);
+            const nodeId = parseInt(normalizedUrl.split('/').pop() || '0', 10);
             const update = JSON.parse(body);
             this.zwaveController?.beginFirmwareUpdate(nodeId, update)
               .then(() => sendJson({ success: true }))
@@ -169,16 +174,18 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           return;
         }
 
-        if (url?.startsWith('/firmware/abort/') && method === 'POST') {
-          const nodeId = parseInt(url.split('/').pop() || '0', 10);
+        if (normalizedUrl.startsWith('/firmware/abort/') && method === 'POST') {
+          const nodeId = parseInt(normalizedUrl.split('/').pop() || '0', 10);
           this.zwaveController?.abortFirmwareUpdate(nodeId)
             .then(() => sendJson({ success: true }))
             .catch((err) => sendJson({ error: err.message }, 500));
           return;
         }
 
-        sendJson({ error: 'Not Found' }, 404);
+        this.log.warn(`IPC Management: Path not found: ${normalizedUrl}`);
+        sendJson({ error: `Path not found: ${normalizedUrl}` }, 404);
       } catch (err) {
+        this.log.error(`IPC Management Error: ${err}`);
         sendJson({ error: err instanceof Error ? err.message : String(err) }, 500);
       }
     });
