@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0] - 2026-02-17
+
+### Fixed
+- **Authoritative Naming Fix:** Switched to updating the `Name` characteristic on the `AccessoryInformation` service. This is the industry-standard way to ensure HomeKit updates the primary accessory name in the room view.
+- **Service Cleanup:** Removed experimental `ConfiguredName` to strictly adhere to standard HAP Switch/Sensor schemas.
+
 ## [2.5.0] - 2026-02-17
 
 ### Added

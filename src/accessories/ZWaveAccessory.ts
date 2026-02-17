@@ -105,11 +105,16 @@ export class ZWaveAccessory {
     this.platform.log.info(`Syncing HomeKit name for Node ${this.node.nodeId} -> ${newName}`);
     this.platformAccessory.displayName = newName;
 
+    // Update the Accessory Information Service (Most Authoritative)
+    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
+    if (!infoService.testCharacteristic(this.platform.Characteristic.Name)) {
+      infoService.addOptionalCharacteristic(this.platform.Characteristic.Name);
+    }
+    infoService.updateCharacteristic(this.platform.Characteristic.Name, newName);
+
     // Update the Model and Serial if they were using the generic name
     const model = this.node.deviceConfig?.label || newName;
-    this.platformAccessory
-      .getService(this.platform.Service.AccessoryInformation)!
-      .setCharacteristic(this.platform.Characteristic.Model, model);
+    infoService.setCharacteristic(this.platform.Characteristic.Model, model);
 
     // Update all features
     for (const feature of this.features) {
