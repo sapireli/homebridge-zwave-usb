@@ -380,9 +380,13 @@ export class ControllerAccessory {
         this.statusChar.updateValue(`Heal: ${done}/${total}`);
       },
       'heal network done': () => {
-        this.platform.log.info('Controller event: Heal Network Done');
+        this.platform.log.info('Controller event: Heal Network Done. Resetting UI switch.');
         this.isHealActive = false;
-        this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
+        // Use a slight delay to ensure HomeKit UI catches the state change correctly
+        setTimeout(() => {
+          this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
+          this.platform.log.debug('Heal Network switch set to OFF');
+        }, 500);
       },
     };
 
