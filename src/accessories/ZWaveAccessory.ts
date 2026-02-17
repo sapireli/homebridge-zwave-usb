@@ -110,6 +110,13 @@ export class ZWaveAccessory {
     if (!infoService.testCharacteristic(this.platform.Characteristic.Name)) {
       infoService.addOptionalCharacteristic(this.platform.Characteristic.Name);
     }
+    infoService.getCharacteristic(this.platform.Characteristic.Name)
+      .setProps({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        format: HAPFormat.STRING as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
+      });
     infoService.updateCharacteristic(this.platform.Characteristic.Name, newName);
 
     // Update the Model and Serial if they were using the generic name

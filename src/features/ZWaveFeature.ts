@@ -45,7 +45,10 @@ export abstract class BaseFeature implements ZWaveFeature {
 
     for (const service of this.managedServices) {
       if (service.testCharacteristic(this.platform.Characteristic.Name)) {
-        service.getCharacteristic(this.platform.Characteristic.Name).updateValue(serviceName);
+        service.updateCharacteristic(this.platform.Characteristic.Name, serviceName);
+      }
+      if (service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+        service.updateCharacteristic(this.platform.Characteristic.ConfiguredName, serviceName);
       }
     }
   }
@@ -115,7 +118,21 @@ export abstract class BaseFeature implements ZWaveFeature {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         format: HAPFormat.STRING as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        perms: [HAPPerm.PAIRED_READ as any],
+        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
+      })
+      .updateValue(serviceName);
+
+    // Also set ConfiguredName which many HomeKit versions prioritize for plugin-side renaming
+    if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+      service.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+    }
+    service
+      .getCharacteristic(this.platform.Characteristic.ConfiguredName)
+      .setProps({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        format: HAPFormat.STRING as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
       })
       .updateValue(serviceName);
 

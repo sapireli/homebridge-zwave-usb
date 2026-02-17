@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.7.0] - 2026-02-17
+
+### Fixed
+- **HomeKit Event Notifications:** Added the `NOTIFY` permission to all `Name` and `ConfiguredName` characteristics. This ensures that the Home app is actively notified of name changes, allowing it to update device tiles immediately without a manual refresh or re-pairing.
+- **Redundant Naming Support:** Re-introduced `ConfiguredName` alongside `Name` to maximize compatibility with different iOS versions and HomeKit controller implementations.
+
 ## [2.6.0] - 2026-02-17
 
 ### Fixed
