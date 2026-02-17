@@ -759,18 +759,45 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
         }
       }
     
-          public async getAvailableFirmwareUpdates(nodeId: number): Promise<unknown[]> {
-            if (nodeId === 1) {
-              this.log.debug('Node 1 is the controller; skipping firmware update check.');
-              return [];
-            }
-            const node = this.nodes.get(nodeId);          if (!node) {
-            throw new Error(`Node ${nodeId} not found`);
-          }
-          this.log.info(`Checking for firmware updates for Node ${nodeId}...`);
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const updates = await (node as any).getAvailableFirmwareUpdates();          this.log.info(`Found ${updates.length} available updates for Node ${nodeId}`);
+            public async getAvailableFirmwareUpdates(nodeId: number): Promise<unknown[]> {
+    
+              if (nodeId === 1) {
+    
+                this.log.debug('Node 1 is the controller; skipping firmware update check.');
+    
+                return [];
+    
+              }
+    
+              const node = this.nodes.get(nodeId);
+    
+              if (!node) {
+    
+                this.log.error(`Node ${nodeId} not found in controller node map.`);
+    
+                throw new Error(`Node ${nodeId} not found`);
+    
+              }
+    
+          
+    
+              if (typeof (node as any).getAvailableFirmwareUpdates !== 'function') {
+    
+                this.log.warn(`Node ${nodeId} does not support firmware update discovery via Z-Wave JS.`);
+    
+                return [];
+    
+              }
+    
+          
+    
+              this.log.info(`Checking for firmware updates for Node ${nodeId}...`);
+    
+              try {
+    
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    
+                const updates = await (node as any).getAvailableFirmwareUpdates();          this.log.info(`Found ${updates.length} available updates for Node ${nodeId}`);
           return updates;
         } catch (err) {
           this.log.error(`Failed to check for updates for Node ${nodeId}:`, err);
