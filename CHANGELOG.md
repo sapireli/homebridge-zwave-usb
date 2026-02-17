@@ -2,35 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.1.0-beta.5] - 2026-02-16
-
-### Fixed
-- **Code Quality:** Resolved ESLint warnings and cleaned up code formatting in the Z-Wave controller logic.
-
-## [2.1.0-beta.4] - 2026-02-16
-
-### Fixed
-- **Controller Node Handling:** Prevented firmware update operations on Node 1 (the Z-Wave controller stick), which does not support the standard node firmware update API. Updated the UI to display a "Controller" badge for Node 1.
-
-## [2.1.0-beta.2] - 2026-02-16
-
-### Changed
-- **Battery Device Updates:** Enabled firmware updates for battery-powered devices. Added a specialized warning prompting users to manually wake the device after starting the update.
-
-## [2.1.0-beta.1] - 2026-02-16
-
-### Fixed
-- **Custom UI Robustness:** Fixed issues with tab switching and IPC connectivity in various Homebridge environments by implementing manual navigation logic and improving storage path detection.
-
-## [2.1.0-beta.0] - 2026-02-16
+## [2.1.0] - 2026-02-16
 
 ### Added
-- **Z-Wave Firmware Updates (Beta):** Introduced Over-The-Air (OTA) firmware updates via the Z-Wave JS Firmware Update Service.
+- **Z-Wave Firmware Updates:** Introduced Over-The-Air (OTA) firmware updates via the Z-Wave JS Firmware Update Service.
   - New "Maintenance" tab in the custom UI to view all nodes and their firmware versions.
   - Semi-automatic update discovery: check for official manufacturer updates with one click.
   - Real-time progress tracking for OTA transfers.
-  - Safe implementation: only supports mains-powered devices in the initial beta to minimize bricking risk.
+  - Supports both mains-powered and battery-powered devices (requires manual wake-up).
 - **Internal IPC Server:** Added a secure local IPC bridge to allow the custom UI to communicate with the running Z-Wave driver for advanced management tasks.
+
+### Fixed
+- **Child Bridge Persistence:** Fixed an issue where saving configuration through the custom UI would cause the plugin to be kicked off its child bridge by preserving Homebridge's internal `_bridge` metadata.
+- **Heal Network Reliability:** Resolved race conditions and added safety timers to ensure the "Heal Network" switch correctly resets to "Off" after completion.
+- **Custom UI Robustness:** Improved tab navigation and connectivity for various Homebridge environments.
+- **Controller Node Safety:** Prevented firmware update checks on Node 1 (USB Controller) which doesn't support the standard node API.
 
 ## [2.0.4] - 2026-02-16
 
