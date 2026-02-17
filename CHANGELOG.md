@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5.0] - 2026-02-17
+
+### Added
+- **Aggressive Name Synchronization:** Added support for the `ConfiguredName` characteristic. This forces the Home app to prioritize the friendly name defined in the Z-Wave network over cached generic names (like "Node 2").
+- **Automatic Name Correction:** The plugin now forcefully updates both `Name` and `ConfiguredName` on every startup for all services.
+
 ## [2.4.0] - 2026-02-17
 
 ### Added

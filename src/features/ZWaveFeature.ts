@@ -47,6 +47,9 @@ export abstract class BaseFeature implements ZWaveFeature {
       if (service.testCharacteristic(this.platform.Characteristic.Name)) {
         service.getCharacteristic(this.platform.Characteristic.Name).updateValue(serviceName);
       }
+      if (service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+        service.getCharacteristic(this.platform.Characteristic.ConfiguredName).updateValue(serviceName);
+      }
     }
   }
 
@@ -118,6 +121,12 @@ export abstract class BaseFeature implements ZWaveFeature {
         perms: [HAPPerm.PAIRED_READ as any],
       })
       .updateValue(serviceName);
+
+    // Also set ConfiguredName which HomeKit often prioritizes for display
+    if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+      service.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+    }
+    service.getCharacteristic(this.platform.Characteristic.ConfiguredName).updateValue(serviceName);
 
     // Add Service Label Index for multi-endpoint devices to help with ordering/naming
     if (this.endpoint.index > 0) {
