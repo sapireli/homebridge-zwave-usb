@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.4] - 2026-02-16
+
+### Fixed
+- Resolved a race condition where the "Heal Network" switch could remain "On" after completion due to state settings overlapping with completion events.
+- Added a safety completion timer (5s) for "Heal Network" to ensure UI reset even if the driver fails to emit a formal completion event after reaching 100% progress.
+- Improved Mutex logic for all controller actions (Inclusion, Exclusion, Heal) to prevent state-flip race conditions.
+
+## [2.0.3] - 2026-02-16
+
+### Fixed
+- Added a 500ms delay to the "Heal Network" switch reset to ensure HomeKit and Homebridge UI correctly register the state change to "Off".
+
+## [2.0.2] - 2026-02-16
+
+### Added
+- Detailed logging and progress tracking for the "Heal Network" command.
+- Real-time progress display (e.g., "Heal: 5/11") in the HomeKit "System Status" characteristic.
+
+## [2.0.1] - 2026-02-16
+
+### Fixed
+- **Child Bridge Persistence:** Fixed an issue where saving configuration through the custom UI would cause the plugin to be kicked off its child bridge by preserving Homebridge's internal `_bridge` metadata.
+
 ## [2.0.0] - 2026-02-16
 
 ### Changed
