@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0-beta.0] - 2026-02-16
+
+### Added
+- **Z-Wave Firmware Updates (Beta):** Introduced Over-The-Air (OTA) firmware updates via the Z-Wave JS Firmware Update Service.
+  - New "Maintenance" tab in the custom UI to view all nodes and their firmware versions.
+  - Semi-automatic update discovery: check for official manufacturer updates with one click.
+  - Real-time progress tracking for OTA transfers.
+  - Safe implementation: only supports mains-powered devices in the initial beta to minimize bricking risk.
+- **Internal IPC Server:** Added a secure local IPC bridge to allow the custom UI to communicate with the running Z-Wave driver for advanced management tasks.
+
 ## [2.0.4] - 2026-02-16
 
 ### Fixed

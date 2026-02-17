@@ -7,6 +7,9 @@ import {
   Service,
   Characteristic,
 } from 'homebridge';
+import http from 'http';
+import path from 'path';
+import fs from 'fs';
 import { ZWaveController } from '../zwave/ZWaveController';
 import { IZWaveController, IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveAccessory } from '../accessories/ZWaveAccessory';
@@ -31,12 +34,14 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   private controllerAccessory: ControllerAccessory | undefined;
   private retryTimeout?: NodeJS.Timeout;
   private reconciliationTimeout?: NodeJS.Timeout;
+  private ipcServer?: http.Server;
 
   /**
    * RACE CONDITION FIX: Track which nodes are currently being created
    * to prevent duplicate accessories if multiple events fire rapidly.
    */
   private discoveryInFlight = new Set<number>();
+  private firmwareProgress = new Map<number, { sent: number; total: number; status?: number }>();
 
   constructor(
     public readonly log: Logger,
@@ -78,10 +83,20 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       );
       this.zwaveController.on('value updated', (node, args) => this.handleValueUpdated(node, args));
 
+      this.zwaveController.on('firmware update progress', (nodeId, sent, total) => {
+        this.firmwareProgress.set(nodeId, { sent, total });
+      });
+
+      this.zwaveController.on('firmware update finished', (nodeId, status) => {
+        this.firmwareProgress.set(nodeId, { sent: 100, total: 100, status });
+        setTimeout(() => this.firmwareProgress.delete(nodeId), 30000); // Clear after 30s
+      });
+
       this.api.on('didFinishLaunching', async () => {
         try {
           this.log.debug('Executed didFinishLaunching callback');
           await this.connectToZWaveController();
+          this.startIpcServer();
         } catch (err) {
           this.log.error('Error during didFinishLaunching:', err);
         }
@@ -89,6 +104,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
       this.api.on('shutdown', async () => {
         this.log.info('Shutting down Z-Wave controller...');
+        this.stopIpcServer();
         if (this.retryTimeout) {
           clearTimeout(this.retryTimeout);
         }
@@ -104,6 +120,90 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     } catch (err) {
       this.log.error('Critical error during plugin initialization. Plugin will be disabled.');
       this.log.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  private startIpcServer() {
+    this.ipcServer = http.createServer((req, res) => {
+      const { url, method } = req;
+      const sendJson = (data: unknown, status = 200) => {
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(data));
+      };
+
+      try {
+        if (url === '/nodes' && method === 'GET') {
+          const nodes = Array.from(this.zwaveController?.nodes.values() || []).map((node) => ({
+            nodeId: node.nodeId,
+            name: node.name,
+            label: node.deviceConfig?.label,
+            manufacturer: node.deviceConfig?.manufacturer,
+            status: node.status,
+            ready: node.ready,
+            firmwareVersion: node.firmwareVersion,
+            isListening: node.isListening,
+            isFrequentListening: node.isFrequentListening,
+            firmwareProgress: this.firmwareProgress.get(node.nodeId),
+          }));
+          return sendJson(nodes);
+        }
+
+        if (url?.startsWith('/firmware/updates/') && method === 'GET') {
+          const nodeId = parseInt(url.split('/').pop() || '0', 10);
+          this.zwaveController?.getAvailableFirmwareUpdates(nodeId)
+            .then((updates) => sendJson(updates))
+            .catch((err) => sendJson({ error: err.message }, 500));
+          return;
+        }
+
+        if (url?.startsWith('/firmware/update/') && method === 'POST') {
+          let body = '';
+          req.on('data', (chunk) => (body += chunk));
+          req.on('end', () => {
+            const nodeId = parseInt(url.split('/').pop() || '0', 10);
+            const update = JSON.parse(body);
+            this.zwaveController?.beginFirmwareUpdate(nodeId, update)
+              .then(() => sendJson({ success: true }))
+              .catch((err) => sendJson({ error: err.message }, 500));
+          });
+          return;
+        }
+
+        if (url?.startsWith('/firmware/abort/') && method === 'POST') {
+          const nodeId = parseInt(url.split('/').pop() || '0', 10);
+          this.zwaveController?.abortFirmwareUpdate(nodeId)
+            .then(() => sendJson({ success: true }))
+            .catch((err) => sendJson({ error: err.message }, 500));
+          return;
+        }
+
+        sendJson({ error: 'Not Found' }, 404);
+      } catch (err) {
+        sendJson({ error: err instanceof Error ? err.message : String(err) }, 500);
+      }
+    });
+
+    this.ipcServer.listen(0, '127.0.0.1', () => {
+      const address = this.ipcServer?.address();
+      if (address && typeof address !== 'string') {
+        const portFile = path.join(this.api.user.storagePath(), 'homebridge-zwave-usb.port');
+        fs.writeFileSync(portFile, address.port.toString());
+        this.log.debug(`IPC Server listening on port ${address.port}`);
+      }
+    });
+
+    this.ipcServer.on('error', (err) => {
+      this.log.error('IPC Server error:', err);
+    });
+  }
+
+  private stopIpcServer() {
+    if (this.ipcServer) {
+      this.ipcServer.close();
+      const portFile = path.join(this.api.user.storagePath(), 'homebridge-zwave-usb.port');
+      if (fs.existsSync(portFile)) {
+        fs.unlinkSync(portFile);
+      }
     }
   }
 

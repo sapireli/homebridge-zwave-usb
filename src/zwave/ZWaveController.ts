@@ -243,6 +243,14 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       this.emit('node ready', node); // Trigger refresh in platform
     };
 
+    const onFirmwareUpdateProgress = (_n: ZWaveNode, sent: number, total: number) => {
+      this.emit('firmware update progress', node.nodeId, sent, total);
+    };
+
+    const onFirmwareUpdateFinished = (_n: ZWaveNode, status: unknown, waitTime?: number) => {
+      this.emit('firmware update finished', node.nodeId, status, waitTime);
+    };
+
     this.nodeListeners.set(node.nodeId, {
       ready: onReady,
       value: onValueUpdated,
@@ -254,7 +262,8 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       onSleep,
       onDead,
       onAlive,
-    });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
 
     node.on('ready', onReady);
     node.on('value updated', onValueUpdated);
@@ -267,6 +276,10 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     node.on('sleep', onSleep);
     node.on('dead', onDead);
     node.on('alive', onAlive);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    node.on('firmware update progress', onFirmwareUpdateProgress as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    node.on('firmware update finished', onFirmwareUpdateFinished as any);
 
     this.log.info(`Node ${node.nodeId} registered with event listeners (ready: ${node.ready})`);
 
@@ -740,10 +753,54 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       await this.driver.controller.removeFailedNode(nodeId);
       this.log.info(`Node ${nodeId} removed successfully.`);
       this.emit('status updated', `Node ${nodeId} Removed`);
-    } catch (err) {
-      this.log.error(`Failed to remove failed node ${nodeId}:`, err);
-      throw err;
+        } catch (err) {
+          this.log.error(`Failed to remove failed node ${nodeId}:`, err);
+          throw err;
+        }
+      }
+    
+        public async getAvailableFirmwareUpdates(nodeId: number): Promise<unknown[]> {
+          const node = this.nodes.get(nodeId);
+          if (!node) {
+            throw new Error(`Node ${nodeId} not found`);
+          }
+          this.log.info(`Checking for firmware updates for Node ${nodeId}...`);
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const updates = await (node as any).getAvailableFirmwareUpdates();          this.log.info(`Found ${updates.length} available updates for Node ${nodeId}`);
+          return updates;
+        } catch (err) {
+          this.log.error(`Failed to check for updates for Node ${nodeId}:`, err);
+          return [];
+        }
+      }
+    
+        public async beginFirmwareUpdate(nodeId: number, update: unknown): Promise<void> {
+          const node = this.nodes.get(nodeId);
+          if (!node) {
+            throw new Error(`Node ${nodeId} not found`);
+          }
+          this.log.info(`Starting firmware update for Node ${nodeId}...`);
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (node as any).updateFirmware([update]);        } catch (err) {
+          this.log.error(`Failed to start firmware update for Node ${nodeId}:`, err);
+          throw err;
+        }
+      }
+    
+      public async abortFirmwareUpdate(nodeId: number): Promise<void> {
+        const node = this.nodes.get(nodeId);
+        if (!node) {
+          throw new Error(`Node ${nodeId} not found`);
+        }
+        this.log.info(`Aborting firmware update for Node ${nodeId}...`);
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (node as any).abortFirmwareUpdate();
+        } catch (err) {
+          this.log.error(`Failed to abort firmware update for Node ${nodeId}:`, err);
+          throw err;
+        }
+      }
     }
-  }
-
-}

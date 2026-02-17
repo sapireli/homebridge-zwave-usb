@@ -1,67 +1,109 @@
-<div class="card card-body">
-  <form id="configForm">
-    <div class="form-group">
-      <label for="name">Name</label>
-      <input type="text" class="form-control" id="name" placeholder="Homebridge Z-Wave USB" />
+<ul class="nav nav-tabs mb-3" id="mainTabs" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" id="config-tab" data-toggle="tab" href="#config" role="tab">Configuration</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="maintenance-tab" data-toggle="tab" href="#maintenance" role="tab">Maintenance</a>
+  </li>
+</ul>
+
+<div class="tab-content" id="mainTabsContent">
+  <!-- Configuration Tab -->
+  <div class="tab-pane fade show active" id="config" role="tabpanel">
+    <div class="card card-body">
+      <form id="configForm">
+        <div class="form-group">
+          <label for="name">Name</label>
+          <input type="text" class="form-control" id="name" placeholder="Homebridge Z-Wave USB" />
+        </div>
+        <div class="form-group">
+          <label for="serialPort">Serial Port Path</label>
+          <input type="text" class="form-control" id="serialPort" placeholder="/dev/ttyACM0" required />
+          <small class="form-text text-muted">
+            WARNING: Do not use /dev/ttyUSB0. Use /dev/serial/by-id/...
+          </small>
+        </div>
+
+        <fieldset>
+          <legend>Z-Wave Security Keys</legend>
+          <p class="text-muted small">Required for secure devices (Locks, Sensors).</p>
+          <button type="button" class="btn btn-outline-primary btn-sm mb-3" id="generateKeys">
+            Auto-Generate Keys
+          </button>
+
+          <div class="form-group">
+            <label for="S0_Legacy">S0 Legacy</label>
+            <input type="text" class="form-control" id="S0_Legacy" maxlength="32" />
+          </div>
+          <div class="form-group">
+            <label for="S2_Unauthenticated">S2 Unauthenticated</label>
+            <input type="text" class="form-control" id="S2_Unauthenticated" maxlength="32" />
+          </div>
+          <div class="form-group">
+            <label for="S2_Authenticated">S2 Authenticated</label>
+            <input type="text" class="form-control" id="S2_Authenticated" maxlength="32" />
+          </div>
+          <div class="form-group">
+            <label for="S2_AccessControl">S2 Access Control</label>
+            <input type="text" class="form-control" id="S2_AccessControl" maxlength="32" />
+          </div>
+
+          <p class="text-muted small mt-3">
+            Optional: Long Range specific keys (defaults to Classic S2 if empty)
+          </p>
+          <div class="form-group">
+            <label for="S2_Authenticated_LR">S2 Authenticated (LR)</label>
+            <input type="text" class="form-control" id="S2_Authenticated_LR" maxlength="32" />
+          </div>
+          <div class="form-group">
+            <label for="S2_AccessControl_LR">S2 Access Control (LR)</label>
+            <input type="text" class="form-control" id="S2_AccessControl_LR" maxlength="32" />
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Advanced</legend>
+          <div class="form-group">
+            <label for="inclusionTimeoutSeconds">Inclusion Timeout (Seconds)</label>
+            <input type="number" class="form-control" id="inclusionTimeoutSeconds" placeholder="60" />
+          </div>
+
+          <div class="form-check mt-3">
+            <input type="checkbox" class="form-check-input" id="debug" />
+            <label class="form-check-label" for="debug">Enable Verbose Driver Logging</label>
+          </div>
+        </fieldset>
+      </form>
     </div>
-    <div class="form-group">
-      <label for="serialPort">Serial Port Path</label>
-      <input type="text" class="form-control" id="serialPort" placeholder="/dev/ttyACM0" required />
-      <small class="form-text text-muted">
-        WARNING: Do not use /dev/ttyUSB0. Use /dev/serial/by-id/...
-      </small>
-    </div>
+  </div>
 
-    <fieldset>
-      <legend>Z-Wave Security Keys</legend>
-      <p class="text-muted small">Required for secure devices (Locks, Sensors).</p>
-      <button type="button" class="btn btn-outline-primary btn-sm mb-3" id="generateKeys">
-        Auto-Generate Keys
-      </button>
-
-      <div class="form-group">
-        <label for="S0_Legacy">S0 Legacy</label>
-        <input type="text" class="form-control" id="S0_Legacy" maxlength="32" />
-      </div>
-      <div class="form-group">
-        <label for="S2_Unauthenticated">S2 Unauthenticated</label>
-        <input type="text" class="form-control" id="S2_Unauthenticated" maxlength="32" />
-      </div>
-      <div class="form-group">
-        <label for="S2_Authenticated">S2 Authenticated</label>
-        <input type="text" class="form-control" id="S2_Authenticated" maxlength="32" />
-      </div>
-      <div class="form-group">
-        <label for="S2_AccessControl">S2 Access Control</label>
-        <input type="text" class="form-control" id="S2_AccessControl" maxlength="32" />
-      </div>
-
-      <p class="text-muted small mt-3">
-        Optional: Long Range specific keys (defaults to Classic S2 if empty)
+  <!-- Maintenance Tab -->
+  <div class="tab-pane fade" id="maintenance" role="tabpanel">
+    <div class="card card-body">
+      <h5>Z-Wave Node Maintenance</h5>
+      <p class="text-muted small">
+        View and manage your Z-Wave nodes. Check for official firmware updates via Z-Wave JS Service.
       </p>
-      <div class="form-group">
-        <label for="S2_Authenticated_LR">S2 Authenticated (LR)</label>
-        <input type="text" class="form-control" id="S2_Authenticated_LR" maxlength="32" />
+      <div class="table-responsive">
+        <table class="table table-sm" id="nodeTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Status</th>
+              <th>Firmware</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="nodeTableBody">
+            <tr>
+              <td colspan="5" class="text-center">Loading nodes...</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      <div class="form-group">
-        <label for="S2_AccessControl_LR">S2 Access Control (LR)</label>
-        <input type="text" class="form-control" id="S2_AccessControl_LR" maxlength="32" />
-      </div>
-    </fieldset>
-
-    <fieldset>
-      <legend>Advanced</legend>
-      <div class="form-group">
-        <label for="inclusionTimeoutSeconds">Inclusion Timeout (Seconds)</label>
-        <input type="number" class="form-control" id="inclusionTimeoutSeconds" placeholder="60" />
-      </div>
-
-      <div class="form-check mt-3">
-        <input type="checkbox" class="form-check-input" id="debug" />
-        <label class="form-check-label" for="debug">Enable Verbose Driver Logging</label>
-      </div>
-    </fieldset>
-  </form>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -107,6 +149,107 @@
       if (window.homebridge) {
         const newConfig = getConfig();
         await window.homebridge.updatePluginConfig([newConfig]);
+      }
+    };
+
+    const statusMap = ['Unknown', 'Asleep', 'Awake', 'Dead', 'Alive'];
+
+    const loadNodes = async () => {
+      try {
+        const nodes = await window.homebridge.request('/get-nodes');
+        const tbody = document.getElementById('nodeTableBody');
+        tbody.innerHTML = '';
+
+        if (!Array.isArray(nodes)) {
+          tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Plugin not responding. Is it running?</td></tr>';
+          return;
+        }
+
+        nodes.forEach((node) => {
+          const tr = document.createElement('tr');
+          const status = statusMap[node.status] || 'Unknown';
+          const progress = node.firmwareProgress;
+
+          let actionHtml = '';
+          if (progress) {
+            const pct = Math.round((progress.sent / progress.total) * 100);
+            actionHtml = `
+              <div class="progress" style="height: 20px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: ${pct}%">${pct}%</div>
+              </div>
+            `;
+          } else {
+            actionHtml = `<button class="btn btn-sm btn-outline-primary check-update" data-nodeid="${node.nodeId}">Check Update</button>`;
+          }
+
+          tr.innerHTML = `
+            <td>${node.nodeId}</td>
+            <td>${node.name || node.label || 'Node ' + node.nodeId}</td>
+            <td><span class="badge badge-${status === 'Alive' || status === 'Awake' ? 'success' : 'secondary'}">${status}</span></td>
+            <td>${node.firmwareVersion || 'Unknown'}</td>
+            <td id="node-action-${node.nodeId}">${actionHtml}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        // Add event listeners for check buttons
+        document.querySelectorAll('.check-update').forEach((btn) => {
+          btn.addEventListener('click', async (e) => {
+            const nodeId = e.target.getAttribute('data-nodeid');
+            const node = nodes.find(n => n.nodeId == nodeId);
+            
+            if (!node.isListening && !node.isFrequentListening) {
+              window.homebridge.toast.error('Firmware updates are only supported for mains-powered devices (Listening) in this beta.');
+              return;
+            }
+
+            e.target.disabled = true;
+            e.target.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+            
+            try {
+              const updates = await window.homebridge.request('/check-firmware', nodeId);
+              if (updates && updates.length > 0) {
+                const update = updates[0];
+                const actionCell = document.getElementById(`node-action-${nodeId}`);
+                actionCell.innerHTML = `
+                  <button class="btn btn-sm btn-success start-update" data-nodeid="${nodeId}" data-update='${JSON.stringify(update)}'>
+                    Update to v${update.version}
+                  </button>
+                  <div class="small text-muted mt-1">Found update!</div>
+                `;
+                
+                actionCell.querySelector('.start-update').addEventListener('click', async (e) => {
+                  if (!confirm('WARNING: Firmware updates carry risk. Do not unplug the bridge or device during the process. Proceed?')) return;
+                  
+                  const target = e.currentTarget;
+                  const u = JSON.parse(target.getAttribute('data-update'));
+                  target.disabled = true;
+                  target.innerHTML = 'Starting...';
+                  
+                  try {
+                    await window.homebridge.request('/start-update', { nodeId, update: u });
+                    window.homebridge.toast.success('Firmware update started!');
+                    loadNodes();
+                  } catch (err) {
+                    window.homebridge.toast.error(err.message);
+                    loadNodes();
+                  }
+                });
+              } else {
+                window.homebridge.toast.info('No updates available for this device.');
+                e.target.disabled = false;
+                e.target.innerHTML = 'Check Update';
+              }
+            } catch (err) {
+              window.homebridge.toast.error(err.message);
+              e.target.disabled = false;
+              e.target.innerHTML = 'Check Update';
+            }
+          });
+        });
+      } catch (err) {
+        const tbody = document.getElementById('nodeTableBody');
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">${err.message}</td></tr>`;
       }
     };
 
@@ -168,6 +311,14 @@
       window.homebridge.addEventListener('submitting', async () => {
         await updateConfig();
       });
+
+      // Initialize nodes
+      loadNodes();
+      setInterval(() => {
+        if (document.getElementById('maintenance').classList.contains('active')) {
+          loadNodes();
+        }
+      }, 5000);
     };
 
     // Try to initialize

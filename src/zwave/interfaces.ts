@@ -32,6 +32,11 @@ export interface IZWaveController extends EventEmitter {
   removeFailedNode(nodeId: number): Promise<void>;
   setS2Pin(pin: string): void;
 
+  // Firmware Update Methods
+  getAvailableFirmwareUpdates(nodeId: number): Promise<unknown[]>;
+  beginFirmwareUpdate(nodeId: number, update: unknown): Promise<void>;
+  abortFirmwareUpdate(nodeId: number): Promise<void>;
+
   on(event: 'status updated', listener: (status: string) => void): this;
   on(event: 'inclusion started', listener: (secure: boolean) => void): this;
   on(event: 'inclusion stopped', listener: () => void): this;
@@ -50,6 +55,14 @@ export interface IZWaveController extends EventEmitter {
   on(event: 'node removed', listener: (node: ZWaveNode) => void): this;
   on(event: 'value notification', listener: (node: ZWaveNode, args: ZWaveValueEvent) => void): this;
   on(event: 'value updated', listener: (node: ZWaveNode, args: ZWaveValueEvent) => void): this;
+  on(
+    event: 'firmware update progress',
+    listener: (nodeId: number, sent: number, total: number) => void,
+  ): this;
+  on(
+    event: 'firmware update finished',
+    listener: (nodeId: number, status: number, waitTime?: number) => void,
+  ): this;
 }
 
 export interface IZWaveNode {
