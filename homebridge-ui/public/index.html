@@ -66,6 +66,8 @@
 
 <script>
   (async () => {
+    let currentConfig = {};
+
     const getInt = (id, def) => {
       const el = document.getElementById(id);
       if (!el) return def;
@@ -84,6 +86,7 @@
       };
 
       const newConfig = {
+        ...currentConfig,
         name: document.getElementById('name').value,
         platform: 'ZWaveUSB',
         serialPort: document.getElementById('serialPort').value,
@@ -93,6 +96,8 @@
 
       if (Object.values(securityKeys).some((k) => k && k.length > 0)) {
         newConfig.securityKeys = securityKeys;
+      } else {
+        delete newConfig.securityKeys;
       }
 
       return newConfig;
@@ -110,7 +115,8 @@
 
       // Load Config
       const pluginConfig = await window.homebridge.getPluginConfig();
-      const config = pluginConfig[0] || {};
+      currentConfig = pluginConfig[0] || { platform: 'ZWaveUSB' };
+      const config = currentConfig;
 
       // Populate Form
       document.getElementById('name').value = config.name || 'Homebridge Z-Wave USB';
