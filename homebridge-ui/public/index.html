@@ -5,10 +5,69 @@
   <title>Z-Wave USB Plugin</title>
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <style>
-    .card { margin-bottom: 20px; }
-    .nav-tabs { margin-bottom: 20px; }
-    fieldset { border: 1px solid #ddd; padding: 15px; border-radius: 4px; margin-bottom: 15px; }
-    legend { width: auto; padding: 0 10px; font-size: 1.1rem; font-weight: bold; }
+    /* Homebridge Theme Compatibility */
+    :root {
+      --primary-color: #007bff;
+      --secondary-color: #6c757d;
+      --success-color: #28a745;
+    }
+    
+    body {
+      background-color: transparent !important;
+    }
+
+    .card {
+      margin-bottom: 20px;
+      background-color: var(--hb-background-color, #fff);
+      color: var(--hb-text-color, #212529);
+      border: 1px solid rgba(0,0,0,.125);
+    }
+
+    .table {
+      color: inherit;
+    }
+
+    .table thead th {
+      border-bottom: 2px solid var(--hb-border-color, #dee2e6);
+      color: var(--hb-text-color, #212529);
+    }
+
+    .table td {
+      border-top: 1px solid var(--hb-border-color, #dee2e6);
+      vertical-align: middle;
+      color: var(--hb-text-color, #212529);
+    }
+
+    .badge {
+      padding: 0.4em 0.6em;
+      border-radius: 0.25rem;
+      font-weight: 700;
+      color: #fff !important; /* Force white text for badges */
+    }
+
+    .badge-success { background-color: var(--success-color); }
+    .badge-secondary { background-color: var(--secondary-color); }
+    .badge-light { background-color: #f8f9fa; color: #212529 !important; }
+
+    .nav-tabs { margin-bottom: 20px; border-bottom: 1px solid var(--hb-border-color, #dee2e6); }
+    .nav-link { color: var(--hb-text-color, #007bff); }
+    .nav-link.active { 
+      background-color: var(--hb-background-color, #fff) !important;
+      color: var(--hb-text-color, #495057) !important;
+      border-color: var(--hb-border-color, #dee2e6) var(--hb-border-color, #dee2e6) transparent !important;
+    }
+
+    fieldset { border: 1px solid var(--hb-border-color, #ddd); padding: 15px; border-radius: 4px; margin-bottom: 15px; }
+    legend { width: auto; padding: 0 10px; font-size: 1.1rem; font-weight: bold; color: var(--hb-text-color, inherit); }
+    
+    .text-muted { color: #6c757d !important; }
+    .form-control {
+      background-color: var(--hb-background-color, #fff);
+      color: var(--hb-text-color, #495057);
+      border: 1px solid var(--hb-border-color, #ced4da);
+    }
+    
+    .btn-group .btn { margin-right: 2px; }
   </style>
 </head>
 <body>
