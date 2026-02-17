@@ -27,14 +27,16 @@ class UiServer extends HomebridgePluginUiServer {
   }
 
   async ipcRequest(url, method, body = null) {
-    const storagePath = process.env.HOMEBRIDGE_STORAGE_PATH || path.join(process.cwd(), '.homebridge');
+    const storagePath = this.homebridgeStoragePath || process.env.HOMEBRIDGE_STORAGE_PATH || path.join(process.cwd(), '.homebridge');
     const portFile = path.join(storagePath, 'homebridge-zwave-usb.port');
 
     if (!fs.existsSync(portFile)) {
+      console.error(`IPC Port file not found at: ${portFile}`);
       throw new Error('Plugin IPC server not found. Is the plugin running?');
     }
 
     const port = parseInt(fs.readFileSync(portFile, 'utf8'), 10);
+    console.log(`Connecting to Plugin IPC on port ${port} for ${url}`);
 
     return new Promise((resolve, reject) => {
       const options = {

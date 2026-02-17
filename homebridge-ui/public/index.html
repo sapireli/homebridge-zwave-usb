@@ -1,9 +1,9 @@
 <ul class="nav nav-tabs mb-3" id="mainTabs" role="tablist">
   <li class="nav-item">
-    <a class="nav-link active" id="config-tab" data-toggle="tab" href="#config" role="tab">Configuration</a>
+    <a class="nav-link active" id="config-tab" href="#config" role="tab">Configuration</a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="maintenance-tab" data-toggle="tab" href="#maintenance" role="tab">Maintenance</a>
+    <a class="nav-link" id="maintenance-tab" href="#maintenance" role="tab">Maintenance</a>
   </li>
 </ul>
 
@@ -156,7 +156,7 @@
 
     const loadNodes = async () => {
       try {
-        const nodes = await window.homebridge.request('/get-nodes');
+        const nodes = await window.homebridge.request('get-nodes');
         const tbody = document.getElementById('nodeTableBody');
         tbody.innerHTML = '';
 
@@ -207,7 +207,7 @@
             e.target.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
             
             try {
-              const updates = await window.homebridge.request('/check-firmware', nodeId);
+              const updates = await window.homebridge.request('check-firmware', nodeId);
               if (updates && updates.length > 0) {
                 const update = updates[0];
                 const actionCell = document.getElementById(`node-action-${nodeId}`);
@@ -227,7 +227,7 @@
                   target.innerHTML = 'Starting...';
                   
                   try {
-                    await window.homebridge.request('/start-update', { nodeId, update: u });
+                    await window.homebridge.request('start-update', { nodeId, update: u });
                     window.homebridge.toast.success('Firmware update started!');
                     loadNodes();
                   } catch (err) {
