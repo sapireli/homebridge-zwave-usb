@@ -15,6 +15,7 @@ A high-performance, production-grade [Homebridge](https://homebridge.io) integra
 - **Reactive Architecture**: Real-time status updates and automatic hardware recovery (hot-plugging support).
 - **Advanced Metadata Repair**: Automatically cleans up obsolete HomeKit services/characteristics during network updates.
 - **Log Piping**: Internal Z-Wave JS driver logs are piped directly into the Homebridge terminal for seamless debugging.
+- **OTA Firmware Updates**: Check for and install official manufacturer firmware updates directly from the Homebridge UI.
 
 ---
 
@@ -135,6 +136,15 @@ The plugin provides additional tools for network maintenance:
 
 - **Dual S2 PIN Entry**: When a device requires a PIN, you can enter it via the Homebridge terminal (`echo "12345" > s2_pin.txt`) or via the `S2 PIN Entry` characteristic in third-party HomeKit apps.
 - **Automated Reconciliation**: Orphaned accessories are automatically removed from HomeKit 60 seconds after startup if the node is no longer present in the Z-Wave network.
+
+## 🛠️ Maintenance & Firmware Updates
+
+The plugin includes a dedicated **Maintenance** tab within the Homebridge custom UI (accessible via the plugin settings).
+
+- **Node Overview**: View a complete list of all Z-Wave nodes in your network, including their status and current firmware versions.
+- **Official Updates**: Click "Check Update" to query the official Z-Wave JS Firmware Update Service. If a manufacturer-approved update is available, you can start the OTA transfer with a single click.
+- **Battery Device Support**: Firmware updates are supported for battery-powered devices. You will be prompted to manually wake the device after starting the process to initiate the transfer.
+- **Real-time Progress**: Monitor the progress of the firmware transfer via a live progress bar.
 
 ## ❓ Troubleshooting
 
