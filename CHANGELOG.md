@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0] - 2026-02-17
+
+### Fixed
+- **UI Stability:** Migrated Maintenance tab actions to event delegation for more reliable button clicks after dynamic data refreshes.
+- **Theme Compatibility:** Added explicit CSS support for Homebridge light and dark themes, fixing an issue where table text could become invisible.
+- **Maintenance UX:** Added a background refresh guard to prevent the node table from updating while a rename or firmware prompt is active.
+
 ## [2.2.0] - 2026-02-17
 
 ### Added
