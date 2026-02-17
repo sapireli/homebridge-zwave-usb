@@ -198,11 +198,6 @@
             const nodeId = e.target.getAttribute('data-nodeid');
             const node = nodes.find(n => n.nodeId == nodeId);
             
-            if (!node.isListening && !node.isFrequentListening) {
-              window.homebridge.toast.error('Firmware updates are only supported for mains-powered devices (Listening) in this beta.');
-              return;
-            }
-
             e.target.disabled = true;
             e.target.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
             
@@ -219,7 +214,12 @@
                 `;
                 
                 actionCell.querySelector('.start-update').addEventListener('click', async (e) => {
-                  if (!confirm('WARNING: Firmware updates carry risk. Do not unplug the bridge or device during the process. Proceed?')) return;
+                  const isBattery = !node.isListening && !node.isFrequentListening;
+                  const warning = isBattery 
+                    ? 'WARNING: This is a battery-powered device. You MUST manually wake it up (usually by pressing a button on the device) immediately after clicking OK to receive the update. Proceed?'
+                    : 'WARNING: Firmware updates carry risk. Do not unplug the bridge or device during the process. Proceed?';
+
+                  if (!confirm(warning)) return;
                   
                   const target = e.currentTarget;
                   const u = JSON.parse(target.getAttribute('data-update'));

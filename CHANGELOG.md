@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0-beta.2] - 2026-02-16
+
+### Changed
+- **Battery Device Updates:** Enabled firmware updates for battery-powered devices. Added a specialized warning prompting users to manually wake the device after starting the update.
+
+## [2.1.0-beta.1] - 2026-02-16
+
+### Fixed
+- **Custom UI Robustness:** Fixed issues with tab switching and IPC connectivity in various Homebridge environments by implementing manual navigation logic and improving storage path detection.
+
 ## [2.1.0-beta.0] - 2026-02-16
 
 ### Added
