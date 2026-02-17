@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0] - 2026-02-17
+
+### Added
+- **Node Renaming:** Added the ability to rename Z-Wave nodes directly from the "Maintenance" tab in the custom UI.
+  - Names are persisted in the Z-Wave JS driver cache.
+  - HomeKit accessory names are automatically updated to match.
+  - Added unit tests for renaming logic and IPC communication.
+
 ## [2.1.0] - 2026-02-16
 
 ### Added

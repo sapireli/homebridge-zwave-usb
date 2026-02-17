@@ -119,4 +119,66 @@ describe('ZWaveUsbPlatform', () => {
 
     expect(Array.isArray(response)).toBe(true);
   });
+
+  it('should handle rename request via IPC', async () => {
+    const log = {
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    } as any;
+    const config: PlatformConfig = {
+      platform: PLATFORM_NAME,
+      name: 'Z-Wave USB',
+      serialPort: '/dev/null',
+    };
+
+    // Need access to the platform instance to verify controller calls
+    const platform = new ZWaveUsbPlatform(log, config, api);
+
+    // Simulate didFinishLaunching
+    const launchListener = (api.on as jest.Mock).mock.calls.find(
+      (call) => call[0] === 'didFinishLaunching',
+    )[1];
+    await launchListener();
+
+    const portFile = path.join(storagePath, 'homebridge-zwave-usb.port');
+    let retries = 0;
+    while (!fs.existsSync(portFile) && retries < 10) {
+      await new Promise((res) => setTimeout(res, 100));
+      retries++;
+    }
+    const port = parseInt(fs.readFileSync(portFile, 'utf8'), 10);
+
+    // Setup controller mock
+    const controller = (platform as any).zwaveController;
+    controller.setNodeName = jest.fn();
+
+    // Make a POST request to rename node 2
+    const postData = JSON.stringify({ name: 'New Node Name' });
+    const response = await new Promise((resolve) => {
+      const req = http.request(
+        {
+          hostname: '127.0.0.1',
+          port: port,
+          path: '/nodes/2/name',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': postData.length,
+          },
+        },
+        (res) => {
+          let data = '';
+          res.on('data', (chunk) => (data += chunk));
+          res.on('end', () => resolve(JSON.parse(data)));
+        },
+      );
+      req.write(postData);
+      req.end();
+    });
+
+    expect(response).toEqual({ success: true });
+    expect(controller.setNodeName).toHaveBeenCalledWith(2, 'New Node Name');
+  });
 });

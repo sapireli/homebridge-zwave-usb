@@ -753,12 +753,25 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       await this.driver.controller.removeFailedNode(nodeId);
       this.log.info(`Node ${nodeId} removed successfully.`);
       this.emit('status updated', `Node ${nodeId} Removed`);
-        } catch (err) {
-          this.log.error(`Failed to remove failed node ${nodeId}:`, err);
-          throw err;
-        }
-      }
-    
+    } catch (err) {
+      this.log.error(`Failed to remove failed node ${nodeId}:`, err);
+      throw err;
+    }
+  }
+
+  /**
+   * Updates the user-defined name for a node in the Z-Wave network.
+   * This name is persisted by Z-Wave JS in its cache files.
+   */
+  public setNodeName(nodeId: number, name: string): void {
+    const node = this.nodes.get(nodeId);
+    if (!node) {
+      throw new Error(`Node ${nodeId} not found`);
+    }
+    this.log.info(`Updating name for Node ${nodeId} to: "${name}"`);
+    node.name = name;
+  }
+
   public async getAvailableFirmwareUpdates(nodeId: number): Promise<unknown[]> {
     if (nodeId === 1) {
       this.log.debug('Node 1 is the controller; skipping firmware update check.');

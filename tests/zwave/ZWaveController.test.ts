@@ -98,4 +98,18 @@ describe('ZWaveController (Direct Mode)', () => {
     await controller.abortFirmwareUpdate(2);
     expect(mockNode.abortFirmwareUpdate).toHaveBeenCalled();
   });
+
+  it('should set node name', async () => {
+    controller = new ZWaveController(log, '/dev/ttyACM0');
+    await controller.start();
+
+    const mockNode = new EventEmitter() as any;
+    mockNode.nodeId = 2;
+    mockNode.status = 4; // Alive
+    mockNode.name = 'Old Name';
+    mockDriver.controller.emit('node added', mockNode);
+
+    controller.setNodeName(2, 'New Name');
+    expect(mockNode.name).toBe('New Name');
+  });
 });

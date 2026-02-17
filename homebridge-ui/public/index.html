@@ -172,6 +172,7 @@
           const tr = document.createElement('tr');
           const status = statusMap[node.status] || 'Unknown';
           const progress = node.firmwareProgress;
+          const nodeName = node.name || node.label || 'Node ' + node.nodeId;
 
           let actionHtml = '';
           if (progress) {
@@ -184,17 +185,41 @@
           } else if (node.nodeId === 1) {
             actionHtml = `<span class="badge badge-light">Controller</span>`;
           } else {
-            actionHtml = `<button class="btn btn-sm btn-outline-primary check-update" data-nodeid="${node.nodeId}">Check Update</button>`;
+            actionHtml = `
+              <div class="btn-group">
+                <button class="btn btn-sm btn-outline-secondary rename-node" data-nodeid="${node.nodeId}" data-name="${nodeName}">Rename</button>
+                <button class="btn btn-sm btn-outline-primary check-update" data-nodeid="${node.nodeId}">Check Update</button>
+              </div>
+            `;
           }
 
           tr.innerHTML = `
             <td>${node.nodeId}</td>
-            <td>${node.name || node.label || 'Node ' + node.nodeId}</td>
+            <td id="node-name-${node.nodeId}">${nodeName}</td>
             <td><span class="badge badge-${status === 'Alive' || status === 'Awake' ? 'success' : 'secondary'}">${status}</span></td>
             <td>${node.firmwareVersion || 'Unknown'}</td>
             <td id="node-action-${node.nodeId}">${actionHtml}</td>
           `;
           tbody.appendChild(tr);
+        });
+
+        // Add event listeners for rename buttons
+        document.querySelectorAll('.rename-node').forEach((btn) => {
+          btn.addEventListener('click', async (e) => {
+            const nodeId = e.target.getAttribute('data-nodeid');
+            const currentName = e.target.getAttribute('data-name');
+            const newName = prompt(`Enter new name for Node ${nodeId}:`, currentName);
+
+            if (newName !== null && newName !== currentName && newName.trim() !== '') {
+              try {
+                await window.homebridge.request('rename-node', { nodeId, name: newName.trim() });
+                window.homebridge.toast.success(`Node ${nodeId} renamed to ${newName}`);
+                loadNodes();
+              } catch (err) {
+                window.homebridge.toast.error(err.message);
+              }
+            }
+          });
         });
 
         // Add event listeners for check buttons

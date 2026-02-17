@@ -153,6 +153,38 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           return sendJson(nodes);
         }
 
+        if (normalizedUrl.startsWith('/nodes/') && normalizedUrl.endsWith('/name') && method === 'POST') {
+          let body = '';
+          req.on('data', (chunk) => (body += chunk));
+          req.on('end', () => {
+            try {
+              const parts = normalizedUrl.split('/');
+              const nodeId = parseInt(parts[2], 10);
+              const { name } = JSON.parse(body);
+
+              if (!this.zwaveController) {
+                throw new Error('Controller not initialized');
+              }
+
+              this.zwaveController.setNodeName(nodeId, name);
+
+              // Update Homebridge Accessory Name
+              const accessory = this.zwaveAccessories.get(nodeId);
+              if (accessory) {
+                this.log.info(`Renaming HomeKit accessory for Node ${nodeId} to: ${name}`);
+                accessory.platformAccessory.displayName = name;
+                this.api.updatePlatformAccessories([accessory.platformAccessory]);
+              }
+
+              return sendJson({ success: true });
+            } catch (err) {
+              this.log.error(`Failed to rename node: ${err}`);
+              return sendJson({ error: err instanceof Error ? err.message : String(err) }, 500);
+            }
+          });
+          return;
+        }
+
         if (normalizedUrl.startsWith('/firmware/updates/') && method === 'GET') {
           const nodeId = parseInt(normalizedUrl.split('/').pop() || '0', 10);
           this.zwaveController?.getAvailableFirmwareUpdates(nodeId)
