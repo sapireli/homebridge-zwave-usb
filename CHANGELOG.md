@@ -2,7 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.1.0-beta.3] - 2026-02-16
+## [2.1.0-beta.5] - 2026-02-16
+
+### Fixed
+- **Code Quality:** Resolved ESLint warnings and cleaned up code formatting in the Z-Wave controller logic.
+
+## [2.1.0-beta.4] - 2026-02-16
 
 ### Fixed
 - **Controller Node Handling:** Prevented firmware update operations on Node 1 (the Z-Wave controller stick), which does not support the standard node firmware update API. Updated the UI to display a "Controller" badge for Node 1.
