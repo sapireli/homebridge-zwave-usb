@@ -98,10 +98,15 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           'rebuild routes progress': (progress: any) => {
+            const done = Array.from(progress.values()).filter((v) => v !== 0).length;
+            const total = progress.size;
+            this.log.info(`Heal Network Progress: ${done}/${total} nodes completed`);
+            this.emit('status updated', `Heal: ${done}/${total}`);
             this.emit('heal network progress', progress);
           },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           'rebuild routes done': (result: any) => {
+            this.log.info('Heal Network Complete');
             this.emit('status updated', 'Heal Network Done');
             setTimeout(() => this.emit('status updated', 'Driver Ready'), 5000);
             this.emit('heal network done', result);
@@ -668,8 +673,11 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     if (!this.driver) {
       return false;
     }
+    this.log.info('Z-Wave Controller: Requesting rebuild of all routes (Network Heal)...');
     try {
-      return await this.driver.controller.beginRebuildingRoutes();
+      const started = await this.driver.controller.beginRebuildingRoutes();
+      this.log.info(`Z-Wave Controller: Heal started: ${started}`);
+      return started;
     } catch (err) {
       this.log.error('Failed to start network heal:', err);
       return false;
@@ -680,8 +688,11 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     if (!this.driver) {
       return false;
     }
+    this.log.info('Z-Wave Controller: Requesting to stop network heal...');
     try {
-      return await this.driver.controller.stopRebuildingRoutes();
+      const stopped = await this.driver.controller.stopRebuildingRoutes();
+      this.log.info(`Z-Wave Controller: Heal stopped: ${stopped}`);
+      return stopped;
     } catch (err) {
       this.log.error('Failed to stop network heal:', err);
       return false;

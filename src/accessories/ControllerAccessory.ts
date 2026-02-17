@@ -374,6 +374,11 @@ export class ControllerAccessory {
         }
         this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
       },
+      'heal network progress': (progress: Map<number, unknown>) => {
+        const done = Array.from(progress.values()).filter((v) => v !== 0).length;
+        const total = progress.size;
+        this.statusChar.updateValue(`Heal: ${done}/${total}`);
+      },
       'heal network done': () => {
         this.platform.log.info('Controller event: Heal Network Done');
         this.isHealActive = false;
