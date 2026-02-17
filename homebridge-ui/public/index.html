@@ -68,6 +68,29 @@
     }
     
     .btn-group .btn { margin-right: 2px; }
+
+    /* Custom Modal styles to replace native prompt/confirm */
+    .custom-modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1050;
+    }
+    .custom-modal {
+      display: none;
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--hb-background-color, #fff);
+      color: var(--hb-text-color, #212529);
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      z-index: 1051;
+      width: 90%;
+      max-width: 400px;
+    }
   </style>
 </head>
 <body>
@@ -184,10 +207,35 @@
     </div>
   </div>
 
+  <!-- Custom Modals -->
+  <div id="modalBackdrop" class="custom-modal-backdrop"></div>
+  
+  <div id="renameModal" class="custom-modal">
+    <h6>Rename Node</h6>
+    <div class="form-group">
+      <input type="text" class="form-control" id="newLabelInput" />
+    </div>
+    <div class="text-right">
+      <button class="btn btn-sm btn-secondary" id="cancelRename">Cancel</button>
+      <button class="btn btn-sm btn-primary" id="confirmRename">Save</button>
+    </div>
+  </div>
+
+  <div id="confirmModal" class="custom-modal">
+    <h6>Confirm Action</h6>
+    <p id="confirmMessage" class="small"></p>
+    <div class="text-right">
+      <button class="btn btn-sm btn-secondary" id="cancelConfirm">Cancel</button>
+      <button class="btn btn-sm btn-primary" id="executeConfirm">OK</button>
+    </div>
+  </div>
+
   <script>
     (async () => {
       let currentConfig = {};
       let isPromptOpen = false;
+      let activeNodeId = null;
+      let activeUpdateData = null;
 
       const getInt = (id, def) => {
         const el = document.getElementById(id);
@@ -289,6 +337,22 @@
         }
       };
 
+      // Modal helpers
+      const showModal = (modalId) => {
+        document.getElementById('modalBackdrop').style.display = 'block';
+        document.getElementById(modalId).style.display = 'block';
+        isPromptOpen = true;
+      };
+
+      const hideModals = () => {
+        document.getElementById('modalBackdrop').style.display = 'none';
+        document.getElementById('renameModal').style.display = 'none';
+        document.getElementById('confirmModal').style.display = 'none';
+        isPromptOpen = false;
+        activeNodeId = null;
+        activeUpdateData = null;
+      };
+
       // Event Delegation for Table Actions (Rename & Firmware)
       document.getElementById('nodeTableBody').addEventListener('click', async (e) => {
         const target = e.target.closest('button');
@@ -300,21 +364,9 @@
         // 1. Rename Logic
         if (target.classList.contains('rename-node')) {
           const nameCell = document.getElementById(`node-name-${nodeId}`);
-          const currentName = nameCell ? nameCell.textContent : '';
-          
-          isPromptOpen = true;
-          const newName = prompt(`Enter new name for Node ${nodeId}:`, currentName);
-          isPromptOpen = false;
-
-          if (newName !== null && newName !== currentName && newName.trim() !== '') {
-            try {
-              await window.homebridge.request('rename-node', { nodeId, name: newName.trim() });
-              window.homebridge.toast.success(`Node ${nodeId} renamed to ${newName}`);
-              loadNodes();
-            } catch (err) {
-              window.homebridge.toast.error(err.message);
-            }
-          }
+          activeNodeId = nodeId;
+          document.getElementById('newLabelInput').value = nameCell ? nameCell.textContent : '';
+          showModal('renameModal');
           return;
         }
 
@@ -349,26 +401,44 @@
 
         // 3. Start Update Logic
         if (target.classList.contains('start-update')) {
-          const updateData = JSON.parse(target.getAttribute('data-update'));
-          const warning = 'WARNING: Firmware updates carry risk. Do not unplug the bridge or device during the process. Proceed?';
+          activeUpdateData = JSON.parse(target.getAttribute('data-update'));
+          activeNodeId = nodeId;
+          document.getElementById('confirmMessage').textContent = 'WARNING: Firmware updates carry risk. Do not unplug the bridge or device during the process. Proceed?';
+          showModal('confirmModal');
+        }
+      });
 
-          isPromptOpen = true;
-          const confirmed = confirm(warning);
-          isPromptOpen = false;
-          
-          if (!confirmed) return;
+      // Modal Button Handlers
+      document.getElementById('cancelRename').addEventListener('click', hideModals);
+      document.getElementById('confirmRename').addEventListener('click', async () => {
+        const newName = document.getElementById('newLabelInput').value.trim();
+        const nodeId = activeNodeId;
+        hideModals();
 
-          target.disabled = true;
-          target.innerHTML = 'Starting...';
-
+        if (newName !== '') {
           try {
-            await window.homebridge.request('start-update', { nodeId, update: updateData });
-            window.homebridge.toast.success('Firmware update started!');
+            await window.homebridge.request('rename-node', { nodeId, name: newName });
+            window.homebridge.toast.success(`Node ${nodeId} renamed to ${newName}`);
             loadNodes();
           } catch (err) {
             window.homebridge.toast.error(err.message);
-            loadNodes();
           }
+        }
+      });
+
+      document.getElementById('cancelConfirm').addEventListener('click', hideModals);
+      document.getElementById('executeConfirm').addEventListener('click', async () => {
+        const nodeId = activeNodeId;
+        const updateData = activeUpdateData;
+        hideModals();
+
+        try {
+          await window.homebridge.request('start-update', { nodeId, update: updateData });
+          window.homebridge.toast.success('Firmware update started!');
+          loadNodes();
+        } catch (err) {
+          window.homebridge.toast.error(err.message);
+          loadNodes();
         }
       });
 

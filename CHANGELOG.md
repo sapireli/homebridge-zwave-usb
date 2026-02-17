@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.1] - 2026-02-17
+
+### Fixed
+- **Sandbox Modal Support:** Replaced browser-native `prompt()` and `confirm()` with custom HTML-based modals to ensure functionality in sandboxed Homebridge UI environments where native modals are blocked.
+
 ## [2.3.0] - 2026-02-17
 
 ### Fixed
