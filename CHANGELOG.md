@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.11] - 2026-02-17
+
+### Fixed
+- **Settings Access:** Removed permissions hacking (`setProps`) on standard characteristics which was causing the "Could not change settings" error in the Home app.
+- **Naming Reliability:** Reverted to strictly standard HAP naming conventions. Names are now synchronized via the standard `Name` characteristic and the internal `displayName` property, ensuring compatibility with all HomeKit controllers.
+
 ## [2.8.10] - 2026-02-17
 
 ### Fixed

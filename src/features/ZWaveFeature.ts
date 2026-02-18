@@ -50,8 +50,7 @@ export abstract class BaseFeature implements ZWaveFeature {
       service.displayName = serviceName;
 
       if (service.testCharacteristic(this.platform.Characteristic.Name)) {
-        // Force update using the NOTIFY-enabled characteristic
-        service.getCharacteristic(this.platform.Characteristic.Name).updateValue(serviceName);
+        service.updateCharacteristic(this.platform.Characteristic.Name, serviceName);
       }
     }
   }
@@ -117,13 +116,10 @@ export abstract class BaseFeature implements ZWaveFeature {
     // Sync internal property
     service.displayName = serviceName;
 
-    // Use setProps to ensure HomeKit listens for name notifications (setparms)
-    const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
-    nameChar.setProps({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
-    });
-    service.updateCharacteristic(this.platform.Characteristic.Name, serviceName);
+    // Explicitly set the name characteristic to ensure it's displayed correctly
+    if (service.testCharacteristic(this.platform.Characteristic.Name)) {
+      service.updateCharacteristic(this.platform.Characteristic.Name, serviceName);
+    }
 
     // Add Service Label Index for multi-endpoint devices to help with ordering/naming
     if (this.endpoint.index > 0) {
