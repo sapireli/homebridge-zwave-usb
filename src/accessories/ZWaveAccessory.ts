@@ -93,8 +93,7 @@ export class ZWaveAccessory {
       this.platform.log.info(
         `User renamed accessory in Home app: ${this.platformAccessory.displayName} -> ${newName}`,
       );
-      this.platformAccessory.displayName = newName;
-      this.platform.api.updatePlatformAccessories([this.platformAccessory]);
+      this.rename(newName);
     });
 
     this.platform.log.info(
