@@ -51,6 +51,13 @@ export class ZWaveAccessory {
 
     if (existingAccessory) {
       this.platformAccessory = existingAccessory;
+      // Proactively sync name for cached accessories
+      if (this.platformAccessory.displayName !== nodeName) {
+        this.platform.log.info(
+          `Updating cached accessory name for Node ${this.node.nodeId}: ${this.platformAccessory.displayName} -> ${nodeName}`,
+        );
+        this.platformAccessory.displayName = nodeName;
+      }
     } else {
       this.platform.log.info(`Creating new accessory for ${nodeName} (UUID: ${uuid})`);
       this.platformAccessory = new this.platform.api.platformAccessory(nodeName, uuid);
@@ -73,6 +80,7 @@ export class ZWaveAccessory {
     if (!infoService.testCharacteristic(this.platform.Characteristic.Name)) {
       infoService.addOptionalCharacteristic(this.platform.Characteristic.Name);
     }
+    // Update authoritative name immediately
     infoService.updateCharacteristic(this.platform.Characteristic.Name, nodeName);
 
     /**

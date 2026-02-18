@@ -46,6 +46,9 @@ export abstract class BaseFeature implements ZWaveFeature {
     this.platform.log.debug(`Feature Rename [Node ${this.node.nodeId}]: Updating ${this.managedServices.length} services to "${serviceName}"`);
 
     for (const service of this.managedServices) {
+      // Sync internal property
+      service.displayName = serviceName;
+
       if (service.testCharacteristic(this.platform.Characteristic.Name)) {
         service.updateCharacteristic(this.platform.Characteristic.Name, serviceName);
       }
@@ -112,6 +115,9 @@ export abstract class BaseFeature implements ZWaveFeature {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         this.accessory.addService(new (serviceType as any)(serviceName));
     }
+
+    // Sync internal property
+    service.displayName = serviceName;
 
     // Mark the first functional service as primary to help HomeKit with naming/tiles
     if (this.managedServices.length === 0) {

@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.5] - 2026-02-17
+
+### Fixed
+- **Internal Property Synchronization:** Added synchronization for the internal `displayName` property of both Accessories and Services. HomeKit often uses these cached properties for its database mapping, and keeping them in sync alongside the Characteristics is the final step in ensuring reliable plugin-side renaming.
+
 ## [2.8.4] - 2026-02-17
 
 ### Fixed
