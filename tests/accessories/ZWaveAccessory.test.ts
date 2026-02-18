@@ -15,6 +15,7 @@ describe('ZWaveAccessory', () => {
         updateValue: jest.fn(),
         onSet: jest.fn(),
         setProps: jest.fn().mockReturnThis(),
+        props: { perms: ['pr', 'pw', 'ev'] },
       }),
       setProps: jest.fn().mockReturnThis(),
       updateValue: jest.fn().mockReturnThis(),

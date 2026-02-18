@@ -37,6 +37,7 @@ describe('AccessoryFactory', () => {
               value: '',
               updateValue: jest.fn(),
               onSet: jest.fn(),
+              props: { perms: ['pr', 'pw', 'ev'] },
             }),
             testCharacteristic: jest.fn().mockReturnValue(true),
             addOptionalCharacteristic: jest.fn(),
