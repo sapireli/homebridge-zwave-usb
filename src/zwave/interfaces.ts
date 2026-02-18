@@ -76,6 +76,7 @@ export interface IZWaveNode {
   ready: boolean;
   interviewStage: InterviewStage;
   status: number;
+  firmwareVersion?: string;
 
   // Methods
   getValue(valueId: ValueID): unknown;

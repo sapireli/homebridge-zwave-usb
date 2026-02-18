@@ -46,18 +46,13 @@ export class ZWaveAccessory {
       }
     }
 
-    const existingAccessory = this.platform.accessories.find((accessory) => accessory.UUID === uuid);
+    const existingAccessory = this.platform.accessories.find(
+      (accessory) => accessory.UUID === uuid,
+    );
     const nodeName = this.node.name || this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
 
     if (existingAccessory) {
       this.platformAccessory = existingAccessory;
-      // Proactively sync name for cached accessories
-      if (this.platformAccessory.displayName !== nodeName) {
-        this.platform.log.info(
-          `Updating cached accessory name for Node ${this.node.nodeId}: ${this.platformAccessory.displayName} -> ${nodeName}`,
-        );
-        this.platformAccessory.displayName = nodeName;
-      }
     } else {
       this.platform.log.info(`Creating new accessory for ${nodeName} (UUID: ${uuid})`);
       this.platformAccessory = new this.platform.api.platformAccessory(nodeName, uuid);
@@ -72,20 +67,18 @@ export class ZWaveAccessory {
     const model = this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
     const serial = `Node ${this.node.nodeId}`;
 
-    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
-    
+    const infoService = this.platformAccessory.getService(
+      this.platform.Service.AccessoryInformation,
+    )!;
+
     infoService
       .setCharacteristic(this.platform.Characteristic.Manufacturer, manufacturer)
       .setCharacteristic(this.platform.Characteristic.Model, model)
       .setCharacteristic(this.platform.Characteristic.SerialNumber, serial)
-      .setCharacteristic(this.platform.Characteristic.FirmwareRevision, this.node.firmwareVersion || '1.0.1'); // Forced update
-
-    // Add ServiceLabelNamespace to help with naming multi-service accessories
-    if (!infoService.testCharacteristic(this.platform.Characteristic.ServiceLabelNamespace)) {
-      infoService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelNamespace);
-    }
-    // 1 = Arabic numerals (1, 2, 3...)
-    infoService.updateCharacteristic(this.platform.Characteristic.ServiceLabelNamespace, 1);
+      .setCharacteristic(
+        this.platform.Characteristic.FirmwareRevision,
+        this.node.firmwareVersion || '1.0.0',
+      );
 
     /**
      * Helper to normalize UUIDs for reliable comparison during metadata pruning.
@@ -121,20 +114,6 @@ export class ZWaveAccessory {
   public rename(newName: string): void {
     this.platform.log.info(`Syncing HomeKit name for Node ${this.node.nodeId} -> ${newName}`);
     this.platformAccessory.displayName = newName;
-
-    // Update the Accessory Information Service (Standard Characteristics Only)
-    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
-
-    // Update Name (NOTIFY removed to respect user overrides)
-    if (!infoService.testCharacteristic(this.platform.Characteristic.Name)) {
-      infoService.addOptionalCharacteristic(this.platform.Characteristic.Name);
-    }
-    const nameChar = infoService.getCharacteristic(this.platform.Characteristic.Name);
-    nameChar.setProps({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      perms: [HAPPerm.PAIRED_READ as any],
-    });
-    nameChar.updateValue(newName);
 
     // Update all features
     for (const feature of this.features) {
@@ -182,7 +161,9 @@ export class ZWaveAccessory {
      * configuration or CC support changes.
      */
     const activeServices = new Set<Service>();
-    activeServices.add(this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!);
+    activeServices.add(
+      this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!,
+    );
     for (const feature of this.features) {
       for (const service of feature.getServices()) {
         activeServices.add(service);

@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.9] - 2026-02-17
+
+### Fixed
+- **Build Stabilization:** Confirmed successful build and tests after interface updates. This release solidifies the schema cleanup and cache invalidation fixes.
+
 ## [2.9.8] - 2026-02-17
 
 ### Fixed
