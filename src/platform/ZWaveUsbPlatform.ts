@@ -153,7 +153,11 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           return sendJson(nodes);
         }
 
-        if (normalizedUrl.startsWith('/nodes/') && normalizedUrl.endsWith('/name') && method === 'POST') {
+        if (
+          normalizedUrl.startsWith('/nodes/') &&
+          normalizedUrl.endsWith('/name') &&
+          method === 'POST'
+        ) {
           let body = '';
           req.on('data', (chunk) => (body += chunk));
           req.on('end', () => {
@@ -185,7 +189,8 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
         if (normalizedUrl.startsWith('/firmware/updates/') && method === 'GET') {
           const nodeId = parseInt(normalizedUrl.split('/').pop() || '0', 10);
-          this.zwaveController?.getAvailableFirmwareUpdates(nodeId)
+          this.zwaveController
+            ?.getAvailableFirmwareUpdates(nodeId)
             .then((updates) => sendJson(updates))
             .catch((err) => sendJson({ error: err.message }, 500));
           return;
@@ -197,7 +202,8 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           req.on('end', () => {
             const nodeId = parseInt(normalizedUrl.split('/').pop() || '0', 10);
             const update = JSON.parse(body);
-            this.zwaveController?.beginFirmwareUpdate(nodeId, update)
+            this.zwaveController
+              ?.beginFirmwareUpdate(nodeId, update)
               .then(() => sendJson({ success: true }))
               .catch((err) => sendJson({ error: err.message }, 500));
           });
@@ -206,7 +212,8 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
         if (normalizedUrl.startsWith('/firmware/abort/') && method === 'POST') {
           const nodeId = parseInt(normalizedUrl.split('/').pop() || '0', 10);
-          this.zwaveController?.abortFirmwareUpdate(nodeId)
+          this.zwaveController
+            ?.abortFirmwareUpdate(nodeId)
             .then(() => sendJson({ success: true }))
             .catch((err) => sendJson({ error: err.message }, 500));
           return;
@@ -406,12 +413,6 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     if (existing || this.discoveryInFlight.has(node.nodeId)) {
       if (existing) {
         existing.updateNode(node);
-        // Only sync name if it has actually changed in the Z-Wave network
-        // This prevents overwriting user-defined names in HomeKit on every startup
-        if (existing.platformAccessory.displayName !== nodeName) {
-          this.log.info(`Node ${node.nodeId} name changed: "${existing.platformAccessory.displayName}" -> "${nodeName}"`);
-          existing.rename(nodeName);
-        }
         existing.refresh();
       }
       return;
