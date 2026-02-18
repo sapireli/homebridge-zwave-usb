@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.7] - 2026-02-17
+
+### Fixed
+- **Settings Error Fix (Final):** Removed `ConfiguredName` entirely as it is not officially supported for standard service types (Switch, Sensor, etc.) and was causing the "Could not change settings" error.
+- **Safe Name Sync:** The plugin now only updates the `Name` characteristic if it is currently set to a generic "Node X" value. This respects all user-defined renames in the Home app while still ensuring new devices get their friendly names.
+
 ## [2.9.6] - 2026-02-17
 
 ### Fixed

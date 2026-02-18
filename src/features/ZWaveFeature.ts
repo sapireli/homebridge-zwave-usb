@@ -57,15 +57,6 @@ export abstract class BaseFeature implements ZWaveFeature {
         });
         nameChar.updateValue(serviceName);
       }
-
-      if (service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
-        const configuredNameChar = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
-        configuredNameChar.setProps({
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          perms: [HAPPerm.PAIRED_READ as any, HAPPerm.PAIRED_WRITE as any, HAPPerm.NOTIFY as any],
-        });
-        configuredNameChar.updateValue(serviceName);
-      }
     }
   }
 
@@ -130,26 +121,19 @@ export abstract class BaseFeature implements ZWaveFeature {
     // Sync internal property
     service.displayName = serviceName;
 
-    // 1. Standard Name: Notify removed (HAP Docs Compliance: Name is typically static read-only for display)
+    // 1. Standard Name: Notify removed
     if (service.testCharacteristic(this.platform.Characteristic.Name)) {
       const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
       nameChar.setProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         perms: [HAPPerm.PAIRED_READ as any],
       });
-      nameChar.updateValue(serviceName);
+      // Only update if current value is generic "Node X" to respect user overrides
+      const currentValue = nameChar.value as string;
+      if (!currentValue || currentValue.startsWith('Node ')) {
+        nameChar.updateValue(serviceName);
+      }
     }
-
-    // 2. ConfiguredName: Read/Write/Notify (Critical for Settings/Renaming support)
-    if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
-      service.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
-    }
-    const configuredNameChar = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
-    configuredNameChar.setProps({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      perms: [HAPPerm.PAIRED_READ as any, HAPPerm.PAIRED_WRITE as any, HAPPerm.NOTIFY as any],
-    });
-    configuredNameChar.updateValue(serviceName);
 
     // Add Service Label Index for multi-endpoint devices to help with ordering/naming
     if (this.endpoint.index > 0) {
