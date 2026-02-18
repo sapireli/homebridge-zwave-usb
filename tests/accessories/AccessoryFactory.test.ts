@@ -1,6 +1,11 @@
+import { CommandClasses } from '@zwave-js/core';
 import { AccessoryFactory } from '../../src/accessories/AccessoryFactory';
+import { LockFeature } from '../../src/features/LockFeature';
+import { ZWaveAccessory } from '../../src/accessories/ZWaveAccessory';
 import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
 import { IZWaveNode } from '../../src/zwave/interfaces';
+import { ContactSensorFeature } from '../../src/features/ContactSensorFeature';
+import { MotionSensorFeature } from '../../src/features/MotionSensorFeature';
 
 describe('AccessoryFactory', () => {
   let platform: any;
@@ -124,5 +129,170 @@ describe('AccessoryFactory', () => {
     // To really test it, we should mock the feature classes.
     const zAccessory = AccessoryFactory.create(platform, node, 123);
     expect(zAccessory).toBeDefined();
+  });
+
+  it('should attach LockFeature when endpoint supports Door Lock CC only', () => {
+    const addFeatureSpy = jest.spyOn(ZWaveAccessory.prototype, 'addFeature');
+
+    const ep0 = {
+      index: 0,
+      supportsCC: jest.fn().mockImplementation((cc) => cc === 98), // Door Lock CC
+    };
+
+    node.getAllEndpoints.mockReturnValue([ep0]);
+    node.getDefinedValueIDs.mockReturnValue([
+      { endpoint: 0, commandClass: 98, property: 'currentMode' },
+    ]);
+
+    AccessoryFactory.create(platform, node, 123);
+
+    const hasLockFeature = addFeatureSpy.mock.calls.some(
+      ([feature]) => feature instanceof LockFeature,
+    );
+    expect(hasLockFeature).toBe(true);
+
+    addFeatureSpy.mockRestore();
+  });
+
+  it('should not attach contact or motion sensors for lock notifications without sensor property keys', () => {
+    const addFeatureSpy = jest.spyOn(ZWaveAccessory.prototype, 'addFeature');
+
+    const ep0 = {
+      index: 0,
+      supportsCC: jest
+        .fn()
+        .mockImplementation(
+          (cc) => cc === CommandClasses['Door Lock'] || cc === CommandClasses.Notification,
+        ),
+    };
+
+    node.getAllEndpoints.mockReturnValue([ep0]);
+    node.getDefinedValueIDs.mockReturnValue([
+      {
+        endpoint: 0,
+        commandClass: CommandClasses.Notification,
+        property: 'Access Control',
+      },
+      {
+        endpoint: 0,
+        commandClass: CommandClasses.Notification,
+        property: 'Home Security',
+      },
+      {
+        endpoint: 0,
+        commandClass: CommandClasses['Door Lock'],
+        property: 'currentMode',
+      },
+    ]);
+
+    AccessoryFactory.create(platform, node, 123);
+
+    const hasContact = addFeatureSpy.mock.calls.some(
+      ([feature]) => feature instanceof ContactSensorFeature,
+    );
+    const hasMotion = addFeatureSpy.mock.calls.some(
+      ([feature]) => feature instanceof MotionSensorFeature,
+    );
+
+    expect(hasContact).toBe(false);
+    expect(hasMotion).toBe(false);
+
+    addFeatureSpy.mockRestore();
+  });
+
+  it('should attach contact and motion sensors for lock notifications with explicit sensor property keys', () => {
+    const addFeatureSpy = jest.spyOn(ZWaveAccessory.prototype, 'addFeature');
+
+    const ep0 = {
+      index: 0,
+      supportsCC: jest
+        .fn()
+        .mockImplementation(
+          (cc) => cc === CommandClasses['Door Lock'] || cc === CommandClasses.Notification,
+        ),
+    };
+
+    node.getAllEndpoints.mockReturnValue([ep0]);
+    node.getDefinedValueIDs.mockReturnValue([
+      {
+        endpoint: 0,
+        commandClass: CommandClasses.Notification,
+        property: 'Access Control',
+        propertyKey: 'Door status',
+      },
+      {
+        endpoint: 0,
+        commandClass: CommandClasses.Notification,
+        property: 'Home Security',
+        propertyKey: 'Motion sensor status',
+      },
+      {
+        endpoint: 0,
+        commandClass: CommandClasses['Door Lock'],
+        property: 'currentMode',
+      },
+    ]);
+
+    AccessoryFactory.create(platform, node, 123);
+
+    const hasContact = addFeatureSpy.mock.calls.some(
+      ([feature]) => feature instanceof ContactSensorFeature,
+    );
+    const hasMotion = addFeatureSpy.mock.calls.some(
+      ([feature]) => feature instanceof MotionSensorFeature,
+    );
+
+    expect(hasContact).toBe(true);
+    expect(hasMotion).toBe(true);
+
+    addFeatureSpy.mockRestore();
+  });
+
+  it('should not attach lock sensors when sensor-like property keys are under wrong notification categories', () => {
+    const addFeatureSpy = jest.spyOn(ZWaveAccessory.prototype, 'addFeature');
+
+    const ep0 = {
+      index: 0,
+      supportsCC: jest
+        .fn()
+        .mockImplementation(
+          (cc) => cc === CommandClasses['Door Lock'] || cc === CommandClasses.Notification,
+        ),
+    };
+
+    node.getAllEndpoints.mockReturnValue([ep0]);
+    node.getDefinedValueIDs.mockReturnValue([
+      {
+        endpoint: 0,
+        commandClass: CommandClasses.Notification,
+        property: 'Access Control',
+        propertyKey: 'Motion sensor status',
+      },
+      {
+        endpoint: 0,
+        commandClass: CommandClasses.Notification,
+        property: 'Home Security',
+        propertyKey: 'Door status',
+      },
+      {
+        endpoint: 0,
+        commandClass: CommandClasses['Door Lock'],
+        property: 'currentMode',
+      },
+    ]);
+
+    AccessoryFactory.create(platform, node, 123);
+
+    const hasContact = addFeatureSpy.mock.calls.some(
+      ([feature]) => feature instanceof ContactSensorFeature,
+    );
+    const hasMotion = addFeatureSpy.mock.calls.some(
+      ([feature]) => feature instanceof MotionSensorFeature,
+    );
+
+    expect(hasContact).toBe(false);
+    expect(hasMotion).toBe(false);
+
+    addFeatureSpy.mockRestore();
   });
 });

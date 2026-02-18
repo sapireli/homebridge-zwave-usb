@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.3.2] - 2026-02-18
+
+### Fixed
+- **Door Lock Detection:** Updated accessory classification to recognize both `Door Lock` and `Lock` command classes so lock devices are consistently exposed as HomeKit locks.
+- **Notification Sensor Confidence Rules:** Refined lock notification mapping to only create lock-adjacent Motion/Contact sensors when high-confidence key/category pairs are present, reducing false sensor creation.
+- **Lock Mapping Tests:** Added regression coverage for Door Lock-only devices and lock notification edge cases to prevent future misclassification regressions.
+
 ## [3.0.2] - 2026-02-17
 
 ### Fixed

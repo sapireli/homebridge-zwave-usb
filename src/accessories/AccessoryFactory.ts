@@ -88,9 +88,14 @@ export class AccessoryFactory {
     const hasMultilevelSwitch =
       endpoint.supportsCC(CommandClasses['Multilevel Switch']) &&
       (!isRootOnMultiEndpoint || !handledByEndpoints.has(CommandClasses['Multilevel Switch']));
+    const supportsAnyLockCc =
+      endpoint.supportsCC(CommandClasses['Door Lock']) ||
+      endpoint.supportsCC(CommandClasses.Lock);
+    const lockHandledByNonRootEndpoint =
+      handledByEndpoints.has(CommandClasses['Door Lock']) ||
+      handledByEndpoints.has(CommandClasses.Lock);
     const hasLock =
-      endpoint.supportsCC(CommandClasses.Lock) &&
-      (!isRootOnMultiEndpoint || !handledByEndpoints.has(CommandClasses.Lock));
+      supportsAnyLockCc && (!isRootOnMultiEndpoint || !lockHandledByNonRootEndpoint);
     const hasSensorMultilevel =
       endpoint.supportsCC(CommandClasses['Multilevel Sensor']) &&
       (!isRootOnMultiEndpoint || !handledByEndpoints.has(CommandClasses['Multilevel Sensor']));
@@ -184,11 +189,40 @@ export class AccessoryFactory {
 
     // 10. Notification Sensors
     if (hasNotification) {
+      const notificationValues = values.filter(
+        (v: ValueID) => v.commandClass === CommandClasses.Notification,
+      );
+      const notificationPropertyKeys = new Set(
+        notificationValues
+          .map((v: ValueID) => (typeof v.propertyKey === 'string' ? v.propertyKey : undefined))
+          .filter((v): v is string => !!v),
+      );
+      const hasDoorStatusKey = notificationPropertyKeys.has('Door status');
+      const hasMotionStatusKey = notificationPropertyKeys.has('Motion sensor status');
+      const hasSensorStatusKey = notificationPropertyKeys.has('Sensor status');
+      const hasHighConfidenceDoorStatusSensor = notificationValues.some(
+        (v: ValueID) =>
+          v.property === 'Access Control' && v.propertyKey === 'Door status',
+      );
+      const hasHighConfidenceMotionSensor = notificationValues.some(
+        (v: ValueID) =>
+          v.property === 'Home Security' &&
+          (v.propertyKey === 'Motion sensor status' || v.propertyKey === 'Sensor status'),
+      );
+      const shouldAddMotionSensor = hasLock
+        ? hasHighConfidenceMotionSensor
+        : hasMotionStatusKey ||
+          hasSensorStatusKey ||
+          notificationValues.some((v: ValueID) => v.property === 'Home Security');
+      const shouldAddContactSensor = hasLock
+        ? hasHighConfidenceDoorStatusSensor
+        : hasDoorStatusKey ||
+          notificationValues.some((v: ValueID) => v.property === 'Access Control');
+
       // Water Alarm
       if (
-        values.some(
+        notificationValues.some(
           (v: ValueID) =>
-            v.commandClass === CommandClasses.Notification &&
             (v.property === 'Water Alarm' || v.propertyKey === 'Water leak status'),
         )
       ) {
@@ -198,26 +232,14 @@ export class AccessoryFactory {
       }
 
       // Home Security - Motion
-      if (
-        values.some(
-          (v: ValueID) =>
-            v.commandClass === CommandClasses.Notification &&
-            (v.property === 'Home Security' || v.propertyKey === 'Motion sensor status'),
-        )
-      ) {
+      if (shouldAddMotionSensor) {
         accessory.addFeature(
           new MotionSensorFeature(platform, accessory.platformAccessory, endpoint, node),
         );
       }
 
       // Access Control - Door/Window
-      if (
-        values.some(
-          (v: ValueID) =>
-            v.commandClass === CommandClasses.Notification &&
-            (v.property === 'Access Control' || v.propertyKey === 'Door status'),
-        )
-      ) {
+      if (shouldAddContactSensor) {
         accessory.addFeature(
           new ContactSensorFeature(platform, accessory.platformAccessory, endpoint, node),
         );
@@ -225,10 +247,7 @@ export class AccessoryFactory {
 
       // Smoke Alarm
       if (
-        values.some(
-          (v: ValueID) =>
-            v.commandClass === CommandClasses.Notification && v.property === 'Smoke Alarm',
-        )
+        notificationValues.some((v: ValueID) => v.property === 'Smoke Alarm')
       ) {
         accessory.addFeature(
           new SmokeSensorFeature(platform, accessory.platformAccessory, endpoint, node),
@@ -237,11 +256,7 @@ export class AccessoryFactory {
 
       // CO Alarm
       if (
-        values.some(
-          (v: ValueID) =>
-            v.commandClass === CommandClasses.Notification &&
-            v.property === 'Carbon Monoxide Alarm',
-        )
+        notificationValues.some((v: ValueID) => v.property === 'Carbon Monoxide Alarm')
       ) {
         accessory.addFeature(
           new CarbonMonoxideSensorFeature(platform, accessory.platformAccessory, endpoint, node),
