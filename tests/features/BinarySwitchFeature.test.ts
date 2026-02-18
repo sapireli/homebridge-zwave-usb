@@ -146,7 +146,9 @@ describe('BinarySwitchFeature', () => {
     // We can spy on the mock service returned by addService.
     const service = accessory.addService.mock.results[0].value;
 
-    // updateCharacteristic is already a mock from beforeEach
+    // updateCharacteristic is called during init (for Name and ConfiguredName)
+    // Clear the mock so we can check for new calls
+    service.updateCharacteristic.mockClear();
 
     // 1. Irrelevant Update
     feature.update({

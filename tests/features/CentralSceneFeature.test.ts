@@ -26,6 +26,7 @@ describe('CentralSceneFeature', () => {
       setCharacteristic: jest.fn().mockReturnThis(),
       testCharacteristic: jest.fn().mockReturnValue(true),
       addOptionalCharacteristic: jest.fn(),
+      updateCharacteristic: jest.fn().mockReturnThis(),
     };
 
     hap = {
