@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.6] - 2026-02-17
+
+### Fixed
+- **Strict HAP Compliance:** Removed `NOTIFY` permission from the standard `Name` characteristic to align with HAP documentation and allow user-defined name overrides in the Home app to persist correctly.
+
 ## [2.9.5] - 2026-02-17
 
 ### Fixed
