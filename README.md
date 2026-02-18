@@ -4,6 +4,7 @@
 [![NPM Downloads](https://img.shields.io/npm/dt/homebridge-zwave-usb.svg)](https://www.npmjs.com/package/homebridge-zwave-usb)
 [![Build and Test](https://github.com/sapireli/homebridge-zwave-usb/actions/workflows/build.yml/badge.svg)](https://github.com/sapireli/homebridge-zwave-usb/actions/workflows/build.yml)
 [![License: Polyform Noncommercial](https://img.shields.io/badge/License-Polyform_Noncommercial-blue.svg)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/Sponsor-❤️-ea4aaa?logo=github)](https://www.paypal.me/sapir)
 
 A high-performance, production-grade [Homebridge](https://homebridge.io) integration for Z-Wave networks. Built directly on the modern [Z-Wave JS](https://zwave-js.github.io/node-zwave-js/) driver, this plugin provides direct communication with USB controllers for ultra-low latency and maximum reliability.
 
