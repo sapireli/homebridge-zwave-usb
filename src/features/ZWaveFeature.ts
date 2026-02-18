@@ -50,7 +50,12 @@ export abstract class BaseFeature implements ZWaveFeature {
       service.displayName = serviceName;
 
       if (service.testCharacteristic(this.platform.Characteristic.Name)) {
-        service.updateCharacteristic(this.platform.Characteristic.Name, serviceName);
+        const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
+        nameChar.setProps({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
+        });
+        nameChar.updateValue(serviceName);
       }
     }
   }
@@ -118,7 +123,12 @@ export abstract class BaseFeature implements ZWaveFeature {
 
     // Explicitly set the name characteristic to ensure it's displayed correctly
     if (service.testCharacteristic(this.platform.Characteristic.Name)) {
-      service.updateCharacteristic(this.platform.Characteristic.Name, serviceName);
+      const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
+      nameChar.setProps({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
+      });
+      nameChar.updateValue(serviceName);
     }
 
     // Add Service Label Index for multi-endpoint devices to help with ordering/naming
