@@ -43,6 +43,8 @@ export abstract class BaseFeature implements ZWaveFeature {
     const serviceName =
       this.endpoint.index > 0 ? `${newName} ${this.endpoint.index}` : newName;
 
+    this.platform.log.debug(`Feature Rename [Node ${this.node.nodeId}]: Updating ${this.managedServices.length} services to "${serviceName}"`);
+
     for (const service of this.managedServices) {
       if (service.testCharacteristic(this.platform.Characteristic.Name)) {
         service.updateCharacteristic(this.platform.Characteristic.Name, serviceName);

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.1] - 2026-02-17
+
+### Fixed
+- **Deep Service Synchronization:** Fixed a race condition where sub-services were not correctly updated during the initial naming sync. By re-ordering the initialization sequence, the plugin now ensures all functional services (Switches, Sensors) are fully created before the friendly name is pushed to HomeKit.
+- **Improved Versioning:** Switched to patch-level versioning for iterative fixes.
+
 ## [2.8.0] - 2026-02-17
 
 ### Fixed

@@ -420,11 +420,10 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       const accessory = AccessoryFactory.create(this, node, homeId);
       this.zwaveAccessories.set(node.nodeId, accessory);
 
-      if (accessory.platformAccessory.displayName !== nodeName) {
-        accessory.rename(nodeName);
-      }
+      accessory.initialize(); // Initialize first to create functional services
 
-      accessory.initialize();
+      // Force sync names immediately after initialization
+      accessory.rename(nodeName);
     } finally {
       this.discoveryInFlight.delete(node.nodeId);
     }
