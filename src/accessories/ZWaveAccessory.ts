@@ -87,6 +87,31 @@ export class ZWaveAccessory {
         this.node.firmwareVersion || '1.0.0',
       );
 
+    // Add ConfiguredName characteristic to allow users to rename in Home app
+    const configuredNameChar = infoService.getCharacteristic(
+      this.platform.Characteristic.ConfiguredName,
+    );
+    if (configuredNameChar) {
+      if (!infoService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+        infoService.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+      }
+      const char = infoService.getCharacteristic(this.platform.Characteristic.ConfiguredName);
+      if (char && typeof char.updateValue === 'function') {
+        char.updateValue(nodeName);
+      }
+      // Handle when user changes name in Home app
+      if (char && typeof char.onSet === 'function') {
+        char.onSet((value) => {
+          const newName = String(value);
+          this.platform.log.info(
+            `User renamed accessory in Home app: ${this.platformAccessory.displayName} -> ${newName}`,
+          );
+          this.platformAccessory.displayName = newName;
+          this.platform.api.updatePlatformAccessories([this.platformAccessory]);
+        });
+      }
+    }
+
     /**
      * Helper to normalize UUIDs for reliable comparison during metadata pruning.
      */
@@ -121,6 +146,19 @@ export class ZWaveAccessory {
   public rename(newName: string): void {
     this.platform.log.info(`Syncing HomeKit name for Node ${this.node.nodeId} -> ${newName}`);
     this.platformAccessory.displayName = newName;
+
+    // Update ConfiguredName in AccessoryInformation service
+    const infoService = this.platformAccessory.getService(
+      this.platform.Service.AccessoryInformation,
+    );
+    if (infoService) {
+      const configuredNameChar = infoService.getCharacteristic(
+        this.platform.Characteristic.ConfiguredName,
+      );
+      if (configuredNameChar) {
+        configuredNameChar.updateValue(newName);
+      }
+    }
 
     // Update all features
     for (const feature of this.features) {
