@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.2] - 2026-02-17
+
+### Fixed
+- **User Rename Support:** Removed `NOTIFY` permission from the standard `Name` characteristic while keeping it on `ConfiguredName`. This ensures that the plugin still syncs hardware names to HomeKit, but no longer aggressively overwrites manual names set by the user in the Home app tile view.
+
 ## [2.9.1] - 2026-02-17
 
 ### Fixed

@@ -119,6 +119,20 @@ export class ZWaveAccessory {
     this.platform.log.info(`Syncing HomeKit name for Node ${this.node.nodeId} -> ${newName}`);
     this.platformAccessory.displayName = newName;
 
+    // Update the Accessory Information Service (Standard Characteristics Only)
+    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
+
+    // Update Name (NOTIFY removed to respect user overrides)
+    if (!infoService.testCharacteristic(this.platform.Characteristic.Name)) {
+      infoService.addOptionalCharacteristic(this.platform.Characteristic.Name);
+    }
+    const nameChar = infoService.getCharacteristic(this.platform.Characteristic.Name);
+    nameChar.setProps({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      perms: [HAPPerm.PAIRED_READ as any],
+    });
+    nameChar.updateValue(newName);
+
     // Update all features
     for (const feature of this.features) {
       feature.rename(newName);
