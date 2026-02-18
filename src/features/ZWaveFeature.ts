@@ -112,15 +112,15 @@ export abstract class BaseFeature implements ZWaveFeature {
     }
 
     // Explicitly set the name characteristic to ensure it's displayed correctly
-    const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
-    nameChar
+    service
+      .getCharacteristic(this.platform.Characteristic.Name)
       .setProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         format: HAPFormat.STRING as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
-      })
-      .updateValue(serviceName);
+      });
+    service.updateCharacteristic(this.platform.Characteristic.Name, serviceName);
 
     // Also set ConfiguredName which many HomeKit versions prioritize for plugin-side renaming
     if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
@@ -133,8 +133,8 @@ export abstract class BaseFeature implements ZWaveFeature {
         format: HAPFormat.STRING as any,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
-      })
-      .updateValue(serviceName);
+      });
+    service.updateCharacteristic(this.platform.Characteristic.ConfiguredName, serviceName);
 
     // Add Service Label Index for multi-endpoint devices to help with ordering/naming
     if (this.endpoint.index > 0) {

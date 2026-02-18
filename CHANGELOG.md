@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.0] - 2026-02-17
+
+### Fixed
+- **Forceful Naming Synchronization:** Modified the startup logic to always re-sync friendly names for all services, even if the accessory was loaded from cache.
+- **Event Propagation:** Switched from `updateValue` to `updateCharacteristic` throughout the plugin. This ensures that HomeKit is actively notified of the friendly name on every startup, forcing it to overwrite any lingering generic names (like "Node 2").
+
 ## [2.7.0] - 2026-02-17
 
 ### Fixed

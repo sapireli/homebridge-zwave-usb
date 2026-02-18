@@ -406,7 +406,8 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     if (existing || this.discoveryInFlight.has(node.nodeId)) {
       if (existing) {
         existing.updateNode(node);
-        if (existing.platformAccessory.displayName !== nodeName) {
+        // Force sync names on every ready event if we have a friendly name
+        if (node.name) {
           existing.rename(nodeName);
         }
         existing.refresh();
