@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.1] - 2026-02-17
+
+### Fixed
+- **Clean Naming Logic:** Removed redundant rename calls on startup and ensured strict adherence to HAP standards by removing the `Model` update from the rename logic. This guarantees that the hardware identity remains stable, preventing "Could not change settings" errors while still allowing dynamic name updates.
+
 ## [2.9.0] - 2026-02-17
 
 ### Added

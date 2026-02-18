@@ -2,7 +2,7 @@ import { PlatformAccessory, Service } from 'homebridge';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { ZWaveFeature } from '../features/ZWaveFeature';
-import { OBSOLETE_CHAR_UUIDS, HAPPerm } from '../platform/settings';
+import { OBSOLETE_CHAR_UUIDS } from '../platform/settings';
 
 export class ZWaveAccessory {
   public readonly platformAccessory: PlatformAccessory;
@@ -118,24 +118,6 @@ export class ZWaveAccessory {
   public rename(newName: string): void {
     this.platform.log.info(`Syncing HomeKit name for Node ${this.node.nodeId} -> ${newName}`);
     this.platformAccessory.displayName = newName;
-
-    // Update the Accessory Information Service (Standard Characteristics Only)
-    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
-
-    // Update Name with NOTIFY permission to force HomeKit sync
-    if (!infoService.testCharacteristic(this.platform.Characteristic.Name)) {
-      infoService.addOptionalCharacteristic(this.platform.Characteristic.Name);
-    }
-    const nameChar = infoService.getCharacteristic(this.platform.Characteristic.Name);
-    nameChar.setProps({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
-    });
-    nameChar.updateValue(newName);
-
-    // Update the Model if it was using the generic name
-    const model = this.node.deviceConfig?.label || newName;
-    infoService.updateCharacteristic(this.platform.Characteristic.Model, model);
 
     // Update all features
     for (const feature of this.features) {
