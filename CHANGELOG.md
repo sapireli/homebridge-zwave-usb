@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.0] - 2026-02-17
+
+### Changed
+- **Major Architecture Cleanup:** Finalized the transition to a clean, HAP-compliant schema.
+  - Removed all experimental characteristics causing "Settings Errors" in HomeKit.
+  - Implemented "Safe Name Sync" that respects user overrides while ensuring new devices are named correctly.
+  - Stabilized Hardware Identity (Manufacturer/Model/Serial) to preventing pairing corruption.
+  - This release is a recommended "Fresh Start" for users experiencing metadata issues.
+
 ## [2.9.9] - 2026-02-17
 
 ### Fixed
