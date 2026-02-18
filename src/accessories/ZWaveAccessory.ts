@@ -84,6 +84,13 @@ export class ZWaveAccessory {
       infoService.updateCharacteristic(this.platform.Characteristic.SerialNumber, serial);
     }
 
+    // Add ServiceLabelNamespace to help with naming multi-service accessories
+    if (!infoService.testCharacteristic(this.platform.Characteristic.ServiceLabelNamespace)) {
+      infoService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelNamespace);
+    }
+    // 1 = Arabic numerals (1, 2, 3...)
+    infoService.updateCharacteristic(this.platform.Characteristic.ServiceLabelNamespace, 1);
+
     /**
      * Helper to normalize UUIDs for reliable comparison during metadata pruning.
      */

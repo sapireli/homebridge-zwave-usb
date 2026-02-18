@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.5] - 2026-02-17
+
+### Fixed
+- **Multi-Service Naming:** Added `ServiceLabelNamespace` to the main Z-Wave Accessory. This ensures that `ConfiguredName` and `ServiceLabelIndex` are correctly interpreted by HomeKit for devices with multiple services (like dual switches or sensors), fixing potential naming conflicts.
+
 ## [2.9.4] - 2026-02-17
 
 ### Fixed
