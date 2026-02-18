@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.6] - 2026-02-17
+
+### Fixed
+- **Home App Error Fix:** Removed non-standard characteristics (`ConfiguredName` and `AccessoryInformation.Name`) that were causing "could not change settings" errors in the Home app.
+- **Stable Naming Strategy:** Switched back to standard HomeKit naming using only `service.displayName` and the mandatory `Name` characteristic. This provides the most stable experience while still allowing the plugin to sync names from the Z-Wave network.
+
 ## [2.8.5] - 2026-02-17
 
 ### Fixed

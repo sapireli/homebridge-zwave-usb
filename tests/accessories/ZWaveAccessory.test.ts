@@ -77,10 +77,6 @@ describe('ZWaveAccessory', () => {
     accessory.rename('New Friendly Name');
 
     expect(accessory.platformAccessory.displayName).toBe('New Friendly Name');
-    expect(mockService.updateCharacteristic).toHaveBeenCalledWith(
-      platform.Characteristic.Name,
-      'New Friendly Name'
-    );
     expect(platform.api.updatePlatformAccessories).toHaveBeenCalled();
   });
 });

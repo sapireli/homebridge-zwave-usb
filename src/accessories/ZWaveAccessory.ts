@@ -77,12 +77,6 @@ export class ZWaveAccessory {
       .setCharacteristic(this.platform.Characteristic.Model, model)
       .setCharacteristic(this.platform.Characteristic.SerialNumber, `Node ${this.node.nodeId}`);
 
-    if (!infoService.testCharacteristic(this.platform.Characteristic.Name)) {
-      infoService.addOptionalCharacteristic(this.platform.Characteristic.Name);
-    }
-    // Update authoritative name immediately
-    infoService.updateCharacteristic(this.platform.Characteristic.Name, nodeName);
-
     /**
      * Helper to normalize UUIDs for reliable comparison during metadata pruning.
      */
@@ -118,26 +112,12 @@ export class ZWaveAccessory {
     this.platform.log.info(`Syncing HomeKit name for Node ${this.node.nodeId} -> ${newName}`);
     this.platformAccessory.displayName = newName;
 
-    // Update the Accessory Information Service (Most Authoritative)
+    // Update the Accessory Information Service (Standard Characteristics Only)
     const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
-    if (!infoService.testCharacteristic(this.platform.Characteristic.Name)) {
-      infoService.addOptionalCharacteristic(this.platform.Characteristic.Name);
-    }
-    infoService.getCharacteristic(this.platform.Characteristic.Name)
-      .setProps({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
-      });
-    infoService.updateCharacteristic(this.platform.Characteristic.Name, newName);
 
-    // Force metadata invalidation by updating the revision
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const version = require('../../package.json').version;
-    infoService.updateCharacteristic(this.platform.Characteristic.SoftwareRevision, version);
-
-    // Update the Model and Serial if they were using the generic name
+    // Update the Model if it was using the generic name
     const model = this.node.deviceConfig?.label || newName;
-    infoService.setCharacteristic(this.platform.Characteristic.Model, model);
+    infoService.updateCharacteristic(this.platform.Characteristic.Model, model);
 
     // Update all features
     for (const feature of this.features) {
