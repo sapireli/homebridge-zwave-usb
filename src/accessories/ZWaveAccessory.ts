@@ -74,15 +74,11 @@ export class ZWaveAccessory {
 
     const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
     
-    if (infoService.getCharacteristic(this.platform.Characteristic.Manufacturer).value !== manufacturer) {
-      infoService.updateCharacteristic(this.platform.Characteristic.Manufacturer, manufacturer);
-    }
-    if (infoService.getCharacteristic(this.platform.Characteristic.Model).value !== model) {
-      infoService.updateCharacteristic(this.platform.Characteristic.Model, model);
-    }
-    if (infoService.getCharacteristic(this.platform.Characteristic.SerialNumber).value !== serial) {
-      infoService.updateCharacteristic(this.platform.Characteristic.SerialNumber, serial);
-    }
+    infoService
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, manufacturer)
+      .setCharacteristic(this.platform.Characteristic.Model, model)
+      .setCharacteristic(this.platform.Characteristic.SerialNumber, serial)
+      .setCharacteristic(this.platform.Characteristic.FirmwareRevision, this.node.firmwareVersion || '1.0.1'); // Forced update
 
     // Add ServiceLabelNamespace to help with naming multi-service accessories
     if (!infoService.testCharacteristic(this.platform.Characteristic.ServiceLabelNamespace)) {

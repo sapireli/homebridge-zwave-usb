@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.8] - 2026-02-17
+
+### Fixed
+- **Cache Invalidation:** Forced a firmware revision update to trigger HomeKit to re-interview accessories. This helps clear corrupted metadata caches that might be causing "Unable to change settings" errors after the schema cleanup.
+
 ## [2.9.7] - 2026-02-17
 
 ### Fixed
