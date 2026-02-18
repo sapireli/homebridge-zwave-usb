@@ -1,5 +1,6 @@
 import { Logger } from 'homebridge';
 import { Driver, ZWaveNode, InclusionStrategy } from 'zwave-js';
+import { CommandClasses } from '@zwave-js/core';
 import { EventEmitter } from 'events';
 import { IZWaveController, ZWaveValueEvent } from './interfaces';
 import path from 'path';
@@ -142,15 +143,30 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
         };
 
         // Attach controller listeners
-        this.driver.controller.on('inclusion started', this.controllerListeners['inclusion started']);
-        this.driver.controller.on('inclusion stopped', this.controllerListeners['inclusion stopped']);
-        this.driver.controller.on('exclusion started', this.controllerListeners['exclusion started']);
-        this.driver.controller.on('exclusion stopped', this.controllerListeners['exclusion stopped']);
+        this.driver.controller.on(
+          'inclusion started',
+          this.controllerListeners['inclusion started'],
+        );
+        this.driver.controller.on(
+          'inclusion stopped',
+          this.controllerListeners['inclusion stopped'],
+        );
+        this.driver.controller.on(
+          'exclusion started',
+          this.controllerListeners['exclusion started'],
+        );
+        this.driver.controller.on(
+          'exclusion stopped',
+          this.controllerListeners['exclusion stopped'],
+        );
         this.driver.controller.on(
           'rebuild routes progress',
           this.controllerListeners['rebuild routes progress'],
         );
-        this.driver.controller.on('rebuild routes done', this.controllerListeners['rebuild routes done']);
+        this.driver.controller.on(
+          'rebuild routes done',
+          this.controllerListeners['rebuild routes done'],
+        );
         this.driver.controller.on('node added', this.controllerListeners['node added']);
         this.driver.controller.on('node removed', this.controllerListeners['node removed']);
 
@@ -636,7 +652,10 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
         await Promise.race([
           this.driver.destroy(),
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Driver destroy timeout (Serial port may be locked)')), 3000),
+            setTimeout(
+              () => reject(new Error('Driver destroy timeout (Serial port may be locked)')),
+              3000,
+            ),
           ),
         ]);
         this.log.info('Z-Wave driver stopped.');
@@ -762,15 +781,30 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
 
   /**
    * Updates the user-defined name for a node in the Z-Wave network.
-   * This name is persisted by Z-Wave JS in its cache files.
+   * This uses the Node Naming and Location CC to send the name to the device.
+   * If the device doesn't support this CC, falls back to local-only storage.
    */
-  public setNodeName(nodeId: number, name: string): void {
+  public async setNodeName(nodeId: number, name: string): Promise<void> {
     const node = this.nodes.get(nodeId);
     if (!node) {
       throw new Error(`Node ${nodeId} not found`);
     }
     this.log.info(`Updating name for Node ${nodeId} to: "${name}"`);
-    node.name = name;
+
+    // Check if the device supports Node Naming and Location CC (0x77)
+    const supportsNamingCC =
+      typeof node.supportsCC === 'function' &&
+      node.supportsCC(CommandClasses['Node Naming and Location']);
+
+    if (supportsNamingCC) {
+      await node.commandClasses['Node Naming and Location'].setName(name);
+    } else {
+      // Fall back to local-only storage if CC is not supported
+      this.log.warn(
+        `Node ${nodeId} does not support Node Naming and Location CC, storing name locally only`,
+      );
+      node.name = name;
+    }
   }
 
   public async getAvailableFirmwareUpdates(nodeId: number): Promise<unknown[]> {
