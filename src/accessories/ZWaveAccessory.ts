@@ -80,29 +80,6 @@ export class ZWaveAccessory {
         this.node.firmwareVersion || '1.0.0',
       );
 
-    if (!infoService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
-      infoService.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
-    }
-    const configuredNameChar = infoService.getCharacteristic(
-      this.platform.Characteristic.ConfiguredName,
-    );
-
-    if (configuredNameChar) {
-      const existingName = this.platformAccessory.displayName || nodeName;
-      if (!configuredNameChar.value) {
-        configuredNameChar.updateValue(existingName);
-      }
-
-      configuredNameChar.onSet((value) => {
-        const newName = String(value);
-        this.platform.log.info(
-          `User renamed accessory in Home app: ${this.platformAccessory.displayName} -> ${newName}`,
-        );
-        this.platformAccessory.displayName = newName;
-        this.platform.api.updatePlatformAccessories([this.platformAccessory]);
-      });
-    }
-
     /**
      * Helper to normalize UUIDs for reliable comparison during metadata pruning.
      */
@@ -138,12 +115,10 @@ export class ZWaveAccessory {
     this.platform.log.info(`Syncing HomeKit name for Node ${this.node.nodeId} -> ${newName}`);
     this.platformAccessory.displayName = newName;
 
-    // Update ConfiguredName in AccessoryInformation service
-    const infoService = this.platformAccessory.getService(
-      this.platform.Service.AccessoryInformation,
-    );
-    if (infoService) {
-      const configuredNameChar = infoService.getCharacteristic(
+    // Update ConfiguredName on the primary service
+    const primaryService = this.findPrimaryService();
+    if (primaryService) {
+      const configuredNameChar = primaryService.getCharacteristic(
         this.platform.Characteristic.ConfiguredName,
       );
       if (configuredNameChar) {
@@ -215,7 +190,59 @@ export class ZWaveAccessory {
       }
     });
 
+    /**
+     * CONFIGURED NAME FIX:
+     * HomeKit writes to ConfiguredName on the PRIMARY service when renaming.
+     * We must set up the first functional service as primary and add ConfiguredName to it.
+     */
+    const primaryService = this.findPrimaryService();
+    if (primaryService) {
+      primaryService.setPrimaryService(true);
+      this.setupConfiguredName(primaryService);
+    }
+
     this.refresh();
+  }
+
+  private findPrimaryService(): Service | undefined {
+    const infoService = this.platformAccessory.getService(
+      this.platform.Service.AccessoryInformation,
+    );
+
+    for (const feature of this.features) {
+      for (const service of feature.getServices()) {
+        if (service !== infoService) {
+          return service;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  private setupConfiguredName(service: Service): void {
+    if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+      service.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+    }
+
+    const char = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
+    const existingName =
+      this.platformAccessory.displayName ||
+      this.node.name ||
+      this.node.deviceConfig?.label ||
+      `Node ${this.node.nodeId}`;
+
+    if (!char.value) {
+      char.updateValue(existingName);
+    }
+
+    char.onSet((value) => {
+      const newName = String(value);
+      this.platform.log.info(
+        `User renamed accessory in Home app: ${this.platformAccessory.displayName} -> ${newName}`,
+      );
+      this.platformAccessory.displayName = newName;
+      this.platform.api.updatePlatformAccessories([this.platformAccessory]);
+    });
   }
 
   public refresh(args?: ZWaveValueEvent): void {
