@@ -20,7 +20,7 @@ describe('ColorSwitchFeature', () => {
     service = {
       getCharacteristic: jest.fn().mockReturnValue(charMock),
       updateCharacteristic: jest.fn(),
-      testCharacteristic: jest.fn().mockReturnValue(true),
+      testCharacteristic: jest.fn().mockReturnValue(true), updateCharacteristic: jest.fn().mockReturnThis(), setPrimaryService: jest.fn(),
       addOptionalCharacteristic: jest.fn(),
       UUID: 'Lightbulb',
     };

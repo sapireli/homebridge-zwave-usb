@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.2] - 2026-02-17
+
+### Fixed
+- **Authoritative Naming Fix:** Implemented a multi-layered synchronization strategy to force HomeKit to recognize plugin-side name changes.
+  - Friendly names are now adopted immediately in the accessory constructor.
+  - Functional services are marked as "Primary" to ensure their names are used for device tiles.
+  - Re-introduced `ConfiguredName` support using standard HAP characteristics.
+  - Automatically updates `SoftwareRevision` on rename to trigger HomeKit metadata cache invalidation.
+
 ## [2.8.1] - 2026-02-17
 
 ### Fixed

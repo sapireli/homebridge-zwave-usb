@@ -23,9 +23,10 @@ describe('BinarySwitchFeature', () => {
             updateValue: jest.fn(),
             setProps: jest.fn().mockReturnThis(),
           }),
-          testCharacteristic: jest.fn().mockReturnValue(true),
+          testCharacteristic: jest.fn().mockReturnValue(true), updateCharacteristic: jest.fn().mockReturnThis(), setPrimaryService: jest.fn(),
           addOptionalCharacteristic: jest.fn(),
           setCharacteristic: jest.fn().mockReturnThis(),
+          setPrimaryService: jest.fn(),
         }),
       } as any,
       Characteristic: {
@@ -52,10 +53,11 @@ describe('BinarySwitchFeature', () => {
               updateValue: jest.fn(),
               setProps: jest.fn().mockReturnThis(),
             }),
-            testCharacteristic: jest.fn().mockReturnValue(true),
+            testCharacteristic: jest.fn().mockReturnValue(true), updateCharacteristic: jest.fn().mockReturnThis(), setPrimaryService: jest.fn(),
             addOptionalCharacteristic: jest.fn(),
             setCharacteristic: jest.fn().mockReturnThis(),
-            updateCharacteristic: jest.fn(),
+            updateCharacteristic: jest.fn().mockReturnThis(),
+            setPrimaryService: jest.fn(),
           };
         }
         // Handle instance case

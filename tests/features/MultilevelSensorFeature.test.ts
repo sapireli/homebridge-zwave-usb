@@ -24,7 +24,7 @@ describe('MultilevelSensorFeature', () => {
         setProps: jest.fn().mockReturnThis(),
       }),
       updateCharacteristic: jest.fn(),
-      testCharacteristic: jest.fn().mockReturnValue(true),
+      testCharacteristic: jest.fn().mockReturnValue(true), updateCharacteristic: jest.fn().mockReturnThis(), setPrimaryService: jest.fn(),
       addOptionalCharacteristic: jest.fn(),
       setCharacteristic: jest.fn().mockReturnThis(),
     };

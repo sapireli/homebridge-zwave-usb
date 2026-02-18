@@ -17,6 +17,7 @@ describe('ZWaveAccessory', () => {
       setCharacteristic: jest.fn().mockReturnThis(),
       testCharacteristic: jest.fn().mockReturnValue(true),
       addOptionalCharacteristic: jest.fn(),
+      setPrimaryService: jest.fn(),
       characteristics: [],
       displayName: 'Service Name',
       UUID: 'service-uuid'
@@ -54,6 +55,7 @@ describe('ZWaveAccessory', () => {
         Model: '00000021-0000-1000-8000-0026BB765291',
         SerialNumber: '00000030-0000-1000-8000-0026BB765291',
         Name: '00000023-0000-1000-8000-0026BB765291',
+        SoftwareRevision: '00000054-0000-1000-8000-0026BB765291',
       },
       accessories: [],
     };
@@ -72,8 +74,6 @@ describe('ZWaveAccessory', () => {
   });
 
   it('should update accessory and service names when renamed', () => {
-    const nameChar = mockService.getCharacteristic(platform.Characteristic.Name);
-
     accessory.rename('New Friendly Name');
 
     expect(accessory.platformAccessory.displayName).toBe('New Friendly Name');
@@ -81,9 +81,6 @@ describe('ZWaveAccessory', () => {
       platform.Characteristic.Name,
       'New Friendly Name'
     );
-    expect(nameChar.setProps).toHaveBeenCalledWith(expect.objectContaining({
-      perms: expect.arrayContaining(['ev']) // NOTIFY permission
-    }));
     expect(platform.api.updatePlatformAccessories).toHaveBeenCalled();
   });
 });

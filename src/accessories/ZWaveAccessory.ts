@@ -47,13 +47,13 @@ export class ZWaveAccessory {
     }
 
     const existingAccessory = this.platform.accessories.find((accessory) => accessory.UUID === uuid);
+    const nodeName = this.node.name || this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
 
     if (existingAccessory) {
       this.platformAccessory = existingAccessory;
     } else {
-      const accessoryName = `Node ${this.node.nodeId}`;
-      this.platform.log.info(`Creating new accessory for ${accessoryName} (UUID: ${uuid})`);
-      this.platformAccessory = new this.platform.api.platformAccessory(accessoryName, uuid);
+      this.platform.log.info(`Creating new accessory for ${nodeName} (UUID: ${uuid})`);
+      this.platformAccessory = new this.platform.api.platformAccessory(nodeName, uuid);
       this.platform.api.registerPlatformAccessories('homebridge-zwave-usb', 'ZWaveUSB', [
         this.platformAccessory,
       ]);
@@ -62,13 +62,18 @@ export class ZWaveAccessory {
 
     // Set accessory information
     const manufacturer = this.node.deviceConfig?.manufacturer || 'Unknown';
-    const model = this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
+    const model = this.node.deviceConfig?.label || nodeName;
 
-    this.platformAccessory
-      .getService(this.platform.Service.AccessoryInformation)!
+    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
+    infoService
       .setCharacteristic(this.platform.Characteristic.Manufacturer, manufacturer)
       .setCharacteristic(this.platform.Characteristic.Model, model)
       .setCharacteristic(this.platform.Characteristic.SerialNumber, `Node ${this.node.nodeId}`);
+
+    if (!infoService.testCharacteristic(this.platform.Characteristic.Name)) {
+      infoService.addOptionalCharacteristic(this.platform.Characteristic.Name);
+    }
+    infoService.updateCharacteristic(this.platform.Characteristic.Name, nodeName);
 
     /**
      * Helper to normalize UUIDs for reliable comparison during metadata pruning.
@@ -110,14 +115,12 @@ export class ZWaveAccessory {
     if (!infoService.testCharacteristic(this.platform.Characteristic.Name)) {
       infoService.addOptionalCharacteristic(this.platform.Characteristic.Name);
     }
-    infoService.getCharacteristic(this.platform.Characteristic.Name)
-      .setProps({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        format: HAPFormat.STRING as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
-      });
     infoService.updateCharacteristic(this.platform.Characteristic.Name, newName);
+
+    // Force metadata invalidation by updating the revision
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const version = require('../../package.json').version;
+    infoService.updateCharacteristic(this.platform.Characteristic.SoftwareRevision, version);
 
     // Update the Model and Serial if they were using the generic name
     const model = this.node.deviceConfig?.label || newName;
