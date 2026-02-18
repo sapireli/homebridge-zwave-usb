@@ -2,7 +2,6 @@ import { PlatformAccessory, Service, WithUUID } from 'homebridge';
 import { Endpoint } from 'zwave-js';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
-import { HAPPerm } from '../platform/settings';
 
 export interface ZWaveFeature {
   init(): void;
@@ -51,10 +50,6 @@ export abstract class BaseFeature implements ZWaveFeature {
 
       if (service.testCharacteristic(this.platform.Characteristic.Name)) {
         const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
-        nameChar.setProps({
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          perms: [HAPPerm.PAIRED_READ as any],
-        });
         nameChar.updateValue(serviceName);
       }
     }
@@ -124,10 +119,6 @@ export abstract class BaseFeature implements ZWaveFeature {
     // 1. Standard Name: Notify removed
     if (service.testCharacteristic(this.platform.Characteristic.Name)) {
       const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
-      nameChar.setProps({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        perms: [HAPPerm.PAIRED_READ as any],
-      });
       // Only update if current value is generic "Node X" to respect user overrides
       const currentValue = nameChar.value as string;
       if (!currentValue || currentValue.startsWith('Node ')) {
