@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.8] - 2026-02-17
+
+### Fixed
+- **Critical Home App Stability Fix:** Fixed the "could not change settings" error by ensuring the hardware `Model` characteristic remains static and is never overwritten by the user-defined friendly name. This maintains a consistent hardware identity in the HomeKit database.
+- **Improved Metadata Handling:** Added guards to prevent redundant updates to primary service flags.
+
 ## [2.8.7] - 2026-02-17
 
 ### Fixed

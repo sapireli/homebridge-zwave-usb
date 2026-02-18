@@ -116,7 +116,7 @@ export abstract class BaseFeature implements ZWaveFeature {
     service.displayName = serviceName;
 
     // Mark the first functional service as primary to help HomeKit with naming/tiles
-    if (this.managedServices.length === 0) {
+    if (this.managedServices.length === 0 && !(service as any).isPrimaryService) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (service as any).setPrimaryService(true);
     }
