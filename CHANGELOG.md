@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.4] - 2026-02-17
+
+### Fixed
+- **HAP Compliance:** Restored `NOTIFY` permissions to the standard `Name` characteristic. This ensures strict adherence to HAP specifications, where the Name characteristic is expected to be dynamic and capable of pushing updates to controllers.
+
 ## [2.9.3] - 2026-02-17
 
 ### Fixed

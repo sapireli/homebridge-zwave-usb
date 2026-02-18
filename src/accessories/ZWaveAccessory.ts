@@ -129,7 +129,7 @@ export class ZWaveAccessory {
     const nameChar = infoService.getCharacteristic(this.platform.Characteristic.Name);
     nameChar.setProps({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      perms: [HAPPerm.PAIRED_READ as any],
+      perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
     });
     nameChar.updateValue(newName);
 

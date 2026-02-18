@@ -53,7 +53,7 @@ export abstract class BaseFeature implements ZWaveFeature {
         const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
         nameChar.setProps({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          perms: [HAPPerm.PAIRED_READ as any],
+          perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
         });
         nameChar.updateValue(serviceName);
       }
@@ -130,12 +130,12 @@ export abstract class BaseFeature implements ZWaveFeature {
     // Sync internal property
     service.displayName = serviceName;
 
-    // 1. Standard Name: Notify only (Removed NOTIFY to allow user overrides in Home app)
+    // 1. Standard Name: Notify enabled
     if (service.testCharacteristic(this.platform.Characteristic.Name)) {
       const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
       nameChar.setProps({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        perms: [HAPPerm.PAIRED_READ as any],
+        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
       });
       nameChar.updateValue(serviceName);
     }
