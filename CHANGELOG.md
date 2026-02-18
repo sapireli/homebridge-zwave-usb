@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.1] - 2026-02-17
+
+### Fixed
+- **Name Overwrite Fix:** Modified startup logic to only sync the accessory name if it has actually changed in the Z-Wave network. This prevents the plugin from overwriting custom names set by the user in the Home app on every restart.
+
 ## [3.0.0] - 2026-02-17
 
 ### Changed

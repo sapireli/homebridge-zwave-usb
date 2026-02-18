@@ -406,8 +406,10 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     if (existing || this.discoveryInFlight.has(node.nodeId)) {
       if (existing) {
         existing.updateNode(node);
-        // Force sync names on every ready event if we have a friendly name
-        if (node.name) {
+        // Only sync name if it has actually changed in the Z-Wave network
+        // This prevents overwriting user-defined names in HomeKit on every startup
+        if (existing.platformAccessory.displayName !== nodeName) {
+          this.log.info(`Node ${node.nodeId} name changed: "${existing.platformAccessory.displayName}" -> "${nodeName}"`);
           existing.rename(nodeName);
         }
         existing.refresh();
