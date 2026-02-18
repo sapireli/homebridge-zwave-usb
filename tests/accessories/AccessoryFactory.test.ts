@@ -70,6 +70,8 @@ describe('AccessoryFactory', () => {
       nodeId: 5,
       getDefinedValueIDs: jest.fn().mockReturnValue([]),
       getAllEndpoints: jest.fn().mockReturnValue([{ index: 0, supportsCC: jest.fn() }]),
+      getValueMetadata: jest.fn().mockReturnValue(undefined),
+      getValue: jest.fn().mockReturnValue(undefined),
     };
   });
 
@@ -232,6 +234,15 @@ describe('AccessoryFactory', () => {
         property: 'currentMode',
       },
     ]);
+    node.getValue.mockImplementation((valueId: { propertyKey?: string }) => {
+      if (valueId.propertyKey === 'Door status') {
+        return 22;
+      }
+      if (valueId.propertyKey === 'Motion sensor status') {
+        return 8;
+      }
+      return undefined;
+    });
 
     AccessoryFactory.create(platform, node, 123);
 

@@ -92,9 +92,14 @@ export class ContactSensorFeature extends BaseFeature {
     }
 
     /**
-     * SECURITY FALLBACK FIX: Throw error if data is missing to avoid false 'Safe' state.
+     * HEALTH-AWARE FALLBACK:
+     * If the node is offline/not ready, propagate a HomeKit communication error.
+     * Otherwise (healthy node, missing cache), return a safe default state.
      */
-    throw new this.platform.api.hap.HapStatusError(-70402);
+    if (!this.node.ready || this.node.status === 4) {
+      throw new this.platform.api.hap.HapStatusError(-70402);
+    }
+    return this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;
   }
 
   private handleGetContactSensorState(): number {

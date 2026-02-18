@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.3.3] - 2026-02-18
+
+### Fixed
+- **Lock Sensor Verification:** Tightened Notification-based Motion/Contact/Leak discovery with capability checks to reduce ghost sensor creation on lock devices.
+- **Binary Sensor Lock Guard:** Prevented generic Binary Sensor fallback from creating Contact sensors on lock endpoints.
+- **Health-Aware Sensor Fallbacks:** Updated Motion/Contact sensor reads to return safe defaults only when nodes are healthy, while preserving HomeKit communication errors for dead/offline nodes.
+- **Regression Coverage:** Expanded AccessoryFactory tests for lock notification edge cases and confidence-gated sensor attachment.
+
 ## [3.3.2] - 2026-02-18
 
 ### Fixed

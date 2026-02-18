@@ -192,63 +192,85 @@ export class AccessoryFactory {
       const notificationValues = values.filter(
         (v: ValueID) => v.commandClass === CommandClasses.Notification,
       );
-      const notificationPropertyKeys = new Set(
-        notificationValues
-          .map((v: ValueID) => (typeof v.propertyKey === 'string' ? v.propertyKey : undefined))
-          .filter((v): v is string => !!v),
+
+      /**
+       * SENSOR DISCOVERY FIX: Only add sensors if they are likely to be functional.
+       * 'Ghost' sensors occur when a device (like a lock) supports the Notification CC
+       * but doesn't actually have the physical sensor hardware.
+       */
+      const isVerifiedSensor = (
+        property: string,
+        keys: string[],
+        sensorStates: number[],
+      ): boolean => {
+        const v = notificationValues.find(
+          (v) =>
+            v.property === property &&
+            (keys.length === 0 || keys.includes(v.propertyKey as string)),
+        );
+        if (!v) {
+          return false;
+        }
+
+        const meta = node.getValueMetadata(v) as { states?: Record<string, unknown> } | undefined;
+
+        // 1. HIGH CONFIDENCE: Separate endpoint (standard for add-on sensors)
+        if (endpoint.index > 0 && hasLock) {
+          return true;
+        }
+
+        // 2. HIGH CONFIDENCE: Metadata explicitly lists sensor states (e.g., 22=Open, 8=Motion)
+        if (meta?.states && typeof meta.states === 'object') {
+          const supported = Object.keys(meta.states).map(Number);
+          if (sensorStates.some((s) => supported.includes(s))) {
+            return true;
+          }
+        }
+
+        // 3. MEDIUM CONFIDENCE: We have already received a real value in the cache
+        if (node.getValue(v) !== undefined) {
+          return true;
+        }
+
+        // 4. FALLBACK: Only allow if it's NOT a lock (which are the main source of ghosts)
+        return !hasLock;
+      };
+
+      const shouldAddMotion = isVerifiedSensor(
+        'Home Security',
+        ['Motion sensor status', 'Sensor status'],
+        [7, 8],
       );
-      const hasDoorStatusKey = notificationPropertyKeys.has('Door status');
-      const hasMotionStatusKey = notificationPropertyKeys.has('Motion sensor status');
-      const hasSensorStatusKey = notificationPropertyKeys.has('Sensor status');
-      const hasHighConfidenceDoorStatusSensor = notificationValues.some(
-        (v: ValueID) =>
-          v.property === 'Access Control' && v.propertyKey === 'Door status',
+      const shouldAddContact = isVerifiedSensor('Access Control', ['Door status'], [22, 23]);
+      const shouldAddLeak = isVerifiedSensor(
+        'Water Alarm',
+        ['Water leak status'],
+        [1, 2, 3, 4],
       );
-      const hasHighConfidenceMotionSensor = notificationValues.some(
-        (v: ValueID) =>
-          v.property === 'Home Security' &&
-          (v.propertyKey === 'Motion sensor status' || v.propertyKey === 'Sensor status'),
-      );
-      const shouldAddMotionSensor = hasLock
-        ? hasHighConfidenceMotionSensor
-        : hasMotionStatusKey ||
-          hasSensorStatusKey ||
-          notificationValues.some((v: ValueID) => v.property === 'Home Security');
-      const shouldAddContactSensor = hasLock
-        ? hasHighConfidenceDoorStatusSensor
-        : hasDoorStatusKey ||
-          notificationValues.some((v: ValueID) => v.property === 'Access Control');
 
       // Water Alarm
-      if (
-        notificationValues.some(
-          (v: ValueID) =>
-            (v.property === 'Water Alarm' || v.propertyKey === 'Water leak status'),
-        )
-      ) {
+      if (shouldAddLeak) {
         accessory.addFeature(
           new LeakSensorFeature(platform, accessory.platformAccessory, endpoint, node),
         );
       }
 
       // Home Security - Motion
-      if (shouldAddMotionSensor) {
+      if (shouldAddMotion) {
         accessory.addFeature(
           new MotionSensorFeature(platform, accessory.platformAccessory, endpoint, node),
         );
       }
 
       // Access Control - Door/Window
-      if (shouldAddContactSensor) {
+      if (shouldAddContact) {
         accessory.addFeature(
           new ContactSensorFeature(platform, accessory.platformAccessory, endpoint, node),
         );
       }
 
       // Smoke Alarm
-      if (
-        notificationValues.some((v: ValueID) => v.property === 'Smoke Alarm')
-      ) {
+      if (notificationValues.some((v: ValueID) => v.property === 'Smoke Alarm')) {
         accessory.addFeature(
           new SmokeSensorFeature(platform, accessory.platformAccessory, endpoint, node),
         );
@@ -303,7 +325,7 @@ export class AccessoryFactory {
         accessory.addFeature(
           new MultilevelSensorFeature(platform, accessory.platformAccessory, endpoint, node),
         );
-      } else {
+      } else if (!hasLock) {
         // Default to ContactSensor for other generic binary sensors
         accessory.addFeature(
           new ContactSensorFeature(platform, accessory.platformAccessory, endpoint, node),

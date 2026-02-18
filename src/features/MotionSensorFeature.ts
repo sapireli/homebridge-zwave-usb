@@ -83,7 +83,15 @@ export class MotionSensorFeature extends BaseFeature {
       }
     }
 
-    throw new this.platform.api.hap.HapStatusError(-70402);
+    /**
+     * HEALTH-AWARE FALLBACK:
+     * If the node is offline/not ready, propagate a HomeKit communication error.
+     * Otherwise (healthy node, missing cache), return a safe default state.
+     */
+    if (!this.node.ready || this.node.status === 4) {
+      throw new this.platform.api.hap.HapStatusError(-70402);
+    }
+    return false;
   }
 
   private handleGetMotionDetected(): boolean {
