@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.3] - 2026-02-17
+
+### Fixed
+- **Build Integrity:** Fixed a missing import (`HAPPerm`) in `ZWaveAccessory.ts` that caused build failures.
+
 ## [2.9.2] - 2026-02-17
 
 ### Fixed
