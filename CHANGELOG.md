@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.9] - 2026-02-17
+
+### Fixed
+- **Home App Stability:** Finalized the fix for "could not change settings" errors by implementing strict HAP fingerprint stabilization. `Manufacturer`, `Model`, and `SerialNumber` are now guaranteed to be static once configured.
+- **Naming Logic Cleanup:** Removed all non-standard and experimental naming characteristics to return to a 100% standard HomeKit schema, which is the most reliable way to avoid database corruption in the Home app.
+
 ## [2.8.8] - 2026-02-17
 
 ### Fixed

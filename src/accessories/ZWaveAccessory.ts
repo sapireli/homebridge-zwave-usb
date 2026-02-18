@@ -67,15 +67,22 @@ export class ZWaveAccessory {
       this.platform.accessories.push(this.platformAccessory);
     }
 
-    // Set accessory information
+    // Set accessory information (Hardware Fingerprint - Must be stable)
     const manufacturer = this.node.deviceConfig?.manufacturer || 'Unknown';
     const model = this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
+    const serial = `Node ${this.node.nodeId}`;
 
     const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
-    infoService
-      .setCharacteristic(this.platform.Characteristic.Manufacturer, manufacturer)
-      .setCharacteristic(this.platform.Characteristic.Model, model)
-      .setCharacteristic(this.platform.Characteristic.SerialNumber, `Node ${this.node.nodeId}`);
+    
+    if (infoService.getCharacteristic(this.platform.Characteristic.Manufacturer).value !== manufacturer) {
+      infoService.updateCharacteristic(this.platform.Characteristic.Manufacturer, manufacturer);
+    }
+    if (infoService.getCharacteristic(this.platform.Characteristic.Model).value !== model) {
+      infoService.updateCharacteristic(this.platform.Characteristic.Model, model);
+    }
+    if (infoService.getCharacteristic(this.platform.Characteristic.SerialNumber).value !== serial) {
+      infoService.updateCharacteristic(this.platform.Characteristic.SerialNumber, serial);
+    }
 
     /**
      * Helper to normalize UUIDs for reliable comparison during metadata pruning.
