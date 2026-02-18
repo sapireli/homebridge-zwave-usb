@@ -115,9 +115,11 @@ export class ZWaveAccessory {
     this.platform.log.info(`Syncing HomeKit name for Node ${this.node.nodeId} -> ${newName}`);
     this.platformAccessory.displayName = newName;
 
-    const primaryService = this.findPrimaryService();
-    if (primaryService) {
-      const configuredNameChar = primaryService.getCharacteristic(
+    const infoService = this.platformAccessory.getService(
+      this.platform.Service.AccessoryInformation,
+    );
+    if (infoService) {
+      const configuredNameChar = infoService.getCharacteristic(
         this.platform.Characteristic.ConfiguredName,
       );
       if (configuredNameChar) {
@@ -187,42 +189,17 @@ export class ZWaveAccessory {
       }
     });
 
-    /**
-     * HomeKit writes accessory renames through ConfiguredName on the primary
-     * functional service. If no functional service exists, fall back to
-     * AccessoryInformation.
-     */
-    const primaryService = this.findPrimaryService();
-    if (primaryService) {
-      primaryService.setPrimaryService(true);
-      this.setupConfiguredName(primaryService);
-    } else {
-      const infoService = this.platformAccessory.getService(
-        this.platform.Service.AccessoryInformation,
-      );
-      if (infoService) {
-        this.setupConfiguredName(infoService);
-      }
+    // Bind ConfiguredName only on AccessoryInformation (HAP-defined location).
+    const infoService = this.platformAccessory.getService(
+      this.platform.Service.AccessoryInformation,
+    );
+    if (infoService) {
+      this.setupConfiguredName(infoService);
     }
 
     this.platform.api.updatePlatformAccessories([this.platformAccessory]);
 
     this.refresh();
-  }
-
-  private findPrimaryService(): Service | undefined {
-    const infoService = this.platformAccessory.getService(
-      this.platform.Service.AccessoryInformation,
-    );
-
-    for (const feature of this.features) {
-      for (const service of feature.getServices()) {
-        if (service !== infoService) {
-          return service;
-        }
-      }
-    }
-    return undefined;
   }
 
   private setupConfiguredName(service: Service): void {
