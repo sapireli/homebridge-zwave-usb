@@ -132,4 +132,16 @@ describe('CarbonMonoxideSensorFeature', () => {
       endpoint: 0,
     });
   });
+
+  it('should return normal CO when value is missing but node is reachable', () => {
+    feature.init();
+    node.ready = true as any;
+    node.status = 1 as any;
+    node.supportsCC.mockReturnValue(false);
+    feature.update();
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.CarbonMonoxideDetected,
+      platform.Characteristic.CarbonMonoxideDetected.CO_LEVELS_NORMAL,
+    );
+  });
 });

@@ -132,4 +132,24 @@ describe('ThermostatFeature', () => {
     feature.update(event);
     expect(service.updateCharacteristic).toHaveBeenCalledWith('CurrentTemperature', 25);
   });
+
+  it('should fallback to target temperature when current temp is missing and node is reachable', () => {
+    node.ready = true;
+    node.status = 1;
+    node.getValue.mockImplementation((args: any) => {
+      if (args.property === 'mode') {
+        return 1; // heat
+      }
+      if (args.property === 'setpoint' && args.propertyKey === 1) {
+        return 21;
+      }
+      if (args.property === 'Air temperature') {
+        return undefined;
+      }
+      return undefined;
+    });
+
+    const value = (feature as any).handleGetCurrentTemp();
+    expect(value).toBe(21);
+  });
 });

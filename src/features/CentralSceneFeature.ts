@@ -108,17 +108,21 @@ export class CentralSceneFeature extends BaseFeature {
     const service = this.getOrCreateButtonService(sceneId);
 
     // Map Z-Wave keyAttribute to HomeKit ProgrammableSwitchEvent
-    // Z-Wave: 0 = Pressed, 1 = Released, 2 = Held, 3 = Double Pressed, 4 = Triple Pressed
+    // Z-Wave (common): 0 = Pressed, 1 = Released, 2 = Held, 3 = Double Pressed, 4 = Triple Pressed
+    // Z-Wave (v3+): 5 = Key pressed 2x, 6 = 3x, 7 = 4x, 8 = 5x, 9 = Held down
     // HomeKit: 0 = SINGLE_PRESS, 1 = DOUBLE_PRESS, 2 = LONG_PRESS
 
     let hkEvent: number | undefined;
     switch (keyAttribute) {
       case 0: // Pressed
+      case 1: // Released (map to single press for controllers that only emit release)
         hkEvent = this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS;
         break;
+      case 5: // Key pressed 2x (v3+)
       case 3: // Double Pressed
         hkEvent = this.platform.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS;
         break;
+      case 9: // Held down (v3+)
       case 2: // Held
         hkEvent = this.platform.Characteristic.ProgrammableSwitchEvent.LONG_PRESS;
         break;

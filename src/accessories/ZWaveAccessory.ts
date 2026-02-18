@@ -1,4 +1,5 @@
 import { PlatformAccessory, Service } from 'homebridge';
+import { NodeStatus } from '@zwave-js/core';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { ZWaveFeature } from '../features/ZWaveFeature';
@@ -237,11 +238,11 @@ export class ZWaveAccessory {
      * This prevents features from trying to read incomplete metadata or values
      * during the initial Z-Wave interview process.
      *
-     * DEAD NODE GUARD: If the node is marked Dead (4), we stop refreshing features
+     * DEAD NODE GUARD: If the node is marked Dead, we stop refreshing features
      * to prevent stale cache data from masquerading as a valid state.
      * The StatusFault characteristic will still report the failure.
      */
-    if (!this.node.ready || this.node.status === 4) {
+    if (!this.node.ready || this.node.status === NodeStatus.Dead) {
       return;
     }
 
@@ -250,7 +251,7 @@ export class ZWaveAccessory {
      * Map Z-Wave node status (Dead/Alive) to HomeKit StatusFault.
      * 0 = No Fault, 1 = General Fault (Dead).
      */
-    const isDead = this.node.status === 4; // 4 = Dead
+    const isDead = this.node.status === NodeStatus.Dead;
     const faultValue = isDead
       ? this.platform.Characteristic.StatusFault.GENERAL_FAULT
       : this.platform.Characteristic.StatusFault.NO_FAULT;

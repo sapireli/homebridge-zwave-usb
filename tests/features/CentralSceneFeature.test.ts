@@ -179,4 +179,46 @@ describe('CentralSceneFeature', () => {
       platform.Characteristic.ProgrammableSwitchEvent.LONG_PRESS,
     );
   });
+
+  it('should trigger LONG_PRESS on Key Held Down (9)', () => {
+    node.getValueMetadata.mockReturnValue({ states: { '1': 'Button 1' } });
+    feature.init();
+
+    node.getValue.mockImplementation((vid) => {
+      if (vid.property === 'keyAttribute') return 9;
+      return undefined;
+    });
+
+    feature.update({
+      commandClass: CommandClasses['Central Scene'],
+      endpoint: 0,
+      property: 'scene',
+      newValue: 1,
+    });
+
+    expect(characteristic.updateValue).toHaveBeenCalledWith(
+      platform.Characteristic.ProgrammableSwitchEvent.LONG_PRESS,
+    );
+  });
+
+  it('should trigger SINGLE_PRESS on Key Released (1)', () => {
+    node.getValueMetadata.mockReturnValue({ states: { '1': 'Button 1' } });
+    feature.init();
+
+    node.getValue.mockImplementation((vid) => {
+      if (vid.property === 'keyAttribute') return 1;
+      return undefined;
+    });
+
+    feature.update({
+      commandClass: CommandClasses['Central Scene'],
+      endpoint: 0,
+      property: 'scene',
+      newValue: 1,
+    });
+
+    expect(characteristic.updateValue).toHaveBeenCalledWith(
+      platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS,
+    );
+  });
 });

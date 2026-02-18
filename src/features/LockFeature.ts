@@ -75,10 +75,17 @@ export class LockFeature extends BaseFeature {
       return this.mapZWaveToHomeKit(Number(value));
     }
 
-    /**
-     * OFFLINE LOCK FIX: Throw error if state is unknown to avoid false UNSECURED report.
-     */
-    throw new this.platform.api.hap.HapStatusError(-70402);
+    if (this.node.ready === false || this.node.status === 3) {
+      throw new this.platform.api.hap.HapStatusError(-70402);
+    }
+
+    const lastKnown = this.service.getCharacteristic(this.platform.Characteristic.LockCurrentState)
+      .value as number;
+    if (typeof lastKnown === 'number') {
+      return lastKnown;
+    }
+
+    return this.platform.Characteristic.LockCurrentState.UNKNOWN;
   }
 
   private handleGetLockTargetState(): number {
@@ -101,12 +108,25 @@ export class LockFeature extends BaseFeature {
 
     if (typeof value === 'number' || typeof value === 'boolean') {
       const state = this.mapZWaveToHomeKit(Number(value));
-      return state === this.platform.Characteristic.LockCurrentState.SECURED
-        ? this.platform.Characteristic.LockTargetState.SECURED
-        : this.platform.Characteristic.LockTargetState.UNSECURED;
+      if (state === this.platform.Characteristic.LockCurrentState.SECURED) {
+        return this.platform.Characteristic.LockTargetState.SECURED;
+      }
+      if (state === this.platform.Characteristic.LockCurrentState.UNSECURED) {
+        return this.platform.Characteristic.LockTargetState.UNSECURED;
+      }
     }
 
-    throw new this.platform.api.hap.HapStatusError(-70402);
+    if (this.node.ready === false || this.node.status === 3) {
+      throw new this.platform.api.hap.HapStatusError(-70402);
+    }
+
+    const lastKnown = this.service.getCharacteristic(this.platform.Characteristic.LockTargetState)
+      .value as number;
+    if (typeof lastKnown === 'number') {
+      return lastKnown;
+    }
+
+    return this.platform.Characteristic.LockTargetState.UNSECURED;
   }
 
   private async handleSetLockTargetState(value: CharacteristicValue) {

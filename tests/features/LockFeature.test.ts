@@ -139,4 +139,20 @@ describe('LockFeature', () => {
       platform.Characteristic.LockTargetState.SECURED,
     );
   });
+
+  it('should use fallback states when values are missing but node is reachable', () => {
+    feature.init();
+    node.ready = true as any;
+    node.status = 1 as any;
+    node.getValue.mockReturnValue(undefined);
+    feature.update();
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.LockCurrentState,
+      platform.Characteristic.LockCurrentState.UNKNOWN,
+    );
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.LockTargetState,
+      platform.Characteristic.LockTargetState.UNSECURED,
+    );
+  });
 });

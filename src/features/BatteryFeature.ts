@@ -31,11 +31,13 @@ export class BatteryFeature extends BaseFeature {
      * NOTIFICATION FIX: Some devices report low battery via Power Management notifications.
      */
     if (args && args.commandClass === CommandClasses.Notification) {
-      if (args.property === 'Power Management' && args.newValue === 10) {
-        // 10 = Replace battery soon
+      const alarmState = this.getLowBatteryAlarmStateFromEvent(args);
+      if (alarmState !== undefined) {
         this.service.updateCharacteristic(
           this.platform.Characteristic.StatusLowBattery,
-          this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW,
+          alarmState
+            ? this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW
+            : this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL,
         );
       }
       return;
@@ -66,22 +68,88 @@ export class BatteryFeature extends BaseFeature {
   }
 
   private getStatusLowBattery(): number {
-    const level = this.getBatteryLevel();
+    const alarmState = this.getLowBatteryAlarmStateFromCache();
+    if (alarmState !== undefined) {
+      return alarmState
+        ? this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW
+        : this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
+    }
+
     const isLowFlag = this.node.getValue({
       commandClass: CommandClasses.Battery,
       property: 'isLow',
       endpoint: this.endpoint.index,
     });
+    if (typeof isLowFlag === 'boolean') {
+      return isLowFlag
+        ? this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW
+        : this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
+    }
+
+    const level = this.getBatteryLevel();
 
     /**
-     * BATTERY CONSISTENCY FIX: Prioritize numerical level (<= 20%) for HomeKit.
-     * We also check the Z-Wave 'isLow' flag as a fallback.
+     * Final fallback only when no explicit alarm/flag is available.
      */
-    const isLow = (typeof level === 'number' && level > 0 && level <= 20) || isLowFlag === true;
+    const isLow = typeof level === 'number' && level > 0 && level <= 20;
 
     return isLow
       ? this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW
       : this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL;
+  }
+
+  private getLowBatteryAlarmStateFromEvent(args: ZWaveValueEvent): boolean | undefined {
+    if (args.property !== 'Power Management') {
+      return undefined;
+    }
+    return this.parseLowBatteryNotificationValue(args.newValue);
+  }
+
+  private getLowBatteryAlarmStateFromCache(): boolean | undefined {
+    const notificationKeys = [
+      'Replace battery soon status',
+      'Replace battery now status',
+      'Battery is low',
+      'Low battery level status',
+    ];
+
+    for (const key of notificationKeys) {
+      const val = this.node.getValue({
+        commandClass: CommandClasses.Notification,
+        property: 'Power Management',
+        propertyKey: key,
+        endpoint: this.endpoint.index,
+      });
+      const parsed = this.parseLowBatteryNotificationValue(val);
+      if (parsed !== undefined) {
+        return parsed;
+      }
+    }
+
+    const fallback = this.node.getValue({
+      commandClass: CommandClasses.Notification,
+      property: 'Power Management',
+      endpoint: this.endpoint.index,
+    });
+    return this.parseLowBatteryNotificationValue(fallback);
+  }
+
+  private parseLowBatteryNotificationValue(value: unknown): boolean | undefined {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value !== 'number') {
+      return undefined;
+    }
+
+    // Notification event values used by devices for low battery alarms.
+    if (value === 10 || value === 11) {
+      return true;
+    }
+    if (value === 0) {
+      return false;
+    }
+    return undefined;
   }
 
   private handleGetBatteryLevel(): number {

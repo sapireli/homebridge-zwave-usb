@@ -152,4 +152,15 @@ describe('GarageDoorFeature', () => {
         0
     );
   });
+
+  it('should use fallback current state when value is missing but node is reachable', () => {
+    node.ready = true;
+    node.status = 1;
+    node.getValue.mockReturnValue(undefined);
+    feature.update();
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.CurrentDoorState,
+      platform.Characteristic.CurrentDoorState.OPEN,
+    );
+  });
 });

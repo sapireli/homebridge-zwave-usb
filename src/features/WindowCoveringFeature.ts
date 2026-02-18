@@ -84,10 +84,17 @@ export class WindowCoveringFeature extends BaseFeature {
       return val === 99 ? 100 : val;
     }
 
-    /**
-     * OFFLINE COVERING FIX: Throw error if state is unknown to avoid false 'Closed' report.
-     */
-    throw new this.platform.api.hap.HapStatusError(-70402);
+    if (this.node.ready === false || this.node.status === 3) {
+      throw new this.platform.api.hap.HapStatusError(-70402);
+    }
+
+    const lastKnown = this.service.getCharacteristic(this.platform.Characteristic.CurrentPosition)
+      .value as number;
+    if (typeof lastKnown === 'number') {
+      return lastKnown;
+    }
+
+    return 0;
   }
 
   private handleGetTargetPosition(): number {

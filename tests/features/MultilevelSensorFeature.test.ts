@@ -41,6 +41,7 @@ describe('MultilevelSensorFeature', () => {
         CurrentRelativeHumidity: 'CurrentRelativeHumidity',
         CurrentAmbientLightLevel: 'CurrentAmbientLightLevel',
         AirQuality: {
+          UNKNOWN: 0,
           EXCELLENT: 1,
           POOR: 5,
         },
@@ -191,5 +192,13 @@ describe('MultilevelSensorFeature', () => {
       platform.Characteristic.CurrentRelativeHumidity,
       45,
     );
+  });
+
+  it('should return UNKNOWN air quality when data is missing but node is reachable', () => {
+    node.getValue.mockReturnValue(undefined);
+    node.ready = true as any;
+    node.status = 1 as any;
+    const value = (feature as any).handleGetAirQuality();
+    expect(value).toBe(platform.Characteristic.AirQuality.UNKNOWN);
   });
 });

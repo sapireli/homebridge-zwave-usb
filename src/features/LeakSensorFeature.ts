@@ -87,7 +87,11 @@ export class LeakSensorFeature extends BaseFeature {
       }
     }
 
-    throw new this.platform.api.hap.HapStatusError(-70402);
+    if (this.node.ready === false || this.node.status === 3) {
+      throw new this.platform.api.hap.HapStatusError(-70402);
+    }
+
+    return this.platform.Characteristic.LeakDetected.LEAK_NOT_DETECTED;
   }
 
   private handleGetLeakDetected(): number {

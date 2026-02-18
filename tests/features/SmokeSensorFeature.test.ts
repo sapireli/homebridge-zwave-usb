@@ -129,4 +129,16 @@ describe('SmokeSensorFeature', () => {
       endpoint: 0,
     });
   });
+
+  it('should return no smoke when value is missing but node is reachable', () => {
+    feature.init();
+    node.ready = true as any;
+    node.status = 1 as any;
+    node.supportsCC.mockReturnValue(false);
+    feature.update();
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.SmokeDetected,
+      platform.Characteristic.SmokeDetected.SMOKE_NOT_DETECTED,
+    );
+  });
 });

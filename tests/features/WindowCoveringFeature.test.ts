@@ -129,4 +129,13 @@ describe('WindowCoveringFeature', () => {
       50
     );
   });
+
+  it('should use fallback positions when values are missing but node is reachable', () => {
+    node.ready = true;
+    node.status = 1;
+    node.getValue.mockReturnValue(undefined);
+    feature.update();
+    expect(service.updateCharacteristic).toHaveBeenCalledWith('CurrentPosition', 0);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith('TargetPosition', 0);
+  });
 });

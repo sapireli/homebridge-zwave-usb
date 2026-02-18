@@ -133,4 +133,39 @@ describe('BatteryFeature', () => {
       platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW,
     );
   });
+
+  it('should prioritize explicit Power Management normal alarm over low percentage', () => {
+    feature.init();
+    node.getValue.mockImplementation((vid) => {
+      if (vid.commandClass === CommandClasses.Notification && vid.property === 'Power Management') {
+        if (vid.propertyKey === 'Replace battery soon status') return 0;
+        return undefined;
+      }
+      if (vid.commandClass === CommandClasses.Battery && vid.property === 'isLow') return undefined;
+      if (vid.commandClass === CommandClasses.Battery && vid.property === 'level') return 5;
+      return undefined;
+    });
+
+    feature.update();
+
+    expect(batteryService.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.StatusLowBattery,
+      platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_NORMAL,
+    );
+  });
+
+  it('should set low battery from Power Management notification event', () => {
+    feature.init();
+    feature.update({
+      commandClass: CommandClasses.Notification,
+      property: 'Power Management',
+      newValue: 11,
+      endpoint: 0,
+    });
+
+    expect(batteryService.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.StatusLowBattery,
+      platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW,
+    );
+  });
 });

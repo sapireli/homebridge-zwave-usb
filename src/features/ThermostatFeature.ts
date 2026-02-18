@@ -233,7 +233,11 @@ export class ThermostatFeature extends BaseFeature {
       return this.lastKnownTemp;
     }
 
-    throw new this.platform.api.hap.HapStatusError(-70402); // SERVICE_COMMUNICATION_FAILURE
+    if (this.node.ready === false || this.node.status === 3) {
+      throw new this.platform.api.hap.HapStatusError(-70402); // SERVICE_COMMUNICATION_FAILURE
+    }
+
+    return this.handleGetTargetTemp();
   }
 
   private updateTargetTemp() {

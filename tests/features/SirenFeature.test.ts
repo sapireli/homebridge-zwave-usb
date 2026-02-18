@@ -115,4 +115,12 @@ describe('SirenFeature', () => {
       255
     );
   });
+
+  it('should fallback to OFF when state values are missing but node is reachable', () => {
+    node.ready = true;
+    node.status = 1;
+    node.getValue.mockReturnValue(undefined);
+    feature.update();
+    expect(service.updateCharacteristic).toHaveBeenCalledWith('On', false);
+  });
 });

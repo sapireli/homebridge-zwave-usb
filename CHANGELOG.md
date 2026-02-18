@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.3.4] - 2026-02-18
+
+### Fixed
+- **Node Status Handling:** Corrected live update gating to treat `NodeStatus.Alive` as healthy and only block updates for dead/not-ready nodes.
+- **Battery Reporting Accuracy:** Prioritized Notification-based low-battery alarms, then explicit low-battery flags, with percentage fallback.
+- **Central Scene Mapping:** Added support for additional key attributes (`Key Held Down`, `Key Pressed 4x`, `Key Pressed 5x`) to improve remote/button event coverage.
+- **Health-Aware Sensor Reads:** Leak, Smoke, Carbon Monoxide, Multilevel Sensor, and Thermostat now avoid hard read failures on sparse telemetry while preserving `-70402` for truly unavailable nodes.
+- **Health-Aware Accessory Reads:** Lock, Garage Door, Window Covering, and Siren getters now use safe/last-known fallbacks when reachable, reducing HomeKit "No Response" from transient/missing values.
+- **Regression Coverage:** Expanded tests across battery, central scene, sensor, thermostat, lock, garage, covering, and siren fallback behaviors.
+
 ## [3.3.3] - 2026-02-18
 
 ### Fixed

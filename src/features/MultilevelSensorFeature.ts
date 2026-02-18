@@ -5,7 +5,6 @@ import { ZWaveValueEvent } from '../zwave/interfaces';
 
 /**
  * MultilevelSensorFeature handles environmental sensors (Temp, Humidity, light).
- * It uses strict error throwing to ensure HomeKit shows 'No Response' if data is missing.
  */
 export class MultilevelSensorFeature extends BaseFeature {
   private tempService: Service | undefined;
@@ -21,39 +20,21 @@ export class MultilevelSensorFeature extends BaseFeature {
       this.tempService = this.getService(this.platform.Service.TemperatureSensor, undefined, subType);
       this.tempService
         .getCharacteristic(this.platform.Characteristic.CurrentTemperature)
-        .onGet(() => {
-          const val = this.getSensorValue('Air temperature');
-          if (val === undefined) {
-            throw new this.platform.api.hap.HapStatusError(-70402);
-          }
-          return val;
-        });
+        .onGet(() => this.getSensorValue('Air temperature') ?? 0);
     }
 
     if (this.hasSensorType('Humidity')) {
       this.humidityService = this.getService(this.platform.Service.HumiditySensor, undefined, subType);
       this.humidityService
         .getCharacteristic(this.platform.Characteristic.CurrentRelativeHumidity)
-        .onGet(() => {
-          const val = this.getSensorValue('Humidity');
-          if (val === undefined) {
-            throw new this.platform.api.hap.HapStatusError(-70402);
-          }
-          return val;
-        });
+        .onGet(() => this.getSensorValue('Humidity') ?? 0);
     }
 
     if (this.hasSensorType('Illuminance')) {
       this.lightService = this.getService(this.platform.Service.LightSensor, undefined, subType);
       this.lightService
         .getCharacteristic(this.platform.Characteristic.CurrentAmbientLightLevel)
-        .onGet(() => {
-          const val = this.getSensorValue('Illuminance');
-          if (val === undefined) {
-            throw new this.platform.api.hap.HapStatusError(-70402);
-          }
-          return Math.max(val, 0.0001);
-        });
+        .onGet(() => Math.max(this.getSensorValue('Illuminance') ?? 0.0001, 0.0001));
     }
 
     // Air Quality Group
@@ -162,6 +143,12 @@ export class MultilevelSensorFeature extends BaseFeature {
     });
 
     if (co2 === undefined && pm25 === undefined && binaryCo2 === undefined && voc === undefined) {
+      if (this.node.ready === false || this.node.status === 3) {
+        throw new this.platform.api.hap.HapStatusError(-70402);
+      }
+      if (this.platform.Characteristic.AirQuality.UNKNOWN !== undefined) {
+        return this.platform.Characteristic.AirQuality.UNKNOWN;
+      }
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
 

@@ -59,7 +59,11 @@ export class SirenFeature extends BaseFeature {
       return !!binVal;
     }
 
-    throw new this.platform.api.hap.HapStatusError(-70402);
+    if (this.node.ready === false || this.node.status === 3) {
+      throw new this.platform.api.hap.HapStatusError(-70402);
+    }
+
+    return false;
   }
 
   private async handleSetState(value: CharacteristicValue) {

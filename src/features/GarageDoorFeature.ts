@@ -82,11 +82,17 @@ export class GarageDoorFeature extends BaseFeature {
       }
     }
 
-    /**
-     * DANGEROUS DEFAULT FIX: Throw error instead of returning CLOSED if data is missing.
-     * This ensures HomeKit shows 'No Response' instead of a false security state.
-     */
-    throw new this.platform.api.hap.HapStatusError(-70402);
+    if (this.node.ready === false || this.node.status === 3) {
+      throw new this.platform.api.hap.HapStatusError(-70402);
+    }
+
+    const lastKnown = this.service.getCharacteristic(this.platform.Characteristic.CurrentDoorState)
+      .value as number;
+    if (typeof lastKnown === 'number') {
+      return lastKnown;
+    }
+
+    return this.platform.Characteristic.CurrentDoorState.STOPPED;
   }
 
   private handleGetTargetState(): number {

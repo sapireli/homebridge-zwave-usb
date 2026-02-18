@@ -138,4 +138,16 @@ describe('LeakSensorFeature', () => {
       endpoint: 0,
     });
   });
+
+  it('should return no leak when value is missing but node is reachable', () => {
+    feature.init();
+    node.ready = true as any;
+    node.status = 1 as any;
+    node.supportsCC.mockReturnValue(false);
+    feature.update();
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.LeakDetected,
+      platform.Characteristic.LeakDetected.LEAK_NOT_DETECTED,
+    );
+  });
 });

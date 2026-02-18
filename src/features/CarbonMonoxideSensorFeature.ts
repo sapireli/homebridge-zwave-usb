@@ -80,10 +80,11 @@ export class CarbonMonoxideSensorFeature extends BaseFeature {
       }
     }
 
-    /**
-     * SECURITY FALLBACK FIX: Throw error if data is missing to avoid false 'Safe' state.
-     */
-    throw new this.platform.api.hap.HapStatusError(-70402);
+    if (this.node.ready === false || this.node.status === 3) {
+      throw new this.platform.api.hap.HapStatusError(-70402);
+    }
+
+    return this.platform.Characteristic.CarbonMonoxideDetected.CO_LEVELS_NORMAL;
   }
 
   private handleGetCODetected(): number {
