@@ -2,7 +2,7 @@ import { PlatformAccessory, Service } from 'homebridge';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { ZWaveFeature } from '../features/ZWaveFeature';
-import { OBSOLETE_CHAR_UUIDS, HAPFormat, HAPPerm } from '../platform/settings';
+import { OBSOLETE_CHAR_UUIDS, HAPPerm } from '../platform/settings';
 
 export class ZWaveAccessory {
   public readonly platformAccessory: PlatformAccessory;

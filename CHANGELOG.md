@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.4] - 2026-02-17
+
+### Fixed
+- **Clean Build:** Removed unused `HAPFormat` imports that were causing build warnings in CI.
+
 ## [2.8.3] - 2026-02-17
 
 ### Fixed

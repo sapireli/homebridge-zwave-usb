@@ -2,7 +2,7 @@ import { PlatformAccessory, Service, WithUUID } from 'homebridge';
 import { Endpoint } from 'zwave-js';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
-import { HAPFormat, HAPPerm } from '../platform/settings';
+import { HAPPerm } from '../platform/settings';
 
 export interface ZWaveFeature {
   init(): void;
