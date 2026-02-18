@@ -2,6 +2,7 @@ import { PlatformAccessory, Service, WithUUID } from 'homebridge';
 import { Endpoint } from 'zwave-js';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
+import { HAPPerm } from '../platform/settings';
 
 export interface ZWaveFeature {
   init(): void;
@@ -49,6 +50,7 @@ export abstract class BaseFeature implements ZWaveFeature {
       service.displayName = serviceName;
 
       if (service.testCharacteristic(this.platform.Characteristic.Name)) {
+        // Force update using the NOTIFY-enabled characteristic
         service.getCharacteristic(this.platform.Characteristic.Name).updateValue(serviceName);
       }
     }
@@ -115,7 +117,12 @@ export abstract class BaseFeature implements ZWaveFeature {
     // Sync internal property
     service.displayName = serviceName;
 
-    // Explicitly set the name characteristic to ensure it's displayed correctly
+    // Use setProps to ensure HomeKit listens for name notifications (setparms)
+    const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
+    nameChar.setProps({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
+    });
     service.updateCharacteristic(this.platform.Characteristic.Name, serviceName);
 
     // Add Service Label Index for multi-endpoint devices to help with ordering/naming

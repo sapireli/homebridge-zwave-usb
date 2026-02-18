@@ -32,6 +32,7 @@ describe('AccessoryFactory', () => {
           addService: jest.fn(),
           getService: jest.fn().mockReturnValue({
             setCharacteristic: jest.fn().mockReturnThis(),
+            getCharacteristic: jest.fn().mockReturnValue({ value: '' }),
             testCharacteristic: jest.fn().mockReturnValue(true),
             addOptionalCharacteristic: jest.fn(),
             updateCharacteristic: jest.fn().mockReturnThis(),

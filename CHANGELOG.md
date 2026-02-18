@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.10] - 2026-02-17
+
+### Fixed
+- **Stable Name Sync:** Implemented `setProps` on the `Name` characteristic to explicitly enable `NOTIFY` permissions. This allows HomeKit to receive live name updates without needing to clear the cache, while maintaining a stable hardware identity to avoid Home app settings errors.
+
 ## [2.8.9] - 2026-02-17
 
 ### Fixed
