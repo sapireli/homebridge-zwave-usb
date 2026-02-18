@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.0] - 2026-02-17
+
+### Added
+- **Dynamic Renaming Support:** Implemented `ConfiguredName` with full Read/Write/Notify permissions. This is the official HomeKit mechanism for allowing plugins to push name updates while still letting users rename devices in the Home app without causing "Could not change settings" errors.
+
 ## [2.8.11] - 2026-02-17
 
 ### Fixed
