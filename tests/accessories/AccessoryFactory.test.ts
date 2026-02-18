@@ -23,6 +23,7 @@ describe('AccessoryFactory', () => {
             Model: 'Model',
             SerialNumber: 'SerialNumber',
             Name: 'Name',
+            ConfiguredName: 'ConfiguredName',
           },
           uuid: {
             generate: jest.fn().mockReturnValue('test-uuid'),
@@ -32,7 +33,11 @@ describe('AccessoryFactory', () => {
           addService: jest.fn(),
           getService: jest.fn().mockReturnValue({
             setCharacteristic: jest.fn().mockReturnThis(),
-            getCharacteristic: jest.fn().mockReturnValue({ value: '' }),
+            getCharacteristic: jest.fn().mockReturnValue({
+              value: '',
+              updateValue: jest.fn(),
+              onSet: jest.fn(),
+            }),
             testCharacteristic: jest.fn().mockReturnValue(true),
             addOptionalCharacteristic: jest.fn(),
             updateCharacteristic: jest.fn().mockReturnThis(),
@@ -50,6 +55,7 @@ describe('AccessoryFactory', () => {
         Manufacturer: 'Manufacturer',
         Model: 'Model',
         SerialNumber: 'SerialNumber',
+        ConfiguredName: 'ConfiguredName',
       },
       accessories: [],
     };

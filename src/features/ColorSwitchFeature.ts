@@ -13,19 +13,21 @@ export class ColorSwitchFeature extends BaseFeature {
     const subType = this.endpoint.index.toString();
     this.service = this.getService(this.platform.Service.Lightbulb, undefined, subType);
 
-    // Hue (0-360)
+    this.service
+      .getCharacteristic(this.platform.Characteristic.On)
+      .onGet(this.handleGetOn.bind(this))
+      .onSet(this.handleSetOn.bind(this));
+
     this.service
       .getCharacteristic(this.platform.Characteristic.Hue)
       .onGet(this.handleGetHue.bind(this))
       .onSet(this.handleSetHue.bind(this));
 
-    // Saturation (0-100)
     this.service
       .getCharacteristic(this.platform.Characteristic.Saturation)
       .onGet(this.handleGetSaturation.bind(this))
       .onSet(this.handleSetSaturation.bind(this));
 
-    // Brightness (0-100)
     if (!this.service.testCharacteristic(this.platform.Characteristic.Brightness)) {
       this.service.addCharacteristic(this.platform.Characteristic.Brightness);
     }
@@ -42,13 +44,41 @@ export class ColorSwitchFeature extends BaseFeature {
     ) {
       return;
     }
+    const isOn = this.handleGetOn();
     const hue = this.handleGetHue();
     const sat = this.handleGetSaturation();
     const bri = this.handleGetBrightness();
 
+    this.service.updateCharacteristic(this.platform.Characteristic.On, isOn);
     this.service.updateCharacteristic(this.platform.Characteristic.Hue, hue);
     this.service.updateCharacteristic(this.platform.Characteristic.Saturation, sat);
     this.service.updateCharacteristic(this.platform.Characteristic.Brightness, bri);
+  }
+
+  private handleGetOn(): boolean {
+    const bri = this.node.getValue({
+      commandClass: CommandClasses['Multilevel Switch'],
+      property: 'currentValue',
+      endpoint: this.endpoint.index,
+    });
+    return typeof bri === 'number' && bri > 0;
+  }
+
+  private async handleSetOn(value: CharacteristicValue) {
+    const targetValue = value ? 255 : 0;
+    try {
+      await this.node.setValue(
+        {
+          commandClass: CommandClasses['Multilevel Switch'],
+          property: 'targetValue',
+          endpoint: this.endpoint.index,
+        },
+        targetValue,
+      );
+    } catch (err) {
+      this.platform.log.error('Failed to set On/Off:', err);
+      throw new this.platform.api.hap.HapStatusError(-70402);
+    }
   }
 
   private handleGetBrightness(): number {

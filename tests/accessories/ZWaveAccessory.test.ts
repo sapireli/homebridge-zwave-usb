@@ -10,7 +10,12 @@ describe('ZWaveAccessory', () => {
 
   beforeEach(() => {
     mockService = {
-      getCharacteristic: jest.fn().mockReturnThis(),
+      getCharacteristic: jest.fn().mockReturnValue({
+        value: '',
+        updateValue: jest.fn(),
+        onSet: jest.fn(),
+        setProps: jest.fn().mockReturnThis(),
+      }),
       setProps: jest.fn().mockReturnThis(),
       updateValue: jest.fn().mockReturnThis(),
       updateCharacteristic: jest.fn().mockReturnThis(),
@@ -20,7 +25,7 @@ describe('ZWaveAccessory', () => {
       setPrimaryService: jest.fn(),
       characteristics: [],
       displayName: 'Service Name',
-      UUID: 'service-uuid'
+      UUID: 'service-uuid',
     };
 
     platform = {
@@ -42,7 +47,7 @@ describe('ZWaveAccessory', () => {
           removeService: jest.fn(),
           services: [mockService],
           displayName: 'Initial Name',
-          UUID: 'test-uuid'
+          UUID: 'test-uuid',
         })),
         updatePlatformAccessories: jest.fn(),
         registerPlatformAccessories: jest.fn(),
@@ -55,7 +60,8 @@ describe('ZWaveAccessory', () => {
         Model: '00000021-0000-1000-8000-0026BB765291',
         SerialNumber: '00000030-0000-1000-8000-0026BB765291',
         Name: '00000023-0000-1000-8000-0026BB765291',
-        SoftwareRevision: '00000054-0000-1000-8000-0026BB765291',
+        ConfiguredName: '000000E3-0000-1000-8000-0026BB765291',
+        FirmwareRevision: '00000052-0000-1000-8000-0026BB765291',
       },
       accessories: [],
     };
@@ -70,7 +76,11 @@ describe('ZWaveAccessory', () => {
       ready: true,
     };
 
-    accessory = new ZWaveAccessory(platform as unknown as ZWaveUsbPlatform, node as IZWaveNode, 12345);
+    accessory = new ZWaveAccessory(
+      platform as unknown as ZWaveUsbPlatform,
+      node as IZWaveNode,
+      12345,
+    );
   });
 
   it('should update accessory and service names when renamed', () => {

@@ -80,31 +80,27 @@ export class ZWaveAccessory {
         this.node.firmwareVersion || '1.0.0',
       );
 
-    // Add ConfiguredName characteristic to allow users to rename in Home app
+    if (!infoService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+      infoService.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+    }
     const configuredNameChar = infoService.getCharacteristic(
       this.platform.Characteristic.ConfiguredName,
     );
+
     if (configuredNameChar) {
-      if (!infoService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
-        infoService.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+      const existingName = this.platformAccessory.displayName || nodeName;
+      if (!configuredNameChar.value) {
+        configuredNameChar.updateValue(existingName);
       }
-      const char = infoService.getCharacteristic(this.platform.Characteristic.ConfiguredName);
-      if (char && typeof char.updateValue === 'function') {
-        if (!char.value) {
-          char.updateValue(nodeName);
-        }
-      }
-      // Handle when user changes name in Home app
-      if (char && typeof char.onSet === 'function') {
-        char.onSet((value) => {
-          const newName = String(value);
-          this.platform.log.info(
-            `User renamed accessory in Home app: ${this.platformAccessory.displayName} -> ${newName}`,
-          );
-          this.platformAccessory.displayName = newName;
-          this.platform.api.updatePlatformAccessories([this.platformAccessory]);
-        });
-      }
+
+      configuredNameChar.onSet((value) => {
+        const newName = String(value);
+        this.platform.log.info(
+          `User renamed accessory in Home app: ${this.platformAccessory.displayName} -> ${newName}`,
+        );
+        this.platformAccessory.displayName = newName;
+        this.platform.api.updatePlatformAccessories([this.platformAccessory]);
+      });
     }
 
     /**

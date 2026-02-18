@@ -30,7 +30,7 @@ export interface IZWaveController extends EventEmitter {
   startHealing(): Promise<boolean>;
   stopHealing(): Promise<boolean>;
   removeFailedNode(nodeId: number): Promise<void>;
-  setNodeName(nodeId: number, name: string): void;
+  setNodeName(nodeId: number, name: string): Promise<void>;
   setS2Pin(pin: string): void;
 
   // Firmware Update Methods
