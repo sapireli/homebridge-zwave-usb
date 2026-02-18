@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.7] - 2026-02-17
+
+### Fixed
+- **Build Fix:** Removed unused imports (`HAPPerm`) that were causing build failures in some environments due to strict linting/typing rules.
+
 ## [2.8.6] - 2026-02-17
 
 ### Fixed
