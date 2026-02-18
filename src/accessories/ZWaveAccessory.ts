@@ -90,7 +90,9 @@ export class ZWaveAccessory {
       }
       const char = infoService.getCharacteristic(this.platform.Characteristic.ConfiguredName);
       if (char && typeof char.updateValue === 'function') {
-        char.updateValue(nodeName);
+        if (!char.value) {
+          char.updateValue(nodeName);
+        }
       }
       // Handle when user changes name in Home app
       if (char && typeof char.onSet === 'function') {
