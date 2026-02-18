@@ -115,16 +115,27 @@ export abstract class BaseFeature implements ZWaveFeature {
 
     // Mark the first functional service as primary to help HomeKit with naming/tiles
     if (this.managedServices.length === 0) {
-      service.setPrimaryService(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (service as any).setPrimaryService(true);
     }
 
-    // Explicitly set the name characteristic to ensure it's displayed correctly
+    // Explicitly set the name characteristic with NOTIFY to ensure it's displayed correctly
+    service.getCharacteristic(this.platform.Characteristic.Name)
+      .setProps({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
+      });
     service.updateCharacteristic(this.platform.Characteristic.Name, serviceName);
 
     // Also set ConfiguredName which many HomeKit versions prioritize for plugin-side renaming
     if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
       service.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
     }
+    service.getCharacteristic(this.platform.Characteristic.ConfiguredName)
+      .setProps({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
+      });
     service.updateCharacteristic(this.platform.Characteristic.ConfiguredName, serviceName);
 
     // Add Service Label Index for multi-endpoint devices to help with ordering/naming

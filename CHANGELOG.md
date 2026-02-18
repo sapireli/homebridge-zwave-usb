@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.3] - 2026-02-17
+
+### Fixed
+- **Build Compatibility:** Fixed a potential build error by using a safer type casting for `setPrimaryService`.
+- **Name Sync Reliability:** Restored `NOTIFY` permissions to all Name characteristics. This was inadvertently removed in 2.8.2 and is critical for forcing HomeKit to refresh device names dynamically.
+
 ## [2.8.2] - 2026-02-17
 
 ### Fixed
