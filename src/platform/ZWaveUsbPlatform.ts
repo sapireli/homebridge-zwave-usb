@@ -160,7 +160,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
         ) {
           let body = '';
           req.on('data', (chunk) => (body += chunk));
-          req.on('end', () => {
+          req.on('end', async () => {
             try {
               const parts = normalizedUrl.split('/');
               const nodeId = parseInt(parts[2], 10);
@@ -170,12 +170,11 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
                 throw new Error('Controller not initialized');
               }
 
-              this.zwaveController.setNodeName(nodeId, name);
+              await this.zwaveController.setNodeName(nodeId, name);
 
-              // Update Homebridge Accessory Name
-              const accessory = this.zwaveAccessories.get(nodeId);
-              if (accessory) {
-                accessory.rename(name);
+              const node = this.zwaveController.nodes.get(nodeId);
+              if (node) {
+                this.recreateNodeAccessory(node, Date.now().toString(36));
               }
 
               return sendJson({ success: true });
@@ -449,6 +448,31 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
         this.accessories.splice(index, 1);
       }
     }
+  }
+
+  private recreateNodeAccessory(node: IZWaveNode, uuidSeed: string): void {
+    const existing = this.zwaveAccessories.get(node.nodeId);
+    if (existing) {
+      existing.stop();
+      this.api.unregisterPlatformAccessories('homebridge-zwave-usb', 'ZWaveUSB', [
+        existing.platformAccessory,
+      ]);
+      this.zwaveAccessories.delete(node.nodeId);
+
+      const index = this.accessories.indexOf(existing.platformAccessory);
+      if (index !== -1) {
+        this.accessories.splice(index, 1);
+      }
+    }
+
+    const homeId = this.zwaveController?.homeId;
+    if (!homeId) {
+      throw new Error(`Cannot recreate accessory for Node ${node.nodeId} - Home ID not available`);
+    }
+
+    const recreated = AccessoryFactory.create(this, node, homeId, { forceUuidSeed: uuidSeed });
+    this.zwaveAccessories.set(node.nodeId, recreated);
+    recreated.initialize();
   }
 
   /**

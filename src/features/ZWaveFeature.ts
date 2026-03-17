@@ -100,30 +100,33 @@ export abstract class BaseFeature implements ZWaveFeature {
         ? `${this.accessory.displayName} ${this.endpoint.index}`
         : this.accessory.displayName);
 
-    let service: Service;
+    let service: Service | undefined;
+    let wasCreated = false;
     if (subType) {
       service =
-        this.accessory.getServiceById(serviceType, subType) ||
+        this.accessory.getServiceById(serviceType, subType);
+      if (!service) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.accessory.addService(new (serviceType as any)(serviceName, subType));
+        service = this.accessory.addService(new (serviceType as any)(serviceName, subType));
+        wasCreated = true;
+      }
     } else {
       service =
-        this.accessory.getService(serviceType) ||
+        this.accessory.getService(serviceType);
+      if (!service) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        this.accessory.addService(new (serviceType as any)(serviceName));
+        service = this.accessory.addService(new (serviceType as any)(serviceName));
+        wasCreated = true;
+      }
     }
 
     // Sync internal property
     service.displayName = serviceName;
 
-    // 1. Standard Name: Notify removed
-    if (service.testCharacteristic(this.platform.Characteristic.Name)) {
+    // Seed the service Name only when the service is first created.
+    if (wasCreated && service.testCharacteristic(this.platform.Characteristic.Name)) {
       const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
-      // Only update if current value is generic "Node X" to respect user overrides
-      const currentValue = nameChar.value as string;
-      if (!currentValue || currentValue.startsWith('Node ')) {
-        nameChar.updateValue(serviceName);
-      }
+      nameChar.updateValue(serviceName);
     }
 
     // Add Service Label Index for multi-endpoint devices to help with ordering/naming

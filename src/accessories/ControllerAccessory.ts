@@ -147,7 +147,6 @@ export class ControllerAccessory {
     this.statusService =
       this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
       this.platformAccessory.addService(new managerServiceType('System Status', 'Status'));
-    this.syncConfiguredName(this.statusService, 'System Status');
 
     this.statusService
       .getCharacteristic(this.platform.Characteristic.Name)
@@ -197,7 +196,6 @@ export class ControllerAccessory {
         'Inclusion Mode',
         'Inclusion',
       );
-    this.syncConfiguredName(this.inclusionService, 'Inclusion Mode');
 
     this.inclusionService
       .getCharacteristic(this.platform.Characteristic.Name)
@@ -227,7 +225,6 @@ export class ControllerAccessory {
         'Exclusion Mode',
         'Exclusion',
       );
-    this.syncConfiguredName(this.exclusionService, 'Exclusion Mode');
 
     this.exclusionService
       .getCharacteristic(this.platform.Characteristic.Name)
@@ -252,7 +249,6 @@ export class ControllerAccessory {
     this.healService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Heal') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Heal Network', 'Heal');
-    this.syncConfiguredName(this.healService, 'Heal Network');
 
     this.healService
       .getCharacteristic(this.platform.Characteristic.Name)
@@ -275,7 +271,6 @@ export class ControllerAccessory {
     this.pruneService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Prune') ||
       this.platformAccessory.addService(this.platform.Service.Switch, 'Prune Dead Nodes', 'Prune');
-    this.syncConfiguredName(this.pruneService, 'Prune Dead Nodes');
 
     this.pruneService
       .getCharacteristic(this.platform.Characteristic.Name)
@@ -397,16 +392,6 @@ export class ControllerAccessory {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.controller.on(event as any, handler);
     }
-  }
-
-  private syncConfiguredName(service: Service, value?: string) {
-    const configuredNameValue = value || service.displayName;
-    if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
-      service.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
-    }
-    service
-      .getCharacteristic(this.platform.Characteristic.ConfiguredName)
-      .updateValue(configuredNameValue);
   }
 
   private setupPinEntryCharacteristic(service: Service) {

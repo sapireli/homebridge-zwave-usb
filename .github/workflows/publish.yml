@@ -27,6 +27,13 @@ jobs:
         id: check_version
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *"-"* ]]; then
+            echo "npm_tag=beta" >> $GITHUB_OUTPUT
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "npm_tag=latest" >> $GITHUB_OUTPUT
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
           # Check if tag already exists
           if git rev-parse "v$VERSION" >/dev/null 2>&1; then
             echo "Version v$VERSION already exists. Skipping release."
@@ -56,12 +63,12 @@ jobs:
           name: v${{ steps.check_version.outputs.version }}
           body: 'See CHANGELOG.md for details.'
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.check_version.outputs.prerelease }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to NPM
         if: steps.check_version.outputs.changed == 'true'
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --tag ${{ steps.check_version.outputs.npm_tag }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

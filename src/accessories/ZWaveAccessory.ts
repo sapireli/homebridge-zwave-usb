@@ -14,13 +14,13 @@ export class ZWaveAccessory {
     public readonly platform: ZWaveUsbPlatform,
     public node: IZWaveNode,
     public readonly homeId: number,
+    private readonly options: { forceUuidSeed?: string } = {},
   ) {
     // WARNING: This UUID generation string MUST NOT BE CHANGED!
     // This deterministic string ensures that devices maintain the same HomeKit identity across restarts.
     // This is the stable UUID generation scheme.
-    const stableUuid = this.platform.api.hap.uuid.generate(
-      `homebridge-zwave-usb-${this.homeId}-${this.node.nodeId}`,
-    );
+    const stableId = `homebridge-zwave-usb-${this.homeId}-${this.node.nodeId}`;
+    const stableUuid = this.platform.api.hap.uuid.generate(stableId);
 
     /**
      * MIGRATION PATH: Automated Legacy UUID Adoption.
@@ -47,16 +47,25 @@ export class ZWaveAccessory {
       }
     }
 
-    const existingAccessory = this.platform.accessories.find(
-      (accessory) => accessory.UUID === uuid,
-    );
+    const existingAccessory =
+      this.platform.accessories.find((accessory) => {
+        const context = accessory.context as
+          | { nodeId?: number; homeId?: number; renameGeneration?: string }
+          | undefined;
+        return context?.nodeId === this.node.nodeId && context?.homeId === this.homeId;
+      }) ||
+      this.platform.accessories.find((accessory) => accessory.UUID === uuid);
     const nodeName = this.node.name || this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
+    const forceUuidSeed = this.options.forceUuidSeed?.trim();
 
     if (existingAccessory) {
       this.platformAccessory = existingAccessory;
     } else {
+      const creationUuid = forceUuidSeed
+        ? this.platform.api.hap.uuid.generate(`${stableId}-rename-${forceUuidSeed}`)
+        : uuid;
       this.platform.log.info(`Creating new accessory for ${nodeName} (UUID: ${uuid})`);
-      this.platformAccessory = new this.platform.api.platformAccessory(nodeName, uuid);
+      this.platformAccessory = new this.platform.api.platformAccessory(nodeName, creationUuid);
       this.platform.api.registerPlatformAccessories('homebridge-zwave-usb', 'ZWaveUSB', [
         this.platformAccessory,
       ]);
@@ -80,6 +89,24 @@ export class ZWaveAccessory {
         this.platform.Characteristic.FirmwareRevision,
         this.node.firmwareVersion || '1.0.0',
       );
+
+    if (!existingAccessory) {
+      // Seed the initial HomeKit-facing name once for freshly created accessories.
+      this.platformAccessory.displayName = nodeName;
+      infoService.setCharacteristic(this.platform.Characteristic.Name, nodeName);
+    }
+
+    const context = ((this.platformAccessory.context as {
+      nodeId?: number;
+      homeId?: number;
+      renameGeneration?: string;
+    }) || {});
+    this.platformAccessory.context = context;
+    context.nodeId = this.node.nodeId;
+    context.homeId = this.homeId;
+    if (forceUuidSeed) {
+      context.renameGeneration = forceUuidSeed;
+    }
 
     /**
      * Helper to normalize UUIDs for reliable comparison during metadata pruning.
@@ -110,7 +137,8 @@ export class ZWaveAccessory {
   }
 
   /**
-   * Syncs the HomeKit name and service names when the node is renamed.
+   * Applies a plugin-controlled rename to the default accessory metadata.
+   * This is intentionally conservative and is only used for explicit recreate flows.
    */
   public rename(newName: string): void {
     this.platform.log.info(`Syncing HomeKit name for Node ${this.node.nodeId} -> ${newName}`);
@@ -120,19 +148,12 @@ export class ZWaveAccessory {
       this.platform.Service.AccessoryInformation,
     );
     if (infoService) {
-      const configuredNameChar = infoService.getCharacteristic(
-        this.platform.Characteristic.ConfiguredName,
-      );
-      if (configuredNameChar) {
-        configuredNameChar.updateValue(newName);
-      }
+      infoService.setCharacteristic(this.platform.Characteristic.Name, newName);
     }
 
     for (const feature of this.features) {
       feature.rename(newName);
     }
-
-    this.platform.api.updatePlatformAccessories([this.platformAccessory]);
   }
 
   /**
@@ -190,46 +211,30 @@ export class ZWaveAccessory {
       }
     });
 
-    // Bind ConfiguredName only on AccessoryInformation (HAP-defined location).
-    const infoService = this.platformAccessory.getService(
-      this.platform.Service.AccessoryInformation,
-    );
-    if (infoService) {
-      this.setupConfiguredName(infoService);
-    }
-
+    this.seedConfiguredNameOnPrimaryService();
     this.platform.api.updatePlatformAccessories([this.platformAccessory]);
 
     this.refresh();
   }
 
-  private setupConfiguredName(service: Service): void {
-    if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
-      service.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+  private seedConfiguredNameOnPrimaryService(): void {
+    const primaryService = this.features.flatMap((feature) => feature.getServices())[0];
+    if (!primaryService) {
+      return;
     }
 
-    this.platform.log.debug(
-      `[ConfiguredName] Binding on service "${service.displayName}" (${service.UUID}) for Node ${this.node.nodeId}`,
-    );
-
-    const configuredNameChar = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
-    const existingName =
-      this.platformAccessory.displayName ||
-      this.node.name ||
-      this.node.deviceConfig?.label ||
-      `Node ${this.node.nodeId}`;
-
-    if (!configuredNameChar.value) {
-      configuredNameChar.updateValue(existingName);
+    if (typeof (primaryService as { setPrimaryService?: (isPrimary?: boolean) => void }).setPrimaryService === 'function') {
+      (primaryService as { setPrimaryService: (isPrimary?: boolean) => void }).setPrimaryService(true);
     }
 
-    configuredNameChar.onSet((value) => {
-      const newName = String(value);
-      this.platform.log.info(
-        `[ConfiguredName:onSet] Service "${service.displayName}" Node ${this.node.nodeId}: ${this.platformAccessory.displayName} -> ${newName}`,
-      );
-      this.rename(newName);
-    });
+    if (!primaryService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+      primaryService.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
+    }
+
+    const configuredName = primaryService.getCharacteristic(this.platform.Characteristic.ConfiguredName);
+    if (!configuredName.value) {
+      configuredName.updateValue(primaryService.displayName || this.platformAccessory.displayName);
+    }
   }
 
   public refresh(args?: ZWaveValueEvent): void {

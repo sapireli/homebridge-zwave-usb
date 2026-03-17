@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.4.0-beta.0] - 2026-03-17
+
+### Changed
+- **HomeKit Naming Model:** Node accessories now seed their default HomeKit name only when first created, preserving cached HomeKit-side custom names during normal startup and refresh.
+- **Configured Name Support:** Reintroduced `ConfiguredName` only on the primary functional service so HomeKit can manage user-facing names without the old multi-layer sync loop.
+- **Explicit Plugin Rename Flow:** Renaming a node from the plugin UI now recreates the HomeKit accessory with a fresh UUID so the new plugin-side default name is guaranteed to appear in HomeKit.
+
+### Fixed
+- **Metadata Stability:** Removed routine name reassertion for cached accessories and service instances to reduce HomeKit settings churn.
+- **Regression Coverage:** Added tests for cached-name preservation, primary-service `ConfiguredName` seeding, and destructive recreate-on-rename behavior.
+
 ## [3.3.4] - 2026-02-18
 
 ### Fixed

@@ -25,8 +25,9 @@ export class AccessoryFactory {
     platform: ZWaveUsbPlatform,
     node: IZWaveNode,
     homeId: number,
+    options: { forceUuidSeed?: string } = {},
   ): ZWaveAccessory {
-    const accessory = new ZWaveAccessory(platform, node, homeId);
+    const accessory = new ZWaveAccessory(platform, node, homeId, options);
     const endpoints = node.getAllEndpoints();
     const isMultiEndpoint = endpoints.length > 1;
 

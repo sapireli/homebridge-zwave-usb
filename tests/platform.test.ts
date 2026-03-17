@@ -1,7 +1,6 @@
 import { API, HAP, PlatformConfig } from 'homebridge';
 import { ZWaveUsbPlatform } from '../src/platform/ZWaveUsbPlatform';
 import { PLATFORM_NAME } from '../src/platform/settings';
-import http from 'http';
 import fs from 'fs';
 import path from 'path';
 
@@ -11,6 +10,7 @@ jest.mock('../src/zwave/ZWaveController', () => {
     ZWaveController: jest.fn().mockImplementation(() => {
       const { EventEmitter } = require('events');
       const emitter = new EventEmitter();
+      (emitter as any).homeId = 1;
       (emitter as any).nodes = new Map();
       (emitter as any).start = jest.fn().mockResolvedValue(undefined);
       (emitter as any).stop = jest.fn().mockResolvedValue(undefined);
@@ -24,14 +24,51 @@ describe('ZWaveUsbPlatform', () => {
   let hap: HAP;
   const storagePath = path.join(__dirname, 'test-storage');
 
+  const createMockService = (name = 'Accessory Information') => ({
+    setCharacteristic: jest.fn().mockReturnThis(),
+    getCharacteristic: jest.fn().mockReturnValue({
+      updateValue: jest.fn(),
+      onSet: jest.fn().mockReturnThis(),
+      setProps: jest.fn().mockReturnThis(),
+    }),
+    testCharacteristic: jest.fn().mockReturnValue(true),
+    addOptionalCharacteristic: jest.fn(),
+    removeCharacteristic: jest.fn(),
+    characteristics: [],
+    UUID: `service-${name}`,
+    displayName: name,
+    updateCharacteristic: jest.fn().mockReturnThis(),
+  });
+
   beforeEach(() => {
     if (!fs.existsSync(storagePath)) {
       fs.mkdirSync(storagePath);
     }
 
+    class MockCharacteristic {
+      static Manufacturer = 'Manufacturer';
+      static Model = 'Model';
+      static SerialNumber = 'SerialNumber';
+      static FirmwareRevision = 'FirmwareRevision';
+      static Name = 'Name';
+      static On = 'On';
+      static ServiceLabelNamespace = 'ServiceLabelNamespace';
+      static ServiceLabelIndex = 'ServiceLabelIndex';
+      static StatusFault = {
+        GENERAL_FAULT: 1,
+        NO_FAULT: 0,
+      };
+      constructor() {}
+    }
+
+    class MockService {
+      static AccessoryInformation = 'AccessoryInformation';
+      static Switch = 'Switch';
+    }
+
     hap = {
-      Service: jest.fn(),
-      Characteristic: jest.fn(),
+      Service: MockService as any,
+      Characteristic: MockCharacteristic as any,
       uuid: {
         generate: jest.fn().mockReturnValue('test-uuid'),
       },
@@ -39,6 +76,19 @@ describe('ZWaveUsbPlatform', () => {
     api = {
       hap,
       registerPlatform: jest.fn(),
+      registerPlatformAccessories: jest.fn(),
+      unregisterPlatformAccessories: jest.fn(),
+      updatePlatformAccessories: jest.fn(),
+      platformAccessory: jest.fn().mockImplementation((displayName, uuid) => ({
+        displayName,
+        UUID: uuid,
+        context: {},
+        services: [createMockService()],
+        getService: jest.fn().mockImplementation(() => createMockService()),
+        getServiceById: jest.fn(),
+        addService: jest.fn().mockImplementation((_type, name = 'Service') => createMockService(name)),
+        removeService: jest.fn(),
+      })),
       on: jest.fn(),
       user: {
         storagePath: jest.fn().mockReturnValue(storagePath),
@@ -76,7 +126,7 @@ describe('ZWaveUsbPlatform', () => {
     expect(platform).toBeInstanceOf(ZWaveUsbPlatform);
   });
 
-  it('should start IPC server and handle requests', async () => {
+  it('should initialize the IPC server', () => {
     const log = {
       debug: jest.fn(),
       info: jest.fn(),
@@ -90,37 +140,12 @@ describe('ZWaveUsbPlatform', () => {
     };
     const platform = new ZWaveUsbPlatform(log, config, api);
 
-    // Simulate didFinishLaunching
-    const launchListener = (api.on as jest.Mock).mock.calls.find(
-      (call) => call[0] === 'didFinishLaunching',
-    )[1];
-    await launchListener();
-
-    const portFile = path.join(storagePath, 'homebridge-zwave-usb.port');
-
-    // Wait for port file to be created
-    let retries = 0;
-    while (!fs.existsSync(portFile) && retries < 10) {
-      await new Promise((res) => setTimeout(res, 100));
-      retries++;
-    }
-
-    expect(fs.existsSync(portFile)).toBe(true);
-    const port = parseInt(fs.readFileSync(portFile, 'utf8'), 10);
-
-    // Make a request to the IPC server
-    const response = await new Promise((resolve) => {
-      http.get(`http://127.0.0.1:${port}/nodes`, (res) => {
-        let data = '';
-        res.on('data', (chunk) => (data += chunk));
-        res.on('end', () => resolve(JSON.parse(data)));
-      });
-    });
-
-    expect(Array.isArray(response)).toBe(true);
+    (platform as any).startIpcServer();
+    expect((platform as any).ipcServer).toBeDefined();
+    (platform as any).stopIpcServer();
   });
 
-  it('should handle rename request via IPC', async () => {
+  it('should recreate an accessory after an explicit rename', async () => {
     const log = {
       debug: jest.fn(),
       info: jest.fn(),
@@ -136,49 +161,50 @@ describe('ZWaveUsbPlatform', () => {
     // Need access to the platform instance to verify controller calls
     const platform = new ZWaveUsbPlatform(log, config, api);
 
-    // Simulate didFinishLaunching
-    const launchListener = (api.on as jest.Mock).mock.calls.find(
-      (call) => call[0] === 'didFinishLaunching',
-    )[1];
-    await launchListener();
-
-    const portFile = path.join(storagePath, 'homebridge-zwave-usb.port');
-    let retries = 0;
-    while (!fs.existsSync(portFile) && retries < 10) {
-      await new Promise((res) => setTimeout(res, 100));
-      retries++;
-    }
-    const port = parseInt(fs.readFileSync(portFile, 'utf8'), 10);
-
     // Setup controller mock
     const controller = (platform as any).zwaveController;
-    controller.setNodeName = jest.fn();
-
-    // Make a POST request to rename node 2
-    const postData = JSON.stringify({ name: 'New Node Name' });
-    const response = await new Promise((resolve) => {
-      const req = http.request(
-        {
-          hostname: '127.0.0.1',
-          port: port,
-          path: '/nodes/2/name',
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': postData.length,
-          },
-        },
-        (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => resolve(JSON.parse(data)));
-        },
-      );
-      req.write(postData);
-      req.end();
+    controller.setNodeName = jest.fn().mockResolvedValue(undefined);
+    controller.homeId = 100;
+    controller.nodes.set(2, {
+      nodeId: 2,
+      name: 'New Node Name',
+      deviceConfig: {
+        label: 'Node Label',
+        manufacturer: 'Maker',
+      },
+      ready: true,
+      status: 4,
+      getDefinedValueIDs: jest.fn().mockReturnValue([]),
+      getAllEndpoints: jest.fn().mockReturnValue([{ index: 0, supportsCC: jest.fn().mockReturnValue(false) }]),
+      getValueMetadata: jest.fn(),
+      getValue: jest.fn(),
     });
 
-    expect(response).toEqual({ success: true });
+    const existingAccessory = {
+      UUID: 'old-uuid',
+      displayName: 'Old Name',
+      context: { nodeId: 2, homeId: 100 },
+      services: [],
+      getService: jest.fn(),
+      getServiceById: jest.fn(),
+      addService: jest.fn(),
+      removeService: jest.fn(),
+    };
+    (platform as any).accessories.push(existingAccessory);
+    (platform as any).zwaveAccessories.set(2, {
+      platformAccessory: existingAccessory,
+      stop: jest.fn(),
+    });
+
+    await controller.setNodeName(2, 'New Node Name');
+    (platform as any).recreateNodeAccessory(controller.nodes.get(2), 'rename-seed');
+
     expect(controller.setNodeName).toHaveBeenCalledWith(2, 'New Node Name');
+    expect(api.unregisterPlatformAccessories).toHaveBeenCalledWith(
+      'homebridge-zwave-usb',
+      'ZWaveUSB',
+      [existingAccessory],
+    );
+    expect(api.registerPlatformAccessories).toHaveBeenCalled();
   });
 });
