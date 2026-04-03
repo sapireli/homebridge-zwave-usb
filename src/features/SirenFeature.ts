@@ -18,6 +18,16 @@ export class SirenFeature extends BaseFeature {
       .getCharacteristic(this.platform.Characteristic.On)
       .onGet(this.handleGetState.bind(this))
       .onSet(this.handleSetState.bind(this));
+
+    /**
+     * VOLUME SUPPORT FIX: Add Volume characteristic if Sound Switch is supported.
+     */
+    if (this.endpoint.supportsCC(CommandClasses['Sound Switch'])) {
+      this.service
+        .getCharacteristic(this.platform.Characteristic.Volume)
+        .onGet(this.handleGetVolume.bind(this))
+        .onSet(this.handleSetVolume.bind(this));
+    }
   }
 
   update(args?: ZWaveValueEvent): void {
@@ -32,8 +42,40 @@ export class SirenFeature extends BaseFeature {
         return;
       }
     }
-    const val = this.handleGetState();
-    this.service.updateCharacteristic(this.platform.Characteristic.On, val);
+    const onVal = this.handleGetState();
+    this.service.updateCharacteristic(this.platform.Characteristic.On, onVal);
+
+    if (this.endpoint.supportsCC(CommandClasses['Sound Switch'])) {
+      const volVal = this.handleGetVolume();
+      this.service.updateCharacteristic(this.platform.Characteristic.Volume, volVal);
+    }
+  }
+
+  private handleGetVolume(): number {
+    const volume = this.node.getValue({
+      commandClass: CommandClasses['Sound Switch'],
+      property: 'defaultVolume',
+      endpoint: this.endpoint.index,
+    });
+
+    return typeof volume === 'number' ? volume : 100;
+  }
+
+  private async handleSetVolume(value: CharacteristicValue) {
+    const volume = value as number;
+    try {
+      await this.node.setValue(
+        {
+          commandClass: CommandClasses['Sound Switch'],
+          property: 'defaultVolume',
+          endpoint: this.endpoint.index,
+        },
+        volume,
+      );
+    } catch (err) {
+      this.platform.log.error('Failed to set siren volume:', err);
+      throw new this.platform.api.hap.HapStatusError(-70402);
+    }
   }
 
   private handleGetState(): boolean {

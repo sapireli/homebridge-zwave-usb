@@ -56,6 +56,12 @@ export class MotionSensorFeature extends BaseFeature {
         this.node.getValue({
           commandClass: CommandClasses.Notification,
           property: 'Home Security',
+          propertyKey: 'Motion status',
+          endpoint: this.endpoint.index,
+        }) ??
+        this.node.getValue({
+          commandClass: CommandClasses.Notification,
+          property: 'Home Security',
           endpoint: this.endpoint.index,
         });
 

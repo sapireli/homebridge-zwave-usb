@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.4.1] - 2026-04-03
+
+### Fixed
+- **Node.js 18 Compatibility:** Resolved a race condition where the IPC server initialization could fail with `ENOENT` during rapid test teardowns.
+- **Siren Volume Control:** Added support for the HomeKit `Volume` characteristic on sirens that support the `Sound Switch` Command Class (e.g., Aeotec Siren 6).
+- **Motion Sensor Detection:** Fixed an issue where Philio PST02A sensors and others were stuck in a "Detected" state by adding support for the `Motion status` property key.
+- **Logging Robustness:** Updated driver configuration to ensure standard `info` logs are visible in Homebridge while maintaining mandatory `forceConsole` support.
+
 ## [3.4.0] - 2026-04-03
 
 ### Changed

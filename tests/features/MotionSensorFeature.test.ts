@@ -138,4 +138,20 @@ describe('MotionSensorFeature', () => {
       endpoint: 0,
     });
   });
+
+  it('should detect motion via Philio specific Motion status property key', () => {
+    feature.init();
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
+    node.getValue.mockImplementation((params) => {
+      if (params.propertyKey === 'Motion status') {
+        return 8;
+      }
+      return undefined;
+    });
+    feature.update();
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.MotionDetected,
+      true,
+    );
+  });
 });

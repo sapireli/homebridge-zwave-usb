@@ -9,16 +9,24 @@ describe('SirenFeature', () => {
   let endpoint: any;
 
   beforeEach(() => {
-    const charMock = {
-      onSet: jest.fn().mockReturnThis(),
-      onGet: jest.fn().mockReturnThis(),
-      updateValue: jest.fn().mockReturnThis(),
-      setProps: jest.fn().mockReturnThis(),
-      value: 0,
+    const characteristics = new Map<string, any>();
+    
+    const createCharMock = (name: string) => {
+      const char = {
+        onSet: jest.fn().mockReturnThis(),
+        onGet: jest.fn().mockReturnThis(),
+        updateValue: jest.fn().mockReturnThis(),
+        setProps: jest.fn().mockReturnThis(),
+        value: 0,
+      };
+      characteristics.set(name, char);
+      return char;
     };
 
     service = {
-      getCharacteristic: jest.fn().mockReturnValue(charMock),
+      getCharacteristic: jest.fn().mockImplementation((name: string) => {
+        return characteristics.get(name) || createCharMock(name);
+      }),
       updateCharacteristic: jest.fn(),
       testCharacteristic: jest.fn().mockReturnValue(true), updateCharacteristic: jest.fn().mockReturnThis(), setPrimaryService: jest.fn(),
       addOptionalCharacteristic: jest.fn(),
@@ -42,6 +50,7 @@ describe('SirenFeature', () => {
       },
       Characteristic: {
         On: 'On',
+        Volume: 'Volume',
         Name: 'Name',
         ServiceLabelIndex: 'ServiceLabelIndex',
         StatusFault: 'StatusFault',
@@ -98,7 +107,7 @@ describe('SirenFeature', () => {
   });
 
   it('should set state to ON using Sound Switch', async () => {
-    const onChar = service.getCharacteristic();
+    const onChar = service.getCharacteristic('On');
     const handler = onChar.onSet.mock.calls[0][0];
     
     // Mock metadata to allow Tone 255
@@ -122,5 +131,35 @@ describe('SirenFeature', () => {
     node.getValue.mockReturnValue(undefined);
     feature.update();
     expect(service.updateCharacteristic).toHaveBeenCalledWith('On', false);
+  });
+
+  it('should update volume from Sound Switch report', () => {
+    node.getValue.mockImplementation((params: any) => {
+      if (params.property === 'defaultVolume') {
+        return 75;
+      }
+      return 1;
+    });
+
+    feature.update();
+    
+    expect(service.updateCharacteristic).toHaveBeenCalledWith('Volume', 75);
+  });
+
+  it('should set volume using Sound Switch', async () => {
+    // We need to trigger the Volume set handler
+    // It's the second characteristic initialized if Sound Switch is supported
+    const volChar = service.getCharacteristic('Volume');
+    const handler = volChar.onSet.mock.calls[0][0];
+
+    await handler(50);
+    
+    expect(node.setValue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commandClass: 121,
+        property: 'defaultVolume',
+      }),
+      50
+    );
   });
 });
