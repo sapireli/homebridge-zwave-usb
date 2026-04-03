@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [3.4.0-beta.0] - 2026-03-17
+## [3.4.0] - 2026-04-03
 
 ### Changed
 - **HomeKit Naming Model:** Node accessories now seed their default HomeKit name only when first created, preserving cached HomeKit-side custom names during normal startup and refresh.
