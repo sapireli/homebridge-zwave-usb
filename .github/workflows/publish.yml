@@ -19,8 +19,8 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
-          # We don't set registry-url here to allow npm to use the OIDC token ambiently
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
       - name: Check if version changed
@@ -60,9 +60,7 @@ jobs:
 
       - name: Publish to NPM
         if: steps.check_version.outputs.changed == 'true'
-        # With id-token: write permission, npm publish --provenance 
-        # will automatically use Trusted Publishing (OIDC).
-        # No NODE_AUTH_TOKEN or secrets required.
+        # Trusted publishing uses GitHub's OIDC token for npm publish.
         run: npm publish --provenance --access public --tag ${{ steps.check_version.outputs.npm_tag }} --ignore-scripts --no-git-checks
 
       - name: Create GitHub Release
