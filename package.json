@@ -16,6 +16,10 @@
     "type": "git",
     "url": "git+https://github.com/sapireli/homebridge-zwave-usb.git"
   },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "main": "dist/index.js",
   "scripts": {
     "lint": "eslint src/**/*.ts --max-warnings=0",

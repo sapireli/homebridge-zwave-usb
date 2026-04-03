@@ -58,11 +58,16 @@ jobs:
           npm run build
           npm test
 
+      - name: Verify NPM Auth
+        if: steps.check_version.outputs.changed == 'true'
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Publish to NPM
         if: steps.check_version.outputs.changed == 'true'
-        # Using --ignore-scripts because Build and Test are handled in the workflow.
-        # This also avoids issues where npm tries to resolve the package itself from the registry.
-        run: npm publish --provenance --access public --tag ${{ steps.check_version.outputs.npm_tag }} --ignore-scripts
+        # Explicitly setting access and tag again to ensure clarity
+        run: npm publish --provenance --access public --tag ${{ steps.check_version.outputs.npm_tag }} --ignore-scripts --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
