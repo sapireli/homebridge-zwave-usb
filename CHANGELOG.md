@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.4.2] - 2026-04-03
+
+### Fixed
+- **Debug Logging Regression:** Restored the Z-Wave JS driver logging toggle so verbose driver logs stay off unless plugin `debug` is enabled.
+- **Release Metadata:** Synchronized package version metadata for the 3.4.2 release.
+
 ## [3.4.1] - 2026-04-03
 
 ### Fixed

@@ -49,6 +49,40 @@ describe('ZWaveController (Direct Mode)', () => {
     expect(mockDriver.start).toHaveBeenCalled();
   });
 
+  it('should disable driver debug logging when debug is false', async () => {
+    controller = new ZWaveController(log, '/dev/ttyACM0', { debug: false });
+    await controller.start();
+
+    const DriverMock = Driver as jest.MockedClass<typeof Driver>;
+    expect(DriverMock).toHaveBeenCalledWith(
+      '/dev/ttyACM0',
+      expect.objectContaining({
+        logConfig: expect.objectContaining({
+          enabled: false,
+          level: 'info',
+          forceConsole: false,
+        }),
+      }),
+    );
+  });
+
+  it('should enable driver debug logging when debug is true', async () => {
+    controller = new ZWaveController(log, '/dev/ttyACM0', { debug: true });
+    await controller.start();
+
+    const DriverMock = Driver as jest.MockedClass<typeof Driver>;
+    expect(DriverMock).toHaveBeenCalledWith(
+      '/dev/ttyACM0',
+      expect.objectContaining({
+        logConfig: expect.objectContaining({
+          enabled: true,
+          level: 'debug',
+          forceConsole: true,
+        }),
+      }),
+    );
+  });
+
   it('should handle inclusion', async () => {
     controller = new ZWaveController(log, '/dev/ttyACM0');
     await controller.start();
