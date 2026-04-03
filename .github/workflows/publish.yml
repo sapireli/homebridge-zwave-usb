@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # Required to create tags and releases
-      id-token: write # Required for OIDC & NPM Provenance
+      id-token: write # REQUIRED for Trusted Publishing & NPM Provenance
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,7 +20,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22.x'
-          registry-url: 'https://registry.npmjs.org'
+          # We don't set registry-url here to allow npm to use the OIDC token ambiently
           cache: 'npm'
 
       - name: Check if version changed
@@ -58,18 +58,12 @@ jobs:
           npm run build
           npm test
 
-      - name: Verify NPM Auth
-        if: steps.check_version.outputs.changed == 'true'
-        run: npm whoami
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
       - name: Publish to NPM
         if: steps.check_version.outputs.changed == 'true'
-        # Explicitly setting access and tag again to ensure clarity
+        # With id-token: write permission, npm publish --provenance 
+        # will automatically use Trusted Publishing (OIDC).
+        # No NODE_AUTH_TOKEN or secrets required.
         run: npm publish --provenance --access public --tag ${{ steps.check_version.outputs.npm_tag }} --ignore-scripts --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         if: steps.check_version.outputs.changed == 'true'
