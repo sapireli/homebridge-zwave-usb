@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/sapireli/homebridge-zwave-usb.git"
+    "url": "git+https://github.com/sapireli/homebridge-zwave-usb.git"
   },
   "main": "dist/index.js",
   "scripts": {

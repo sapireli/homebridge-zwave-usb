@@ -19,7 +19,7 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: '22.x'
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
@@ -27,21 +27,24 @@ jobs:
         id: check_version
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          if [[ "$VERSION" == *"-"* ]]; then
-            echo "npm_tag=beta" >> $GITHUB_OUTPUT
-            echo "prerelease=true" >> $GITHUB_OUTPUT
-          else
-            echo "npm_tag=latest" >> $GITHUB_OUTPUT
-            echo "prerelease=false" >> $GITHUB_OUTPUT
-          fi
-          # Check if tag already exists
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "Version v$VERSION already exists. Skipping release."
+          NAME=$(node -p "require('./package.json').name")
+          
+          # Check if version already on NPM
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "Version $VERSION already exists on NPM. Skipping."
             echo "changed=false" >> $GITHUB_OUTPUT
           else
-            echo "New version v$VERSION detected!"
+            echo "New version $VERSION detected!"
             echo "version=$VERSION" >> $GITHUB_OUTPUT
             echo "changed=true" >> $GITHUB_OUTPUT
+            
+            if [[ "$VERSION" == *"-"* ]]; then
+              echo "npm_tag=beta" >> $GITHUB_OUTPUT
+              echo "prerelease=true" >> $GITHUB_OUTPUT
+            else
+              echo "npm_tag=latest" >> $GITHUB_OUTPUT
+              echo "prerelease=false" >> $GITHUB_OUTPUT
+            fi
           fi
 
       - name: Install Dependencies
@@ -55,6 +58,14 @@ jobs:
           npm run build
           npm test
 
+      - name: Publish to NPM
+        if: steps.check_version.outputs.changed == 'true'
+        # Using --ignore-scripts because Build and Test are handled in the workflow.
+        # This also avoids issues where npm tries to resolve the package itself from the registry.
+        run: npm publish --provenance --access public --tag ${{ steps.check_version.outputs.npm_tag }} --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Create GitHub Release
         if: steps.check_version.outputs.changed == 'true'
         uses: softprops/action-gh-release@v2
@@ -66,9 +77,3 @@ jobs:
           prerelease: ${{ steps.check_version.outputs.prerelease }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish to NPM
-        if: steps.check_version.outputs.changed == 'true'
-        run: npm publish --provenance --access public --tag ${{ steps.check_version.outputs.npm_tag }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
