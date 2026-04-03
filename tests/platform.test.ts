@@ -126,7 +126,7 @@ describe('ZWaveUsbPlatform', () => {
     expect(platform).toBeInstanceOf(ZWaveUsbPlatform);
   });
 
-  it('should initialize the IPC server', () => {
+  it('should initialize the IPC server', (done) => {
     const log = {
       debug: jest.fn(),
       info: jest.fn(),
@@ -141,8 +141,13 @@ describe('ZWaveUsbPlatform', () => {
     const platform = new ZWaveUsbPlatform(log, config, api);
 
     (platform as any).startIpcServer();
-    expect((platform as any).ipcServer).toBeDefined();
-    (platform as any).stopIpcServer();
+
+    // The server is listening on 0 (random port), wait for 'listening' event
+    ((platform as any).ipcServer as any).once('listening', () => {
+      expect((platform as any).ipcServer).toBeDefined();
+      (platform as any).stopIpcServer();
+      done();
+    });
   });
 
   it('should recreate an accessory after an explicit rename', async () => {

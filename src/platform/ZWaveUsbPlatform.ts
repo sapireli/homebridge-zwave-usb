@@ -229,9 +229,17 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     this.ipcServer.listen(0, '127.0.0.1', () => {
       const address = this.ipcServer?.address();
       if (address && typeof address !== 'string') {
-        const portFile = path.join(this.api.user.storagePath(), 'homebridge-zwave-usb.port');
-        fs.writeFileSync(portFile, address.port.toString());
-        this.log.debug(`IPC Server listening on port ${address.port}`);
+        try {
+          const storagePath = this.api.user.storagePath();
+          if (!fs.existsSync(storagePath)) {
+            fs.mkdirSync(storagePath, { recursive: true });
+          }
+          const portFile = path.join(storagePath, 'homebridge-zwave-usb.port');
+          fs.writeFileSync(portFile, address.port.toString());
+          this.log.debug(`IPC Server listening on port ${address.port}`);
+        } catch (err) {
+          this.log.error(`Failed to write IPC port file: ${err}`);
+        }
       }
     });
 

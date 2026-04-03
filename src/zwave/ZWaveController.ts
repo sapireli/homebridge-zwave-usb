@@ -411,7 +411,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       logConfig: {
         enabled: !!this.options.debug,
         level: logLevel,
-        forceConsole: !!this.options.debug,
+        forceConsole: true,
         showLogo: false,
       },
       storage: {
