@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.4.5] - 2026-04-04
+
+### Changed
+- **Siren Volume Control:** Updated the Siren accessory to use a Fan service instead of a Lightbulb, mapping the siren's volume to the RotationSpeed characteristic. This provides a more logical UI in the Apple Home app while preserving the native slider functionality. (Resolves #2)
+
 ## [3.4.4] - 2026-04-04
 
 ### Fixed
