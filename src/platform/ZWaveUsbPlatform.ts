@@ -490,6 +490,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
    */
   private handleValueUpdated(node: IZWaveNode, args: ZWaveValueEvent) {
     this.log.debug(`Node ${node.nodeId} value updated`);
+    this.logValueEventDetails(node, 'value updated', args);
     const accessory = this.zwaveAccessories.get(node.nodeId);
     if (accessory) {
       accessory.refresh(args);
@@ -498,9 +499,60 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
   private handleValueNotification(node: IZWaveNode, args: ZWaveValueEvent) {
     this.log.debug(`Node ${node.nodeId} value notification`);
+    this.logValueEventDetails(node, 'value notification', args);
     const accessory = this.zwaveAccessories.get(node.nodeId);
     if (accessory) {
       accessory.refresh(args);
     }
+  }
+
+  private logValueEventDetails(
+    node: IZWaveNode,
+    eventType: 'value updated' | 'value notification',
+    args: ZWaveValueEvent,
+  ): void {
+    if (!this.config.debug) {
+      return;
+    }
+
+    const payload = {
+      commandClass: args.commandClass,
+      endpoint: args.endpoint ?? 0,
+      property: args.property,
+      propertyKey: args.propertyKey,
+      newValue: this.serializeLogValue(args.newValue),
+      prevValue: this.serializeLogValue(args.prevValue),
+    };
+
+    this.log.debug(`Node ${node.nodeId} ${eventType} payload: ${JSON.stringify(payload)}`);
+  }
+
+  private serializeLogValue(value: unknown): unknown {
+    if (value === undefined || value === null) {
+      return value;
+    }
+
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
+
+    if (value instanceof Buffer) {
+      return value.toString('hex');
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((entry) => this.serializeLogValue(entry));
+    }
+
+    if (typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+          key,
+          this.serializeLogValue(entry),
+        ]),
+      );
+    }
+
+    return value;
   }
 }

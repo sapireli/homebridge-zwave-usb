@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.4.3] - 2026-04-04
+
+### Fixed
+- **Debug Event Payload Logging:** Added debug-only structured logging for Z-Wave value update and notification events so device-specific sensor reports can be diagnosed without enabling noisy payload logs in normal operation.
+
 ## [3.4.2] - 2026-04-03
 
 ### Fixed
