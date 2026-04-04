@@ -5,14 +5,15 @@ import { ZWaveValueEvent } from '../zwave/interfaces';
 
 /**
  * SirenFeature supports sirens using 'Sound Switch' CC or 'Binary Switch' fallback.
+ * It is exposed as a Lightbulb to allow volume control via the Brightness slider in the Apple Home app.
  */
 export class SirenFeature extends BaseFeature {
   private service!: Service;
 
   init(): void {
     const subType = this.endpoint.index.toString();
-    // Use Switch for v1 simplicity
-    this.service = this.getService(this.platform.Service.Switch, 'Siren', subType);
+    // Use Lightbulb instead of Switch to get a native Brightness slider for Volume
+    this.service = this.getService(this.platform.Service.Lightbulb, 'Siren', subType);
 
     this.service
       .getCharacteristic(this.platform.Characteristic.On)
@@ -20,11 +21,15 @@ export class SirenFeature extends BaseFeature {
       .onSet(this.handleSetState.bind(this));
 
     /**
-     * VOLUME SUPPORT FIX: Add Volume characteristic if Sound Switch is supported.
+     * VOLUME SUPPORT FIX: Add Brightness characteristic if Sound Switch is supported
+     * to act as a Volume slider in the Apple Home app.
      */
     if (this.endpoint.supportsCC(CommandClasses['Sound Switch'])) {
+      if (!this.service.testCharacteristic(this.platform.Characteristic.Brightness)) {
+        this.service.addCharacteristic(this.platform.Characteristic.Brightness);
+      }
       this.service
-        .getCharacteristic(this.platform.Characteristic.Volume)
+        .getCharacteristic(this.platform.Characteristic.Brightness)
         .onGet(this.handleGetVolume.bind(this))
         .onSet(this.handleSetVolume.bind(this));
     }
@@ -47,7 +52,7 @@ export class SirenFeature extends BaseFeature {
 
     if (this.endpoint.supportsCC(CommandClasses['Sound Switch'])) {
       const volVal = this.handleGetVolume();
-      this.service.updateCharacteristic(this.platform.Characteristic.Volume, volVal);
+      this.service.updateCharacteristic(this.platform.Characteristic.Brightness, volVal);
     }
   }
 

@@ -154,4 +154,27 @@ describe('MotionSensorFeature', () => {
       true,
     );
   });
+
+  it('should auto-clear motion after 60 seconds if no idle event is sent', () => {
+    jest.useFakeTimers();
+    feature.init();
+    node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
+    node.getValue.mockReturnValue(8);
+    
+    feature.update();
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.MotionDetected,
+      true,
+    );
+
+    // Fast-forward 60s
+    jest.advanceTimersByTime(60000);
+    
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.MotionDetected,
+      false,
+    );
+    
+    jest.useRealTimers();
+  });
 });

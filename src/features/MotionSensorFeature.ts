@@ -8,6 +8,8 @@ import { ZWaveValueEvent } from '../zwave/interfaces';
  */
 export class MotionSensorFeature extends BaseFeature {
   private service!: Service;
+  private motionState: boolean = false;
+  private clearTimer?: NodeJS.Timeout;
 
   init(): void {
     const subType = this.endpoint.index.toString();
@@ -31,7 +33,24 @@ export class MotionSensorFeature extends BaseFeature {
     }
     try {
       const value = this.getSensorValue();
-      this.service.updateCharacteristic(this.platform.Characteristic.MotionDetected, value);
+
+      if (value) {
+        this.motionState = true;
+        if (this.clearTimer) clearTimeout(this.clearTimer);
+        this.clearTimer = setTimeout(() => {
+          this.motionState = false;
+          this.clearTimer = undefined;
+          this.service.updateCharacteristic(this.platform.Characteristic.MotionDetected, false);
+        }, 60000);
+      } else {
+        this.motionState = false;
+        if (this.clearTimer) {
+          clearTimeout(this.clearTimer);
+          this.clearTimer = undefined;
+        }
+      }
+
+      this.service.updateCharacteristic(this.platform.Characteristic.MotionDetected, this.motionState);
     } catch {
       // ignore
     }
@@ -101,6 +120,6 @@ export class MotionSensorFeature extends BaseFeature {
   }
 
   private handleGetMotionDetected(): boolean {
-    return this.getSensorValue();
+    return this.motionState;
   }
 }

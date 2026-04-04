@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.4.4] - 2026-04-04
+
+### Fixed
+- **Motion Sensor State:** Fixed an issue where "stateless" motion sensors (like Philio PST02A) would get stuck in a "Detected" state by implementing a 60-second auto-clear timer. (Resolves #1)
+- **Siren Volume Control:** Changed the Siren accessory (like Aeotec ZW162) to use a Lightbulb service, mapping the siren's volume to the Brightness characteristic. This ensures the volume slider is natively visible and controllable in the Apple Home app. (Resolves #2)
+
 ## [3.4.3] - 2026-04-04
 
 ### Fixed

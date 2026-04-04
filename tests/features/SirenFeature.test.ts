@@ -30,7 +30,7 @@ describe('SirenFeature', () => {
       updateCharacteristic: jest.fn(),
       testCharacteristic: jest.fn().mockReturnValue(true), updateCharacteristic: jest.fn().mockReturnThis(), setPrimaryService: jest.fn(),
       addOptionalCharacteristic: jest.fn(),
-      UUID: 'Switch',
+      UUID: 'Lightbulb',
     };
 
     accessory = {
@@ -46,11 +46,11 @@ describe('SirenFeature', () => {
 
     platform = {
       Service: {
-        Switch: 'Switch',
+        Lightbulb: 'Lightbulb',
       },
       Characteristic: {
         On: 'On',
-        Volume: 'Volume',
+        Brightness: 'Brightness',
         Name: 'Name',
         ServiceLabelIndex: 'ServiceLabelIndex',
         StatusFault: 'StatusFault',
@@ -85,8 +85,8 @@ describe('SirenFeature', () => {
     feature.init();
   });
 
-  it('should initialize siren as a switch service', () => {
-    expect(accessory.platformAccessory.getServiceById).toHaveBeenCalledWith('Switch', '0');
+  it('should initialize siren as a Lightbulb service', () => {
+    expect(accessory.platformAccessory.getServiceById).toHaveBeenCalledWith('Lightbulb', '0');
   });
 
   it('should update state from Sound Switch report', () => {
@@ -133,7 +133,7 @@ describe('SirenFeature', () => {
     expect(service.updateCharacteristic).toHaveBeenCalledWith('On', false);
   });
 
-  it('should update volume from Sound Switch report', () => {
+  it('should update Brightness from Sound Switch report', () => {
     node.getValue.mockImplementation((params: any) => {
       if (params.property === 'defaultVolume') {
         return 75;
@@ -143,13 +143,13 @@ describe('SirenFeature', () => {
 
     feature.update();
     
-    expect(service.updateCharacteristic).toHaveBeenCalledWith('Volume', 75);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith('Brightness', 75);
   });
 
   it('should set volume using Sound Switch', async () => {
     // We need to trigger the Volume set handler
     // It's the second characteristic initialized if Sound Switch is supported
-    const volChar = service.getCharacteristic('Volume');
+    const volChar = service.getCharacteristic('Brightness');
     const handler = volChar.onSet.mock.calls[0][0];
 
     await handler(50);
