@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.5.0] - 2026-04-06
+
+### Added
+- **Global Tamper Monitoring:** Added universal support for HomeKit's `StatusTampered` characteristic across all functional services. Any device supporting the Z-Wave `Notification` Command Class that reports a "Tampering, product covering removed" or "Tampering, Invalid Code" alarm will now accurately reflect a "Tampered" warning in the Apple Home app.
+- **Global Health Monitoring (Unreachable Nodes):** Added universal support for HomeKit's `StatusFault` and `StatusActive` characteristics across all functional services. If the Z-Wave JS controller marks a device as "Dead" or it fails to complete its initial interview (due to power loss, distance, etc.), it will instantly transition to "No Response" or "Updating..." in the Apple Home app.
+
 ## [3.4.6] - 2026-04-06
 
 ### Fixed
