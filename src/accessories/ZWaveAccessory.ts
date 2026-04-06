@@ -3,7 +3,31 @@ import { NodeStatus, CommandClasses } from '@zwave-js/core';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { ZWaveFeature } from '../features/ZWaveFeature';
-import { OBSOLETE_CHAR_UUIDS } from '../platform/settings';
+import { HOMEKIT_METADATA_SCHEMA_REVISION, OBSOLETE_CHAR_UUIDS } from '../platform/settings';
+
+const STATUS_FAULT_SUPPORTED_SERVICE_UUIDS = new Set([
+  '0000008D-0000-1000-8000-0026BB765291', // AirQualitySensor
+  '0000007F-0000-1000-8000-0026BB765291', // CarbonMonoxideSensor
+  '00000080-0000-1000-8000-0026BB765291', // ContactSensor
+  '00000083-0000-1000-8000-0026BB765291', // HumiditySensor
+  '00000081-0000-1000-8000-0026BB765291', // LeakSensor
+  '00000084-0000-1000-8000-0026BB765291', // LightSensor
+  '00000085-0000-1000-8000-0026BB765291', // MotionSensor
+  '00000087-0000-1000-8000-0026BB765291', // SmokeSensor
+  '0000008A-0000-1000-8000-0026BB765291', // TemperatureSensor
+]);
+
+const STATUS_TAMPERED_SUPPORTED_SERVICE_UUIDS = new Set([
+  '0000008D-0000-1000-8000-0026BB765291', // AirQualitySensor
+  '0000007F-0000-1000-8000-0026BB765291', // CarbonMonoxideSensor
+  '00000080-0000-1000-8000-0026BB765291', // ContactSensor
+  '00000083-0000-1000-8000-0026BB765291', // HumiditySensor
+  '00000081-0000-1000-8000-0026BB765291', // LeakSensor
+  '00000084-0000-1000-8000-0026BB765291', // LightSensor
+  '00000085-0000-1000-8000-0026BB765291', // MotionSensor
+  '00000087-0000-1000-8000-0026BB765291', // SmokeSensor
+  '0000008A-0000-1000-8000-0026BB765291', // TemperatureSensor
+]);
 
 export class ZWaveAccessory {
   public readonly platformAccessory: PlatformAccessory;
@@ -80,15 +104,15 @@ export class ZWaveAccessory {
     const infoService = this.platformAccessory.getService(
       this.platform.Service.AccessoryInformation,
     )!;
+    const advertisedFirmwareRevision = this.node.firmwareVersion
+      ? `${this.node.firmwareVersion}-${HOMEKIT_METADATA_SCHEMA_REVISION}`
+      : `1.0.0-${HOMEKIT_METADATA_SCHEMA_REVISION}`;
 
     infoService
       .setCharacteristic(this.platform.Characteristic.Manufacturer, manufacturer)
       .setCharacteristic(this.platform.Characteristic.Model, model)
       .setCharacteristic(this.platform.Characteristic.SerialNumber, serial)
-      .setCharacteristic(
-        this.platform.Characteristic.FirmwareRevision,
-        this.node.firmwareVersion || '1.0.0',
-      );
+      .setCharacteristic(this.platform.Characteristic.FirmwareRevision, advertisedFirmwareRevision);
 
     if (!existingAccessory) {
       // Seed the initial HomeKit-facing name once for freshly created accessories.
@@ -132,6 +156,7 @@ export class ZWaveAccessory {
     });
 
     this.pruneConfiguredNameFromFunctionalServices();
+    this.pruneUnsupportedHealthCharacteristics();
   }
 
   public addFeature(feature: ZWaveFeature) {
@@ -231,6 +256,37 @@ export class ZWaveAccessory {
           `Pruning ConfiguredName from ${service.displayName} (Node ${this.node.nodeId})`,
         );
         service.removeCharacteristic(configuredName);
+      }
+    });
+  }
+
+  private pruneUnsupportedHealthCharacteristics(): void {
+    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation);
+    this.platformAccessory.services.forEach((service) => {
+      if (service === infoService) {
+        return;
+      }
+
+      if (
+        service.testCharacteristic(this.platform.Characteristic.StatusFault) &&
+        !STATUS_FAULT_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
+      ) {
+        this.platform.log.debug(
+          `Pruning unsupported StatusFault from ${service.displayName} (Node ${this.node.nodeId})`,
+        );
+        service.removeCharacteristic(service.getCharacteristic(this.platform.Characteristic.StatusFault));
+      }
+
+      if (
+        service.testCharacteristic(this.platform.Characteristic.StatusTampered) &&
+        !STATUS_TAMPERED_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
+      ) {
+        this.platform.log.debug(
+          `Pruning unsupported StatusTampered from ${service.displayName} (Node ${this.node.nodeId})`,
+        );
+        service.removeCharacteristic(
+          service.getCharacteristic(this.platform.Characteristic.StatusTampered),
+        );
       }
     });
   }

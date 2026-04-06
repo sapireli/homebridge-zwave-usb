@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.5.4] - 2026-04-06
+
+### Fixed
+- **Home App Settings Failure:** Stopped attaching unsupported `StatusFault` and `StatusTampered` characteristics to standard actuator services such as switches, lights, fans, thermostats, window coverings, locks, garage doors, and batteries. These invalid HAP schema mutations could cause the Home app to reject room and name changes with "Could not change settings."
+- **Cached Health Characteristic Cleanup:** Existing cached accessories now prune unsupported `StatusFault` and `StatusTampered` characteristics during startup so previously broken service metadata is repaired without manual cache surgery.
+- **Forced Metadata Refresh:** Bumped the advertised firmware revision schema suffix so HomeKit is prompted to refresh accessory metadata after the 3.5.x schema regressions.
+
 ## [3.5.3] - 2026-04-06
 
 ### Fixed

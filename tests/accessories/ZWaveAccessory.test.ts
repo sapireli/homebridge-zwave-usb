@@ -69,6 +69,7 @@ describe('ZWaveAccessory', () => {
         Name: '00000023-0000-1000-8000-0026BB765291',
         ConfiguredName: '000000E3-0000-1000-8000-0026BB765291',
         FirmwareRevision: '00000052-0000-1000-8000-0026BB765291',
+        StatusTampered: 'StatusTampered',
         StatusFault: {
           GENERAL_FAULT: 1,
           NO_FAULT: 0,
@@ -133,6 +134,13 @@ describe('ZWaveAccessory', () => {
     );
   });
 
+  it('should advertise a bumped firmware revision to force HomeKit metadata refresh', () => {
+    expect(mockService.setCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.FirmwareRevision,
+      '1.0.0-hkmeta2',
+    );
+  });
+
   it('should create a new accessory UUID when forced for explicit rename recreation', () => {
     platform.accessories = [];
     platform.api.hap.uuid.generate = jest
@@ -189,5 +197,57 @@ describe('ZWaveAccessory', () => {
     expect(featureService.addOptionalCharacteristic).not.toHaveBeenCalledWith(
       platform.Characteristic.ConfiguredName,
     );
+  });
+
+  it('should remove unsupported health characteristics from cached switch services', () => {
+    const statusFaultChar = { UUID: 'StatusFault' };
+    const statusTamperedChar = { UUID: 'StatusTampered' };
+    const cachedSwitchService = {
+      ...mockService,
+      UUID: '00000049-0000-1000-8000-0026BB765291',
+      displayName: 'Node Switch',
+      testCharacteristic: jest
+        .fn()
+        .mockImplementation(
+          (char) =>
+            char === platform.Characteristic.StatusFault ||
+            char === platform.Characteristic.StatusTampered,
+        ),
+      getCharacteristic: jest.fn().mockImplementation((char) => {
+        if (char === platform.Characteristic.StatusFault) {
+          return statusFaultChar;
+        }
+        if (char === platform.Characteristic.StatusTampered) {
+          return statusTamperedChar;
+        }
+        return { value: '', updateValue: jest.fn() };
+      }),
+      removeCharacteristic: jest.fn(),
+    };
+
+    const cachedAccessory = {
+      getService: jest
+        .fn()
+        .mockImplementation((serviceType: string) =>
+          serviceType === platform.Service.AccessoryInformation ? mockService : undefined,
+        ),
+      getServiceById: jest.fn().mockReturnValue(cachedSwitchService),
+      addService: jest.fn().mockReturnValue(cachedSwitchService),
+      removeService: jest.fn(),
+      services: [mockService, cachedSwitchService],
+      displayName: 'HomeKit Custom Name',
+      UUID: 'test-uuid',
+      context: { nodeId: 2, homeId: 12345 },
+    };
+    platform.accessories = [cachedAccessory];
+
+    accessory = new ZWaveAccessory(
+      platform as unknown as ZWaveUsbPlatform,
+      node as IZWaveNode,
+      12345,
+    );
+
+    expect(cachedSwitchService.removeCharacteristic).toHaveBeenCalledWith(statusFaultChar);
+    expect(cachedSwitchService.removeCharacteristic).toHaveBeenCalledWith(statusTamperedChar);
   });
 });

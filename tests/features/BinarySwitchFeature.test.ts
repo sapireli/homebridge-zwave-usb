@@ -33,6 +33,8 @@ describe('BinarySwitchFeature', () => {
         On: jest.fn(),
         Name: 'Name',
         ConfiguredName: 'ConfiguredName',
+        StatusFault: 'StatusFault',
+        StatusTampered: 'StatusTampered',
       } as any,
       uuid: {
         generate: jest.fn().mockReturnValue('test-uuid'),
@@ -129,6 +131,34 @@ describe('BinarySwitchFeature', () => {
     // Since index is 0, subtype is "0".
     // The BaseFeature.getService logic calls getServiceById if subType is present.
     expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.Switch, '0');
+  });
+
+  it('should not add unsupported health characteristics to switch services', () => {
+    const switchService = {
+      getCharacteristic: jest.fn().mockReturnValue({
+        on: jest.fn().mockReturnThis(),
+        onGet: jest.fn().mockReturnThis(),
+        onSet: jest.fn().mockReturnThis(),
+        updateValue: jest.fn(),
+        setProps: jest.fn().mockReturnThis(),
+      }),
+      testCharacteristic: jest.fn().mockReturnValue(false),
+      addOptionalCharacteristic: jest.fn(),
+      setCharacteristic: jest.fn().mockReturnThis(),
+      updateCharacteristic: jest.fn().mockReturnThis(),
+      setPrimaryService: jest.fn(),
+      UUID: '00000049-0000-1000-8000-0026BB765291',
+    };
+
+    accessory.getServiceById.mockReturnValue(switchService);
+    feature.init();
+
+    expect(switchService.addOptionalCharacteristic).not.toHaveBeenCalledWith(
+      platform.Characteristic.StatusFault,
+    );
+    expect(switchService.addOptionalCharacteristic).not.toHaveBeenCalledWith(
+      platform.Characteristic.StatusTampered,
+    );
   });
 
   it('should update value', () => {

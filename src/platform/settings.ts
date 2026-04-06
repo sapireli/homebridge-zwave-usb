@@ -1,5 +1,6 @@
 export const PLUGIN_NAME = 'homebridge-zwave-usb';
 export const PLATFORM_NAME = 'ZWaveUSB';
+export const HOMEKIT_METADATA_SCHEMA_REVISION = 'hkmeta2';
 
 // Custom UUIDs - Version 9
 // Use fully custom UUIDs to avoid collisions with built-in HAP services/characteristics.
