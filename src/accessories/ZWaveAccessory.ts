@@ -130,6 +130,8 @@ export class ZWaveAccessory {
         }
       });
     });
+
+    this.pruneConfiguredNameFromFunctionalServices();
   }
 
   public addFeature(feature: ZWaveFeature) {
@@ -211,7 +213,6 @@ export class ZWaveAccessory {
       }
     });
 
-    this.pruneConfiguredNameFromFunctionalServices();
     this.platform.api.updatePlatformAccessories([this.platformAccessory]);
 
     this.refresh();
@@ -308,5 +309,9 @@ export class ZWaveAccessory {
     for (const feature of this.features) {
       feature.stop();
     }
+  }
+
+  public isInitialized(): boolean {
+    return this.initialized;
   }
 }

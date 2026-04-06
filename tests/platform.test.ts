@@ -213,7 +213,7 @@ describe('ZWaveUsbPlatform', () => {
     expect(api.registerPlatformAccessories).toHaveBeenCalled();
   });
 
-  it('should create an accessory for an unready node so fault state can surface', () => {
+  it('should refresh a cached accessory for an unready node so fault state can surface', () => {
     const log = {
       debug: jest.fn(),
       info: jest.fn(),
@@ -227,6 +227,16 @@ describe('ZWaveUsbPlatform', () => {
     };
 
     const platform = new ZWaveUsbPlatform(log, config, api);
+    (platform as any).accessories.push({
+      UUID: 'cached-uuid',
+      displayName: 'Sleeping Sensor',
+      context: { nodeId: 2, homeId: 100 },
+      services: [createMockService('Accessory Information'), createMockService('Sensor')],
+      getService: jest.fn().mockImplementation(() => createMockService()),
+      getServiceById: jest.fn(),
+      addService: jest.fn().mockImplementation((_type, name = 'Service') => createMockService(name)),
+      removeService: jest.fn(),
+    });
     const node = {
       nodeId: 2,
       name: 'Sleeping Sensor',
@@ -247,6 +257,43 @@ describe('ZWaveUsbPlatform', () => {
     (platform as any).handleNodeAdded(node);
 
     expect((platform as any).zwaveAccessories.has(2)).toBe(true);
-    expect(api.registerPlatformAccessories).toHaveBeenCalled();
+    expect(api.registerPlatformAccessories).not.toHaveBeenCalled();
+  });
+
+  it('should defer creating a brand new accessory until the node is ready', () => {
+    const log = {
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    } as any;
+    const config: PlatformConfig = {
+      platform: PLATFORM_NAME,
+      name: 'Z-Wave USB',
+      serialPort: '/dev/null',
+    };
+
+    const platform = new ZWaveUsbPlatform(log, config, api);
+    const node = {
+      nodeId: 22,
+      name: 'New Sleeping Sensor',
+      deviceConfig: {
+        label: 'New Sleeping Sensor',
+        manufacturer: 'Maker',
+      },
+      ready: false,
+      status: 1,
+      getDefinedValueIDs: jest.fn().mockReturnValue([]),
+      getAllEndpoints: jest.fn().mockReturnValue([{ index: 0, supportsCC: jest.fn().mockReturnValue(false) }]),
+      getValueMetadata: jest.fn(),
+      getValue: jest.fn(),
+      supportsCC: jest.fn().mockReturnValue(false),
+    };
+
+    (platform as any).zwaveController.homeId = 100;
+    (platform as any).handleNodeAdded(node);
+
+    expect((platform as any).zwaveAccessories.has(22)).toBe(false);
+    expect(api.registerPlatformAccessories).not.toHaveBeenCalled();
   });
 });

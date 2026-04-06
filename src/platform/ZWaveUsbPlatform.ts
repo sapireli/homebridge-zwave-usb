@@ -423,23 +423,46 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     const existing = this.zwaveAccessories.get(node.nodeId);
     if (existing || this.discoveryInFlight.has(node.nodeId)) {
       if (existing) {
+        if (node.ready && !existing.isInitialized()) {
+          existing.stop();
+          const hydratedAccessory = AccessoryFactory.create(this, node, homeId);
+          this.zwaveAccessories.set(node.nodeId, hydratedAccessory);
+          hydratedAccessory.initialize();
+          return;
+        }
         existing.updateNode(node);
         existing.refresh();
       }
       return;
     }
 
+    const cachedAccessory = this.accessories.find((accessory) => {
+      const context = accessory.context as { nodeId?: number; homeId?: number } | undefined;
+      return context?.nodeId === node.nodeId && context?.homeId === homeId;
+    });
+
     this.discoveryInFlight.add(node.nodeId);
     try {
       if (!node.ready) {
+        if (!cachedAccessory) {
+          this.log.info(
+            `Deferring accessory creation for Node ${node.nodeId} until interview metadata is available.`,
+          );
+          return;
+        }
+
         this.log.info(
-          `Creating accessory for Node ${node.nodeId} before interview completion so HomeKit can surface fault state.`,
+          `Refreshing cached accessory for Node ${node.nodeId} before interview completion so HomeKit can surface fault state.`,
         );
       }
       const accessory = AccessoryFactory.create(this, node, homeId);
       this.zwaveAccessories.set(node.nodeId, accessory);
 
-      accessory.initialize(); // Initialize first to create functional services
+      if (node.ready) {
+        accessory.initialize(); // Initialize first to create functional services
+      } else {
+        accessory.refresh();
+      }
     } finally {
       this.discoveryInFlight.delete(node.nodeId);
     }

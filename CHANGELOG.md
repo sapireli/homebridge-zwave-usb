@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.5.3] - 2026-04-06
+
+### Fixed
+- **Sleeping Node Regression:** Deferred creation of brand-new accessories until node interview metadata is actually available, while still refreshing cached accessories for sleeping or incomplete-interview nodes so `StatusFault` can surface without stripping functional services from the cache.
+- **Cached Service Cleanup Timing:** Moved functional-service `ConfiguredName` cleanup to accessory construction so stale cached metadata is repaired immediately on startup, including for accessories that are not yet reinitialized because the node is still asleep.
+
 ## [3.5.2] - 2026-04-06
 
 ### Fixed

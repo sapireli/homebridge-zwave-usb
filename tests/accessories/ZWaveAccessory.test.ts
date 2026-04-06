@@ -153,7 +153,7 @@ describe('ZWaveAccessory', () => {
     expect(recreated.platformAccessory.context.renameGeneration).toBe('rename-1');
   });
 
-  it('should remove ConfiguredName from functional services during initialization', () => {
+  it('should remove ConfiguredName from cached functional services on construction', () => {
     const configuredNameChar = { UUID: platform.Characteristic.ConfiguredName };
     const featureService = {
       ...mockService,
@@ -162,19 +162,28 @@ describe('ZWaveAccessory', () => {
       removeCharacteristic: jest.fn(),
       displayName: 'Node Switch',
     };
-    const feature: ZWaveFeature = {
-      init: jest.fn(),
-      update: jest.fn(),
-      getServices: jest.fn().mockReturnValue([featureService]),
-      getEndpointIndex: jest.fn().mockReturnValue(0),
-      stop: jest.fn(),
-      updateNode: jest.fn(),
-      rename: jest.fn(),
-    };
 
-    accessory.addFeature(feature);
-    accessory.platformAccessory.services.push(featureService);
-    accessory.initialize();
+    const cachedAccessory = {
+      getService: jest
+        .fn()
+        .mockImplementation((serviceType: string) =>
+          serviceType === platform.Service.AccessoryInformation ? mockService : undefined,
+        ),
+      getServiceById: jest.fn().mockReturnValue(featureService),
+      addService: jest.fn().mockReturnValue(featureService),
+      removeService: jest.fn(),
+      services: [mockService, featureService],
+      displayName: 'HomeKit Custom Name',
+      UUID: 'test-uuid',
+      context: { nodeId: 2, homeId: 12345 },
+    };
+    platform.accessories = [cachedAccessory];
+
+    accessory = new ZWaveAccessory(
+      platform as unknown as ZWaveUsbPlatform,
+      node as IZWaveNode,
+      12345,
+    );
 
     expect(featureService.removeCharacteristic).toHaveBeenCalledWith(configuredNameChar);
     expect(featureService.addOptionalCharacteristic).not.toHaveBeenCalledWith(
