@@ -12,8 +12,8 @@ export class SirenFeature extends BaseFeature {
 
   init(): void {
     const subType = this.endpoint.index.toString();
-    // Use Fan instead of Switch to get a native RotationSpeed slider for Volume
-    this.service = this.getService(this.platform.Service.Fan, 'Siren', subType);
+    // Use Lightbulb instead of Switch to get a native Brightness slider for Volume
+    this.service = this.getService(this.platform.Service.Lightbulb, 'Siren', subType);
 
     this.service
       .getCharacteristic(this.platform.Characteristic.On)
@@ -21,15 +21,15 @@ export class SirenFeature extends BaseFeature {
       .onSet(this.handleSetState.bind(this));
 
     /**
-     * VOLUME SUPPORT FIX: Add RotationSpeed characteristic if Sound Switch is supported
+     * VOLUME SUPPORT FIX: Add Brightness characteristic if Sound Switch is supported
      * to act as a Volume slider in the Apple Home app.
      */
     if (this.node.supportsCC(CommandClasses['Sound Switch'])) {
-      if (!this.service.testCharacteristic(this.platform.Characteristic.RotationSpeed)) {
-        this.service.addCharacteristic(this.platform.Characteristic.RotationSpeed);
+      if (!this.service.testCharacteristic(this.platform.Characteristic.Brightness)) {
+        this.service.addCharacteristic(this.platform.Characteristic.Brightness);
       }
       this.service
-        .getCharacteristic(this.platform.Characteristic.RotationSpeed)
+        .getCharacteristic(this.platform.Characteristic.Brightness)
         .onGet(this.handleGetVolume.bind(this))
         .onSet(this.handleSetVolume.bind(this));
     }
@@ -37,7 +37,7 @@ export class SirenFeature extends BaseFeature {
 
   update(args?: ZWaveValueEvent): void {
     if (args) {
-      if ((args.endpoint || 0) !== this.endpoint.index) {
+      if ((args.endpoint || 0) !== this.endpoint.index && args.endpoint !== 0) {
         return;
       }
       if (
@@ -52,15 +52,16 @@ export class SirenFeature extends BaseFeature {
 
     if (this.node.supportsCC(CommandClasses['Sound Switch'])) {
       const volVal = this.handleGetVolume();
-      this.service.updateCharacteristic(this.platform.Characteristic.RotationSpeed, volVal);
+      this.service.updateCharacteristic(this.platform.Characteristic.Brightness, volVal);
     }
   }
 
   private handleGetVolume(): number {
+    const targetEndpoint = this.endpoint.supportsCC(CommandClasses['Sound Switch']) ? this.endpoint.index : 0;
     const volume = this.node.getValue({
       commandClass: CommandClasses['Sound Switch'],
       property: 'defaultVolume',
-      endpoint: this.endpoint.index,
+      endpoint: targetEndpoint,
     });
 
     return typeof volume === 'number' ? volume : 100;
@@ -68,12 +69,13 @@ export class SirenFeature extends BaseFeature {
 
   private async handleSetVolume(value: CharacteristicValue) {
     const volume = value as number;
+    const targetEndpoint = this.endpoint.supportsCC(CommandClasses['Sound Switch']) ? this.endpoint.index : 0;
     try {
       await this.node.setValue(
         {
           commandClass: CommandClasses['Sound Switch'],
           property: 'defaultVolume',
-          endpoint: this.endpoint.index,
+          endpoint: targetEndpoint,
         },
         volume,
       );
@@ -84,26 +86,30 @@ export class SirenFeature extends BaseFeature {
   }
 
   private handleGetState(): boolean {
-    // 1. Try Sound Switch
-    const toneId = this.node.getValue({
-      commandClass: CommandClasses['Sound Switch'],
-      property: 'toneId',
-      endpoint: this.endpoint.index,
-    });
+    // 1. Try Sound Switch on this endpoint
+    if (this.endpoint.supportsCC(CommandClasses['Sound Switch'])) {
+      const toneId = this.node.getValue({
+        commandClass: CommandClasses['Sound Switch'],
+        property: 'toneId',
+        endpoint: this.endpoint.index,
+      });
 
-    if (typeof toneId === 'number') {
-      return toneId > 0;
+      if (typeof toneId === 'number') {
+        return toneId > 0;
+      }
     }
 
     // 2. Fallback: Binary Switch
-    const binVal = this.node.getValue({
-      commandClass: CommandClasses['Binary Switch'],
-      property: 'currentValue',
-      endpoint: this.endpoint.index,
-    });
+    if (this.endpoint.supportsCC(CommandClasses['Binary Switch'])) {
+      const binVal = this.node.getValue({
+        commandClass: CommandClasses['Binary Switch'],
+        property: 'currentValue',
+        endpoint: this.endpoint.index,
+      });
 
-    if (binVal !== undefined) {
-      return !!binVal;
+      if (binVal !== undefined) {
+        return !!binVal;
+      }
     }
 
     if (this.node.ready === false || this.node.status === 3) {
@@ -116,8 +122,8 @@ export class SirenFeature extends BaseFeature {
   private async handleSetState(value: CharacteristicValue) {
     const on = value as boolean;
 
-    // Use Sound Switch if supported
-    if (this.node.supportsCC(CommandClasses['Sound Switch'])) {
+    // Use Sound Switch if supported on this endpoint
+    if (this.endpoint.supportsCC(CommandClasses['Sound Switch'])) {
       try {
         /**
          * TONE SELECTION FIX: We use Tone 1 as primary default,

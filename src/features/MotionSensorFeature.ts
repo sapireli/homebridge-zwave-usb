@@ -61,7 +61,7 @@ export class MotionSensorFeature extends BaseFeature {
           this.motionState = false;
           this.clearTimer = undefined;
           this.service.updateCharacteristic(this.platform.Characteristic.MotionDetected, false);
-        }, 60000);
+        }, 30000);
       } else {
         this.motionState = false;
         if (this.clearTimer) {
