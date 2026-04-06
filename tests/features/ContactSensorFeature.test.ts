@@ -110,7 +110,7 @@ describe('ContactSensorFeature', () => {
     expect(node.getValue).toHaveBeenCalledWith({
       commandClass: CommandClasses.Notification,
       property: 'Access Control',
-      propertyKey: 'Door status',
+      propertyKey: 'Window/door state',
       endpoint: 0,
     });
   });

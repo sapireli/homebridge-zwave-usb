@@ -38,6 +38,8 @@ export class ContactSensorFeature extends BaseFeature {
         }
         if (
           args.propertyKey !== 'Door status' &&
+          args.propertyKey !== 'Door state' &&
+          args.propertyKey !== 'Window/door state' &&
           args.propertyKey !== 'Sensor status' &&
           args.propertyKey !== undefined
         ) {
@@ -80,6 +82,18 @@ export class ContactSensorFeature extends BaseFeature {
     // 1. Check Notification CC (Access Control / Home Security)
     if (this.node.supportsCC(CommandClasses.Notification)) {
       const val =
+        this.node.getValue({
+          commandClass: CommandClasses.Notification,
+          property: 'Access Control',
+          propertyKey: 'Window/door state',
+          endpoint: this.endpoint.index,
+        }) ??
+        this.node.getValue({
+          commandClass: CommandClasses.Notification,
+          property: 'Access Control',
+          propertyKey: 'Door state',
+          endpoint: this.endpoint.index,
+        }) ??
         this.node.getValue({
           commandClass: CommandClasses.Notification,
           property: 'Access Control',
