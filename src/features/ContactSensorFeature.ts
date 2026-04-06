@@ -8,13 +8,10 @@ import { ZWaveValueEvent } from '../zwave/interfaces';
  */
 export class ContactSensorFeature extends BaseFeature {
   private service!: Service;
-  private contactState: number = 0; // CONTACT_DETECTED (0)
-  private clearTimer?: NodeJS.Timeout;
 
   init(): void {
     const subType = this.endpoint.index.toString();
     this.service = this.getService(this.platform.Service.ContactSensor, undefined, subType);
-    this.contactState = this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;
     this.service
       .getCharacteristic(this.platform.Characteristic.ContactSensorState)
       .onGet(this.handleGetContactSensorState.bind(this));
@@ -55,25 +52,7 @@ export class ContactSensorFeature extends BaseFeature {
     }
     try {
       const value = this.getSensorValue();
-
-      if (value === this.platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED) {
-        this.contactState = value;
-        if (this.clearTimer) clearTimeout(this.clearTimer);
-        this.clearTimer = setTimeout(() => {
-          this.contactState = this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;
-          this.clearTimer = undefined;
-          this.service.updateCharacteristic(this.platform.Characteristic.ContactSensorState, this.contactState);
-        }, 30000);
-        this.clearTimer.unref();
-      } else {
-        this.contactState = this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;
-        if (this.clearTimer) {
-          clearTimeout(this.clearTimer);
-          this.clearTimer = undefined;
-        }
-      }
-
-      this.service.updateCharacteristic(this.platform.Characteristic.ContactSensorState, this.contactState);
+      this.service.updateCharacteristic(this.platform.Characteristic.ContactSensorState, value);
     } catch {
       // Ignore background update errors
     }
