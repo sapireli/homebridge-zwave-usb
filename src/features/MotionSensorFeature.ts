@@ -30,6 +30,26 @@ export class MotionSensorFeature extends BaseFeature {
       ) {
         return;
       }
+
+      if (args.commandClass === CommandClasses.Notification) {
+        if (args.property !== 'Home Security') {
+          return;
+        }
+        if (
+          args.propertyKey !== 'Motion sensor status' &&
+          args.propertyKey !== 'Sensor status' &&
+          args.propertyKey !== 'Motion status' &&
+          args.propertyKey !== undefined
+        ) {
+          return;
+        }
+      }
+
+      if (args.commandClass === CommandClasses['Binary Sensor']) {
+        if (args.property !== 'Motion' && args.property !== 'Any') {
+          return;
+        }
+      }
     }
     try {
       const value = this.getSensorValue();

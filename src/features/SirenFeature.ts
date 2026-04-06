@@ -24,7 +24,7 @@ export class SirenFeature extends BaseFeature {
      * VOLUME SUPPORT FIX: Add RotationSpeed characteristic if Sound Switch is supported
      * to act as a Volume slider in the Apple Home app.
      */
-    if (this.endpoint.supportsCC(CommandClasses['Sound Switch'])) {
+    if (this.node.supportsCC(CommandClasses['Sound Switch'])) {
       if (!this.service.testCharacteristic(this.platform.Characteristic.RotationSpeed)) {
         this.service.addCharacteristic(this.platform.Characteristic.RotationSpeed);
       }
@@ -50,7 +50,7 @@ export class SirenFeature extends BaseFeature {
     const onVal = this.handleGetState();
     this.service.updateCharacteristic(this.platform.Characteristic.On, onVal);
 
-    if (this.endpoint.supportsCC(CommandClasses['Sound Switch'])) {
+    if (this.node.supportsCC(CommandClasses['Sound Switch'])) {
       const volVal = this.handleGetVolume();
       this.service.updateCharacteristic(this.platform.Characteristic.RotationSpeed, volVal);
     }
@@ -117,7 +117,7 @@ export class SirenFeature extends BaseFeature {
     const on = value as boolean;
 
     // Use Sound Switch if supported
-    if (this.endpoint.supportsCC(CommandClasses['Sound Switch'])) {
+    if (this.node.supportsCC(CommandClasses['Sound Switch'])) {
       try {
         /**
          * TONE SELECTION FIX: We use Tone 1 as primary default,
