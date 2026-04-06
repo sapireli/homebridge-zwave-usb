@@ -239,25 +239,13 @@ export class ZWaveAccessory {
 
   public refresh(args?: ZWaveValueEvent): void {
     /**
-     * INTERVIEW GUARD: Only refresh if the node is ready.
-     * This prevents features from trying to read incomplete metadata or values
-     * during the initial Z-Wave interview process.
-     *
-     * DEAD NODE GUARD: If the node is marked Dead, we stop refreshing features
-     * to prevent stale cache data from masquerading as a valid state.
-     * The StatusFault characteristic will still report the failure.
-     */
-    if (!this.node.ready || this.node.status === NodeStatus.Dead) {
-      return;
-    }
-
-    /**
      * NODE HEALTH MONITORING:
-     * Map Z-Wave node status (Dead/Alive) to HomeKit StatusFault.
-     * 0 = No Fault, 1 = General Fault (Dead).
+     * Map Z-Wave node status (Dead/Alive/Ready) to HomeKit StatusFault.
+     * 0 = No Fault, 1 = General Fault.
+     * A node is considered faulty if it is Dead OR if it has failed to become ready.
      */
-    const isDead = this.node.status === NodeStatus.Dead;
-    const faultValue = isDead
+    const isFaulty = !this.node.ready || this.node.status === NodeStatus.Dead;
+    const faultValue = isFaulty
       ? this.platform.Characteristic.StatusFault.GENERAL_FAULT
       : this.platform.Characteristic.StatusFault.NO_FAULT;
 
@@ -269,7 +257,8 @@ export class ZWaveAccessory {
     const TAMPERED = this.platform.Characteristic.StatusTampered?.TAMPERED ?? 1;
     let tamperedVal = NOT_TAMPERED;
     
-    if (this.node.supportsCC?.(CommandClasses.Notification)) {
+    // Fallback: If not ready, skip checking specific CC values to avoid cache errors.
+    if (!isFaulty && this.node.supportsCC?.(CommandClasses.Notification)) {
       const tamperCover = this.node.getValue({
         commandClass: CommandClasses.Notification,
         property: 'Home Security',
@@ -294,6 +283,15 @@ export class ZWaveAccessory {
         service.updateCharacteristic(this.platform.Characteristic.StatusTampered, tamperedVal);
       }
     });
+
+    /**
+     * INTERVIEW & DEAD NODE GUARD: Only refresh features if the node is ready and alive.
+     * This prevents features from trying to read incomplete metadata or stale cache data
+     * during the initial Z-Wave interview process or when the device goes offline.
+     */
+    if (isFaulty) {
+      return;
+    }
 
     for (const feature of this.features) {
       /**
