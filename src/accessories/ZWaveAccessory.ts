@@ -261,9 +261,37 @@ export class ZWaveAccessory {
       ? this.platform.Characteristic.StatusFault.GENERAL_FAULT
       : this.platform.Characteristic.StatusFault.NO_FAULT;
 
+    /**
+     * GLOBAL TAMPER MONITORING:
+     * Map Z-Wave tamper alarms (from Home Security) to HomeKit StatusTampered.
+     */
+    const NOT_TAMPERED = this.platform.Characteristic.StatusTampered?.NOT_TAMPERED ?? 0;
+    const TAMPERED = this.platform.Characteristic.StatusTampered?.TAMPERED ?? 1;
+    let tamperedVal = NOT_TAMPERED;
+    
+    if (this.node.supportsCC?.(CommandClasses.Notification)) {
+      const tamperCover = this.node.getValue({
+        commandClass: CommandClasses.Notification,
+        property: 'Home Security',
+        propertyKey: 'Tampering, product covering removed',
+      });
+      const tamperCode = this.node.getValue({
+        commandClass: CommandClasses.Notification,
+        property: 'Home Security',
+        propertyKey: 'Tampering, Invalid Code',
+      });
+
+      if (tamperCover === 3 || tamperCode === 4) {
+        tamperedVal = TAMPERED;
+      }
+    }
+
     this.platformAccessory.services.forEach((service) => {
       if (service.testCharacteristic(this.platform.Characteristic.StatusFault)) {
         service.updateCharacteristic(this.platform.Characteristic.StatusFault, faultValue);
+      }
+      if (service.testCharacteristic(this.platform.Characteristic.StatusTampered)) {
+        service.updateCharacteristic(this.platform.Characteristic.StatusTampered, tamperedVal);
       }
     });
 

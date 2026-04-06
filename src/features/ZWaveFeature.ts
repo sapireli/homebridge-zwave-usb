@@ -1,5 +1,6 @@
 import { PlatformAccessory, Service, WithUUID } from 'homebridge';
 import { Endpoint } from 'zwave-js';
+import { CommandClasses } from '@zwave-js/core';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 
@@ -149,6 +150,17 @@ export abstract class BaseFeature implements ZWaveFeature {
       service.UUID !== skipUUID
     ) {
       service.addOptionalCharacteristic(this.platform.Characteristic.StatusFault);
+    }
+
+    /**
+     * TAMPER MONITORING: Add StatusTampered to functional services if the node supports Notification CC.
+     */
+    if (
+      this.node.supportsCC?.(CommandClasses.Notification) &&
+      !service.testCharacteristic(this.platform.Characteristic.StatusTampered) &&
+      service.UUID !== skipUUID
+    ) {
+      service.addOptionalCharacteristic(this.platform.Characteristic.StatusTampered);
     }
 
     if (!this.managedServices.includes(service)) {
