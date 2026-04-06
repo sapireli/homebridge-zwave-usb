@@ -30,7 +30,7 @@ describe('SirenFeature', () => {
       updateCharacteristic: jest.fn(),
       testCharacteristic: jest.fn().mockReturnValue(true), updateCharacteristic: jest.fn().mockReturnThis(), setPrimaryService: jest.fn(),
       addOptionalCharacteristic: jest.fn(),
-      UUID: 'Lightbulb',
+      UUID: 'Fan',
     };
 
     accessory = {
@@ -46,11 +46,11 @@ describe('SirenFeature', () => {
 
     platform = {
       Service: {
-        Lightbulb: 'Lightbulb',
+        Fan: 'Fan',
       },
       Characteristic: {
         On: 'On',
-        Brightness: 'Brightness',
+        RotationSpeed: 'RotationSpeed',
         Name: 'Name',
         ServiceLabelIndex: 'ServiceLabelIndex',
         StatusFault: 'StatusFault',
@@ -85,8 +85,8 @@ describe('SirenFeature', () => {
     feature.init();
   });
 
-  it('should initialize siren as a Lightbulb service', () => {
-    expect(accessory.platformAccessory.getServiceById).toHaveBeenCalledWith('Lightbulb', '0');
+  it('should initialize siren as a Fan service', () => {
+    expect(accessory.platformAccessory.getServiceById).toHaveBeenCalledWith('Fan', '0');
   });
 
   it('should update state from Sound Switch report', () => {
@@ -143,13 +143,13 @@ describe('SirenFeature', () => {
 
     feature.update();
     
-    expect(service.updateCharacteristic).toHaveBeenCalledWith('Brightness', 75);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith('RotationSpeed', 75);
   });
 
   it('should set volume using Sound Switch', async () => {
     // We need to trigger the Volume set handler
     // It's the second characteristic initialized if Sound Switch is supported
-    const volChar = service.getCharacteristic('Brightness');
+    const volChar = service.getCharacteristic('RotationSpeed');
     const handler = volChar.onSet.mock.calls[0][0];
 
     await handler(50);

@@ -157,6 +157,6 @@ export class ContactSensorFeature extends BaseFeature {
   }
 
   private handleGetContactSensorState(): number {
-    return this.contactState;
+    return this.getSensorValue();
   }
 }
