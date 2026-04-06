@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.5.1] - 2026-04-06
+
+### Fixed
+- **Jest Open Handles:** Removed `--forceExit` from the test script and ensured all timers are properly unreferenced (`.unref()`) to eliminate false positive memory leak warnings and ensure clean test execution.
+- **TypeScript Compilation:** Fixed a compilation error regarding missing `CommandClasses` imports inside `ZWaveAccessory.ts`.
+
 ## [3.5.0] - 2026-04-06
 
 ### Added
