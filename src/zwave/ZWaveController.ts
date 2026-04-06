@@ -655,7 +655,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
             setTimeout(
               () => reject(new Error('Driver destroy timeout (Serial port may be locked)')),
               3000,
-            ),
+            ).unref(),
           ),
         ]);
         this.log.info('Z-Wave driver stopped.');

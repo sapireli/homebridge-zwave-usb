@@ -142,6 +142,7 @@ export class WindowCoveringFeature extends BaseFeature {
     this.lockoutTimer = setTimeout(() => {
       this.lockoutTimer = undefined;
     }, 3000);
+    this.lockoutTimer.unref();
 
     let zwaveVal = target;
 

@@ -64,6 +64,7 @@ export class ContactSensorFeature extends BaseFeature {
           this.clearTimer = undefined;
           this.service.updateCharacteristic(this.platform.Characteristic.ContactSensorState, this.contactState);
         }, 30000);
+        this.clearTimer.unref();
       } else {
         this.contactState = this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;
         if (this.clearTimer) {
