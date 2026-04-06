@@ -146,4 +146,27 @@ describe('ZWaveController (Direct Mode)', () => {
     controller.setNodeName(2, 'New Name');
     expect(mockNode.name).toBe('New Name');
   });
+
+  it('should emit node updated during interview lifecycle changes', async () => {
+    controller = new ZWaveController(log, '/dev/ttyACM0');
+    await controller.start();
+
+    const mockNode = new EventEmitter() as any;
+    mockNode.nodeId = 2;
+    mockNode.status = 1;
+    mockNode.ready = false;
+
+    const onNodeUpdated = jest.fn();
+    controller.on('node updated', onNodeUpdated);
+
+    mockDriver.controller.emit('node added', mockNode);
+    mockNode.emit('interview stage completed', mockNode, 'NodeInfo');
+    mockNode.emit('interview failed', mockNode, { errorMessage: 'timed out' });
+    mockNode.emit('wake up', mockNode);
+    mockNode.emit('sleep', mockNode);
+    mockNode.emit('dead', mockNode);
+    mockNode.emit('alive', mockNode);
+
+    expect(onNodeUpdated).toHaveBeenCalledTimes(6);
+  });
 });

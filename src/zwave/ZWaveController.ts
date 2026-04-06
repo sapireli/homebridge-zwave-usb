@@ -234,30 +234,34 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     const onInterviewStageCompleted = (_n: ZWaveNode, stage: string) => {
       this.log.info(`Node ${node.nodeId} interview stage completed: ${stage}`);
       this.emit('status updated', `Node ${node.nodeId}: ${stage}`);
+      this.emit('node updated', node);
     };
 
     const onInterviewFailed = (_n: ZWaveNode, args: { errorMessage: string }) => {
       this.log.error(`Node ${node.nodeId} interview failed: ${args.errorMessage}`);
+      this.emit('node updated', node);
     };
 
     const onWakeUp = () => {
       this.log.info(`Node ${node.nodeId} has woken up. Interview will resume.`);
       this.emit('status updated', `Node ${node.nodeId} Awake`);
+      this.emit('node updated', node);
     };
 
     const onSleep = () => {
       this.log.info(`Node ${node.nodeId} has gone to sleep. Interview is paused.`);
       this.emit('status updated', `Node ${node.nodeId} Asleep`);
+      this.emit('node updated', node);
     };
 
     const onDead = () => {
       this.log.info(`Node ${node.nodeId} is dead.`);
-      this.emit('node ready', node); // Trigger refresh in platform
+      this.emit('node updated', node);
     };
 
     const onAlive = () => {
       this.log.info(`Node ${node.nodeId} is alive.`);
-      this.emit('node ready', node); // Trigger refresh in platform
+      this.emit('node updated', node);
     };
 
     const onFirmwareUpdateProgress = (_n: ZWaveNode, sent: number, total: number) => {

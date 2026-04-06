@@ -211,30 +211,27 @@ export class ZWaveAccessory {
       }
     });
 
-    this.seedConfiguredNameOnPrimaryService();
+    this.pruneConfiguredNameFromFunctionalServices();
     this.platform.api.updatePlatformAccessories([this.platformAccessory]);
 
     this.refresh();
   }
 
-  private seedConfiguredNameOnPrimaryService(): void {
-    const primaryService = this.features.flatMap((feature) => feature.getServices())[0];
-    if (!primaryService) {
-      return;
-    }
+  private pruneConfiguredNameFromFunctionalServices(): void {
+    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation);
+    this.platformAccessory.services.forEach((service) => {
+      if (service === infoService) {
+        return;
+      }
 
-    if (typeof (primaryService as { setPrimaryService?: (isPrimary?: boolean) => void }).setPrimaryService === 'function') {
-      (primaryService as { setPrimaryService: (isPrimary?: boolean) => void }).setPrimaryService(true);
-    }
-
-    if (!primaryService.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
-      primaryService.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
-    }
-
-    const configuredName = primaryService.getCharacteristic(this.platform.Characteristic.ConfiguredName);
-    if (!configuredName.value) {
-      configuredName.updateValue(primaryService.displayName || this.platformAccessory.displayName);
-    }
+      if (service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+        const configuredName = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
+        this.platform.log.debug(
+          `Pruning ConfiguredName from ${service.displayName} (Node ${this.node.nodeId})`,
+        );
+        service.removeCharacteristic(configuredName);
+      }
+    });
   }
 
   public refresh(args?: ZWaveValueEvent): void {

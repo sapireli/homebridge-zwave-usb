@@ -19,6 +19,7 @@ describe('ZWaveAccessory', () => {
         setProps: jest.fn().mockReturnThis(),
         props: { perms: ['pr', 'pw', 'ev'] },
       }),
+      removeCharacteristic: jest.fn(),
       setProps: jest.fn().mockReturnThis(),
       updateValue: jest.fn().mockReturnThis(),
       updateCharacteristic: jest.fn().mockReturnThis(),
@@ -152,16 +153,13 @@ describe('ZWaveAccessory', () => {
     expect(recreated.platformAccessory.context.renameGeneration).toBe('rename-1');
   });
 
-  it('should seed ConfiguredName on the primary functional service once', () => {
+  it('should remove ConfiguredName from functional services during initialization', () => {
+    const configuredNameChar = { UUID: platform.Characteristic.ConfiguredName };
     const featureService = {
       ...mockService,
-      testCharacteristic: jest.fn().mockReturnValue(false),
-      getCharacteristic: jest.fn().mockReturnValue({
-        value: '',
-        updateValue: jest.fn(),
-      }),
-      addOptionalCharacteristic: jest.fn(),
-      setPrimaryService: jest.fn(),
+      testCharacteristic: jest.fn().mockImplementation((char) => char === platform.Characteristic.ConfiguredName),
+      getCharacteristic: jest.fn().mockReturnValue(configuredNameChar),
+      removeCharacteristic: jest.fn(),
       displayName: 'Node Switch',
     };
     const feature: ZWaveFeature = {
@@ -175,12 +173,12 @@ describe('ZWaveAccessory', () => {
     };
 
     accessory.addFeature(feature);
+    accessory.platformAccessory.services.push(featureService);
     accessory.initialize();
 
-    expect(featureService.setPrimaryService).toHaveBeenCalledWith(true);
-    expect(featureService.addOptionalCharacteristic).toHaveBeenCalledWith(
+    expect(featureService.removeCharacteristic).toHaveBeenCalledWith(configuredNameChar);
+    expect(featureService.addOptionalCharacteristic).not.toHaveBeenCalledWith(
       platform.Characteristic.ConfiguredName,
     );
-    expect(featureService.getCharacteristic().updateValue).toHaveBeenCalledWith('Node Switch');
   });
 });

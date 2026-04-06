@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.5.2] - 2026-04-06
+
+### Fixed
+- **Home App Settings Regression:** Removed plugin-managed `ConfiguredName` injection from functional services and now prune stale cached copies from non-`AccessoryInformation` services. This restores Home app room reassignment and other settings changes that were failing with "Could not change settings."
+- **Incomplete Interview Fault Visibility:** Node accessories are now created and refreshed before interview completion, and interview lifecycle changes now trigger accessory refreshes. Devices that are stuck mid-interview or fail interview now surface `StatusFault` in HomeKit instead of waiting for a full ready state.
+
 ## [3.5.1] - 2026-04-06
 
 ### Fixed

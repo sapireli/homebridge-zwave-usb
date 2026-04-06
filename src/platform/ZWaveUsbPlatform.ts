@@ -77,6 +77,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       // Setup listeners
       this.zwaveController.on('node added', (node) => this.handleNodeAdded(node));
       this.zwaveController.on('node ready', (node) => this.handleNodeReady(node));
+      this.zwaveController.on('node updated', (node) => this.handleNodeUpdated(node));
       this.zwaveController.on('node removed', (node) => this.handleNodeRemoved(node));
       this.zwaveController.on('value notification', (node, args) =>
         this.handleValueNotification(node, args),
@@ -391,22 +392,25 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
   private handleNodeAdded(node: IZWaveNode) {
     this.log.info(`Node ${node.nodeId} added to the network. Waiting for interview to complete...`);
+    this.syncNodeAccessory(node);
   }
 
   private handleNodeReady(node: IZWaveNode) {
     const nodeName = node.name || node.deviceConfig?.label || `Node ${node.nodeId}`;
     this.log.info(`Node ${node.nodeId} (${nodeName}) ready`);
+    this.syncNodeAccessory(node);
+  }
 
+  private handleNodeUpdated(node: IZWaveNode) {
+    this.syncNodeAccessory(node);
+  }
+
+  private syncNodeAccessory(node: IZWaveNode) {
     // Skip Node 1 (the controller itself) as it's handled by ControllerAccessory
     if (Number(node.nodeId) === 1) {
       this.log.info(
         'System: Controller node (Node 1) identified. Skipping generic accessory creation.',
       );
-      return;
-    }
-
-    if (!node.ready) {
-      this.log.warn(`Node ${node.nodeId} reported ready but node.ready is false, skipping...`);
       return;
     }
 
@@ -427,6 +431,11 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
     this.discoveryInFlight.add(node.nodeId);
     try {
+      if (!node.ready) {
+        this.log.info(
+          `Creating accessory for Node ${node.nodeId} before interview completion so HomeKit can surface fault state.`,
+        );
+      }
       const accessory = AccessoryFactory.create(this, node, homeId);
       this.zwaveAccessories.set(node.nodeId, accessory);
 
