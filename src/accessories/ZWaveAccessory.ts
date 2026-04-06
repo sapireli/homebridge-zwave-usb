@@ -240,7 +240,7 @@ export class ZWaveAccessory {
   public refresh(args?: ZWaveValueEvent): void {
     /**
      * NODE HEALTH MONITORING:
-     * Map Z-Wave node status (Dead/Alive/Ready) to HomeKit StatusFault.
+     * Map Z-Wave node status (Dead/Alive/Ready) to HomeKit StatusFault and StatusActive.
      * 0 = No Fault, 1 = General Fault.
      * A node is considered faulty if it is Dead OR if it has failed to become ready.
      */
@@ -248,6 +248,7 @@ export class ZWaveAccessory {
     const faultValue = isFaulty
       ? this.platform.Characteristic.StatusFault.GENERAL_FAULT
       : this.platform.Characteristic.StatusFault.NO_FAULT;
+    const activeValue = !isFaulty;
 
     /**
      * GLOBAL TAMPER MONITORING:
@@ -278,6 +279,9 @@ export class ZWaveAccessory {
     this.platformAccessory.services.forEach((service) => {
       if (service.testCharacteristic(this.platform.Characteristic.StatusFault)) {
         service.updateCharacteristic(this.platform.Characteristic.StatusFault, faultValue);
+      }
+      if (service.testCharacteristic(this.platform.Characteristic.StatusActive)) {
+        service.updateCharacteristic(this.platform.Characteristic.StatusActive, activeValue);
       }
       if (service.testCharacteristic(this.platform.Characteristic.StatusTampered)) {
         service.updateCharacteristic(this.platform.Characteristic.StatusTampered, tamperedVal);

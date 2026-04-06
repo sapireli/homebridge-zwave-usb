@@ -141,7 +141,7 @@ export abstract class BaseFeature implements ZWaveFeature {
     }
 
     /**
-     * HEALTH MONITORING FIX: Add StatusFault to functional services where appropriate.
+     * HEALTH MONITORING FIX: Add StatusFault and StatusActive to functional services where appropriate.
      * We skip this for 'StatelessProgrammableSwitch' (Buttons) as it's not standard there.
      */
     const skipUUID = '00000089-0000-1000-8000-0026BB765291'; // StatelessProgrammableSwitch
@@ -150,6 +150,12 @@ export abstract class BaseFeature implements ZWaveFeature {
       service.UUID !== skipUUID
     ) {
       service.addOptionalCharacteristic(this.platform.Characteristic.StatusFault);
+    }
+    if (
+      !service.testCharacteristic(this.platform.Characteristic.StatusActive) &&
+      service.UUID !== skipUUID
+    ) {
+      service.addOptionalCharacteristic(this.platform.Characteristic.StatusActive);
     }
 
     /**
