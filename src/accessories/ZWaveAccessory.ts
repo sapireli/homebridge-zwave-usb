@@ -1,5 +1,5 @@
 import { PlatformAccessory, Service } from 'homebridge';
-import { NodeStatus } from '@zwave-js/core';
+import { NodeStatus, CommandClasses } from '@zwave-js/core';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { ZWaveFeature } from '../features/ZWaveFeature';
