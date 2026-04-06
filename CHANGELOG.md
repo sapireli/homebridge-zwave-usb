@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.4.6] - 2026-04-06
+
+### Fixed
+- **Motion Sensor State:** Reduced the auto-clear timer for stateless motion sensors from 60 seconds to 30 seconds to ensure a quicker reset state. (Resolves #1)
+- **Contact Sensor State:** Added support for `Door state` and `Window/door state` Notification property keys to ensure stateless contact sensors report their open/closed state correctly. Removed auto-clear timer logic from contact sensors for improved security. (Resolves #1)
+- **Siren Volume Control:** Fixed an issue where siren volume adjustments were not correctly applying to multi-endpoint sirens (like the Aeotec Siren 6) by routing Sound Switch configuration changes to the root endpoint (Endpoint 0). Sirens will continue to be represented as a Fan with a RotationSpeed slider in HomeKit to prevent Siri-based triggering issues. (Resolves #2)
+
 ## [3.4.5] - 2026-04-04
 
 ### Changed
