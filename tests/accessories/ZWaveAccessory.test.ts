@@ -446,6 +446,27 @@ describe('ZWaveAccessory', () => {
     expect(accessory.platformAccessory.removeService).not.toHaveBeenCalled();
   });
 
+  it('should mark the first managed functional service as primary during initialize', () => {
+    const featureService = {
+      ...mockService,
+      setPrimaryService: jest.fn(),
+    };
+
+    accessory.addFeature({
+      init: jest.fn(),
+      update: jest.fn(),
+      getServices: () => [featureService],
+      getEndpointIndex: () => 0,
+      stop: jest.fn(),
+      updateNode: jest.fn(),
+      rename: jest.fn(),
+    });
+
+    accessory.initialize();
+
+    expect(featureService.setPrimaryService).toHaveBeenCalledWith(true);
+  });
+
   it('should prune stale cached services during explicit graph reconcile only', () => {
     const extraCachedService = {
       ...mockService,

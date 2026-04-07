@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0-beta.7] - 2026-04-07
+
+### Fixed
+- **Home App Settings Payload:** Removed the non-HAP `Configured Name` compatibility shim from standard sensor and actuator services such as `LeakSensor` and `Switch`, leaving `ConfiguredName` only on service types where `hap-nodejs` actually defines it.
+- **Primary Service Shape:** Explicitly marks the first managed functional service as the primary service so multi-service accessories like `LeakSensor` + `Battery` publish a standard HomeKit service layout during rename and room-change saves.
+- **Schema Regression Coverage:** Tightened the HAP serialization tests to assert that switch and leak services omit `Configured Name` and publish as primary, plus added direct accessory coverage for primary-service assignment.
+
 ## [3.6.0-beta.6] - 2026-04-07
 
 ### Fixed

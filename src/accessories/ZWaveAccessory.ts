@@ -36,26 +36,12 @@ const SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS = new Set([
   '000000D0-0000-1000-8000-0026BB765291', // Valve
 ]);
 
-const CONFIGURED_NAME_COMPAT_SERVICE_UUIDS = new Set([
-  '00000043-0000-1000-8000-0026BB765291', // Lightbulb
-  '00000047-0000-1000-8000-0026BB765291', // Outlet
-  '00000049-0000-1000-8000-0026BB765291', // Switch
-  '00000040-0000-1000-8000-0026BB765291', // Fan
-  '00000041-0000-1000-8000-0026BB765291', // GarageDoorOpener
-  '00000045-0000-1000-8000-0026BB765291', // LockMechanism
-  '0000004A-0000-1000-8000-0026BB765291', // Thermostat
-  '0000008C-0000-1000-8000-0026BB765291', // WindowCovering
-  '00000080-0000-1000-8000-0026BB765291', // ContactSensor
-  '00000083-0000-1000-8000-0026BB765291', // LeakSensor
-  '00000085-0000-1000-8000-0026BB765291', // MotionSensor
-  '00000087-0000-1000-8000-0026BB765291', // SmokeSensor
-  '0000007F-0000-1000-8000-0026BB765291', // CarbonMonoxideSensor
-  '0000008A-0000-1000-8000-0026BB765291', // TemperatureSensor
-  '00000082-0000-1000-8000-0026BB765291', // HumiditySensor
-  '00000084-0000-1000-8000-0026BB765291', // LightSensor
-  '0000008D-0000-1000-8000-0026BB765291', // AirQualitySensor
-  '00000097-0000-1000-8000-0026BB765291', // CarbonDioxideSensor
-  '00000089-0000-1000-8000-0026BB765291', // StatelessProgrammableSwitch
+const CONFIGURED_NAME_SUPPORTED_SERVICE_UUIDS = new Set([
+  '0000003E-0000-1000-8000-0026BB765291', // AccessoryInformation
+  '000000D8-0000-1000-8000-0026BB765291', // Television
+  '000000D9-0000-1000-8000-0026BB765291', // InputSource
+  '00000228-0000-1000-8000-0026BB765291', // SmartSpeaker
+  '0000020A-0000-1000-8000-0026BB765291', // WiFiRouter
 ]);
 
 export class ZWaveAccessory {
@@ -267,6 +253,7 @@ export class ZWaveAccessory {
         this.pruneUnmanagedServices();
       }
 
+      this.ensurePrimaryService();
       this.refresh();
       this.platform.api.updatePlatformAccessories([this.platformAccessory]);
       this.initialized = true;
@@ -347,7 +334,7 @@ export class ZWaveAccessory {
 
       if (
         service.testCharacteristic(this.platform.Characteristic.ConfiguredName) &&
-        !CONFIGURED_NAME_COMPAT_SERVICE_UUIDS.has(service.UUID)
+        !CONFIGURED_NAME_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
       ) {
         service.removeCharacteristic(
           service.getCharacteristic(this.platform.Characteristic.ConfiguredName),
@@ -397,6 +384,21 @@ export class ZWaveAccessory {
         );
       }
     });
+  }
+
+  private ensurePrimaryService(): void {
+    const primaryService = this.features.flatMap((feature) => feature.getServices())[0];
+    if (!primaryService) {
+      return;
+    }
+
+    const setPrimaryService = (primaryService as Service & {
+      setPrimaryService?: (isPrimary?: boolean) => void;
+    }).setPrimaryService;
+
+    if (typeof setPrimaryService === 'function') {
+      setPrimaryService.call(primaryService, true);
+    }
   }
 
   private getServiceEndpointIndex(service: Service): number {

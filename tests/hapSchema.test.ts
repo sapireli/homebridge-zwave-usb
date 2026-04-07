@@ -136,27 +136,6 @@ function allowedCharacteristicNames(service: InstanceType<typeof Service.Accesso
   );
 }
 
-const CONFIGURED_NAME_COMPAT_SERVICE_TYPES = new Set([
-  Service.Switch.UUID,
-  Service.Lightbulb.UUID,
-  Service.Fan.UUID,
-  Service.GarageDoorOpener.UUID,
-  Service.LockMechanism.UUID,
-  Service.Thermostat.UUID,
-  Service.WindowCovering.UUID,
-  Service.ContactSensor.UUID,
-  Service.LeakSensor.UUID,
-  Service.MotionSensor.UUID,
-  Service.SmokeSensor.UUID,
-  Service.CarbonMonoxideSensor.UUID,
-  Service.TemperatureSensor.UUID,
-  Service.HumiditySensor.UUID,
-  Service.LightSensor.UUID,
-  Service.AirQualitySensor.UUID,
-  Service.CarbonDioxideSensor.UUID,
-  Service.StatelessProgrammableSwitch.UUID,
-]);
-
 describe('HAP service compliance', () => {
   const scenarios: Scenario[] = [
     {
@@ -378,9 +357,6 @@ describe('HAP service compliance', () => {
 
         const reference = new (service.constructor as typeof Service)(service.displayName, service.subtype);
         const allowed = allowedCharacteristicNames(reference as InstanceType<typeof Service.AccessoryInformation>);
-        if (CONFIGURED_NAME_COMPAT_SERVICE_TYPES.has(service.UUID)) {
-          allowed.add('Configured Name');
-        }
 
         const emitted = [...service.characteristics, ...service.optionalCharacteristics].map(
           (char) => char.displayName,
@@ -393,7 +369,7 @@ describe('HAP service compliance', () => {
     });
   }
 
-  it('publishes Configured Name on switch services for Home app settings compatibility', async () => {
+  it('does not publish Configured Name on switch services', async () => {
     const accessory = buildAccessory({
       label: 'Binary Switch',
       supportsCC: [CommandClasses['Binary Switch']],
@@ -405,13 +381,13 @@ describe('HAP service compliance', () => {
     const hap = await serializeAccessory(accessory);
     const switchService = hap[0].services.find((service) => service.type === '49');
 
-    expect(switchService?.primary).toBeUndefined();
+    expect(switchService?.primary).toBe(true);
     expect(
       switchService?.characteristics.some((characteristic) => characteristic.type === 'E3'),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it('publishes Configured Name on leak services for Home app settings compatibility', async () => {
+  it('does not publish Configured Name on leak services', async () => {
     const accessory = buildAccessory({
       label: 'Leak Notification',
       supportsCC: [CommandClasses.Notification],
@@ -428,10 +404,10 @@ describe('HAP service compliance', () => {
     const hap = await serializeAccessory(accessory);
     const leakService = hap[0].services.find((service) => service.type === '83');
 
-    expect(leakService?.primary).toBeUndefined();
+    expect(leakService?.primary).toBe(true);
     expect(
       leakService?.characteristics.some((characteristic) => characteristic.type === 'E3'),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('uses explicit HomeKit categories for standard accessory types', () => {
