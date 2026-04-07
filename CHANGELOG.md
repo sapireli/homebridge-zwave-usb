@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0-beta.8] - 2026-04-07
+
+### Fixed
+- **AccessoryInformation Rename Path:** Materializes writable `Configured Name` on `AccessoryInformation`, which `hap-nodejs` defines as the standard accessory-level rename field but the plugin was not serializing at all.
+- **Home App Settings Save Flow:** Keeps `Configured Name` off standard functional services like `LeakSensor` while exposing it on `AccessoryInformation`, so name and room saves target a standard HomeKit payload instead of a mixed service-level shim.
+- **Regression Coverage:** Added serialization and accessory tests to verify `AccessoryInformation` publishes writable `Configured Name`, while `LeakSensor` remains primary and does not expose `Configured Name`.
+
 ## [3.6.0-beta.7] - 2026-04-07
 
 ### Fixed

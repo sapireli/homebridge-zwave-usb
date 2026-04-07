@@ -145,6 +145,73 @@ describe('ZWaveAccessory', () => {
     );
   });
 
+  it('should seed AccessoryInformation ConfiguredName when it is missing', () => {
+    const configuredNameCharacteristic = {
+      value: '',
+      updateValue: jest.fn(),
+      onSet: jest.fn(),
+      setProps: jest.fn().mockReturnThis(),
+      props: { perms: ['pr', 'pw', 'ev'] },
+    };
+    mockService.getCharacteristic = jest.fn().mockImplementation((char) => {
+      if (char === platform.Characteristic.ConfiguredName) {
+        return configuredNameCharacteristic;
+      }
+
+      return {
+        value: '',
+        updateValue: jest.fn(),
+        onSet: jest.fn(),
+        setProps: jest.fn().mockReturnThis(),
+        props: { perms: ['pr', 'pw', 'ev'] },
+      };
+    });
+
+    accessory = new ZWaveAccessory(
+      platform as unknown as ZWaveUsbPlatform,
+      node as IZWaveNode,
+      12345,
+    );
+
+    expect(mockService.getCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.ConfiguredName,
+    );
+    expect(configuredNameCharacteristic.updateValue).toHaveBeenCalledWith(
+      accessory.platformAccessory.displayName,
+    );
+  });
+
+  it('should preserve existing AccessoryInformation ConfiguredName values', () => {
+    const configuredNameCharacteristic = {
+      value: 'Home Custom Name',
+      updateValue: jest.fn(),
+      onSet: jest.fn(),
+      setProps: jest.fn().mockReturnThis(),
+      props: { perms: ['pr', 'pw', 'ev'] },
+    };
+    mockService.getCharacteristic = jest.fn().mockImplementation((char) => {
+      if (char === platform.Characteristic.ConfiguredName) {
+        return configuredNameCharacteristic;
+      }
+
+      return {
+        value: '',
+        updateValue: jest.fn(),
+        onSet: jest.fn(),
+        setProps: jest.fn().mockReturnThis(),
+        props: { perms: ['pr', 'pw', 'ev'] },
+      };
+    });
+
+    accessory = new ZWaveAccessory(
+      platform as unknown as ZWaveUsbPlatform,
+      node as IZWaveNode,
+      12345,
+    );
+
+    expect(configuredNameCharacteristic.updateValue).not.toHaveBeenCalled();
+  });
+
   it('should advertise the node firmware revision without synthetic metadata suffixes', () => {
     expect(mockService.setCharacteristic).toHaveBeenCalledWith(
       platform.Characteristic.FirmwareRevision,

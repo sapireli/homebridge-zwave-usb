@@ -410,6 +410,30 @@ describe('HAP service compliance', () => {
     ).toBe(false);
   });
 
+  it('publishes Configured Name on AccessoryInformation for accessory rename compatibility', async () => {
+    const accessory = buildAccessory({
+      label: 'Leak Notification',
+      supportsCC: [CommandClasses.Notification],
+      definedValueIDs: [
+        {
+          commandClass: CommandClasses.Notification,
+          endpoint: 0,
+          property: 'Water Alarm',
+          propertyKey: 'Water leak status',
+        },
+      ],
+    });
+
+    const hap = await serializeAccessory(accessory);
+    const accessoryInformation = hap[0].services.find((service) => service.type === '3E');
+    const configuredName = accessoryInformation?.characteristics.find(
+      (characteristic) => characteristic.type === 'E3',
+    );
+
+    expect(configuredName).toBeDefined();
+    expect(configuredName?.perms).toContain('pw');
+  });
+
   it('uses explicit HomeKit categories for standard accessory types', () => {
     const switchAccessory = buildAccessory({
       label: 'Binary Switch',

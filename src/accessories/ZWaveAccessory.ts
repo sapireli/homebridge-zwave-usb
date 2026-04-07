@@ -296,12 +296,23 @@ export class ZWaveAccessory {
       .setCharacteristic(this.platform.Characteristic.SerialNumber, serial)
       .setCharacteristic(this.platform.Characteristic.FirmwareRevision, firmwareRevision);
 
+    this.ensureAccessoryInformationConfiguredName(infoService, name);
+
     if (options.syncName) {
       this.platformAccessory.displayName = name;
       infoService.setCharacteristic(this.platform.Characteristic.Name, name);
     }
 
     return metadataSignature;
+  }
+
+  private ensureAccessoryInformationConfiguredName(infoService: Service, name: string): void {
+    const configuredNameType = this.platform.Characteristic.ConfiguredName;
+    const configuredName = infoService.getCharacteristic(configuredNameType);
+
+    if (configuredName.value === undefined || configuredName.value === '') {
+      configuredName.updateValue(name);
+    }
   }
 
   private pruneUnmanagedServices(): void {
