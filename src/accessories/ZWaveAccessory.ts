@@ -323,8 +323,12 @@ export class ZWaveAccessory {
   private getTamperedValue(endpointIndex: number): number {
     const NOT_TAMPERED = this.platform.Characteristic.StatusTampered?.NOT_TAMPERED ?? 0;
     const TAMPERED = this.platform.Characteristic.StatusTampered?.TAMPERED ?? 1;
+    const supportsCC =
+      typeof this.node.supportsCC === 'function'
+        ? (cc: number) => this.node.supportsCC(cc)
+        : () => false;
 
-    if (this.node.supportsCC(CommandClasses['Binary Sensor'])) {
+    if (supportsCC(CommandClasses['Binary Sensor'])) {
       const binaryTamper = this.node.getValue({
         commandClass: CommandClasses['Binary Sensor'],
         property: 'Tamper',
@@ -335,7 +339,7 @@ export class ZWaveAccessory {
       }
     }
 
-    if (!this.node.supportsCC(CommandClasses.Notification)) {
+    if (!supportsCC(CommandClasses.Notification)) {
       return NOT_TAMPERED;
     }
 

@@ -3,6 +3,8 @@ import { ZWaveUsbPlatform } from '../src/platform/ZWaveUsbPlatform';
 import { PLATFORM_NAME } from '../src/platform/settings';
 import fs from 'fs';
 import path from 'path';
+import http from 'http';
+import { EventEmitter } from 'events';
 
 // Mock ZWaveController to avoid starting the actual driver
 jest.mock('../src/zwave/ZWaveController', () => {
@@ -42,7 +44,7 @@ describe('ZWaveUsbPlatform', () => {
 
   beforeEach(() => {
     if (!fs.existsSync(storagePath)) {
-      fs.mkdirSync(storagePath);
+      fs.mkdirSync(storagePath, { recursive: true });
     }
 
     class MockCharacteristic {
@@ -139,15 +141,30 @@ describe('ZWaveUsbPlatform', () => {
       serialPort: '/dev/null',
     };
     const platform = new ZWaveUsbPlatform(log, config, api);
-
-    (platform as any).startIpcServer();
-
-    // The server is listening on 0 (random port), wait for 'listening' event
-    ((platform as any).ipcServer as any).once('listening', () => {
-      expect((platform as any).ipcServer).toBeDefined();
-      (platform as any).stopIpcServer();
-      done();
+    const fakeServer = new EventEmitter() as EventEmitter & {
+      listen: jest.Mock;
+      close: jest.Mock;
+      address: jest.Mock;
+    };
+    fakeServer.listen = jest.fn().mockImplementation((_port, _host, cb) => {
+      cb();
+      fakeServer.emit('listening');
     });
+    fakeServer.close = jest.fn();
+    fakeServer.address = jest.fn().mockReturnValue({ port: 12345, address: '127.0.0.1' });
+
+    const createServerSpy = jest.spyOn(http, 'createServer').mockReturnValue(fakeServer as never);
+
+    try {
+      (platform as any).startIpcServer();
+      expect((platform as any).ipcServer).toBe(fakeServer);
+      expect(fakeServer.listen).toHaveBeenCalledWith(0, '127.0.0.1', expect.any(Function));
+      (platform as any).stopIpcServer();
+      expect(fakeServer.close).toHaveBeenCalled();
+      done();
+    } finally {
+      createServerSpy.mockRestore();
+    }
   });
 
   it('should recreate an accessory after an explicit rename', async () => {

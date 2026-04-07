@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0-beta.1] - 2026-04-06
+
+### Fixed
+- **Full Test Validation:** Hardened tamper-state handling so partial/mock node objects without `supportsCC()` do not crash accessory initialization during rename and refresh flows.
+- **Platform Test Coverage:** Fixed the platform IPC/server test to mock the HTTP listener directly and removed a test-storage race so the platform suite now runs cleanly in the sandboxed CI/test environment.
+
 ## [3.6.0-beta.0] - 2026-04-06
 
 ### Changed
