@@ -3,6 +3,27 @@ import { Endpoint } from 'zwave-js';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 
+export const CONFIGURED_NAME_COMPAT_SERVICE_UUIDS = new Set([
+  '0000008D-0000-1000-8000-0026BB765291', // AirQualitySensor
+  '00000097-0000-1000-8000-0026BB765291', // CarbonDioxideSensor
+  '0000007F-0000-1000-8000-0026BB765291', // CarbonMonoxideSensor
+  '00000080-0000-1000-8000-0026BB765291', // ContactSensor
+  '00000040-0000-1000-8000-0026BB765291', // Fan
+  '00000041-0000-1000-8000-0026BB765291', // GarageDoorOpener
+  '00000082-0000-1000-8000-0026BB765291', // HumiditySensor
+  '00000083-0000-1000-8000-0026BB765291', // LeakSensor
+  '00000043-0000-1000-8000-0026BB765291', // Lightbulb
+  '00000084-0000-1000-8000-0026BB765291', // LightSensor
+  '00000045-0000-1000-8000-0026BB765291', // LockMechanism
+  '00000085-0000-1000-8000-0026BB765291', // MotionSensor
+  '00000087-0000-1000-8000-0026BB765291', // SmokeSensor
+  '00000089-0000-1000-8000-0026BB765291', // StatelessProgrammableSwitch
+  '00000049-0000-1000-8000-0026BB765291', // Switch
+  '0000008A-0000-1000-8000-0026BB765291', // TemperatureSensor
+  '0000004A-0000-1000-8000-0026BB765291', // Thermostat
+  '0000008C-0000-1000-8000-0026BB765291', // WindowCovering
+]);
+
 const SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS = new Set([
   '00000089-0000-1000-8000-0026BB765291', // StatelessProgrammableSwitch
   '000000D0-0000-1000-8000-0026BB765291', // Valve
@@ -56,6 +77,13 @@ export abstract class BaseFeature implements ZWaveFeature {
       if (service.testCharacteristic(this.platform.Characteristic.Name)) {
         const nameChar = service.getCharacteristic(this.platform.Characteristic.Name);
         nameChar.updateValue(serviceName);
+      }
+
+      if (service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+        const configuredNameChar = service.getCharacteristic(
+          this.platform.Characteristic.ConfiguredName,
+        );
+        configuredNameChar.updateValue(serviceName);
       }
     }
   }
@@ -149,6 +177,8 @@ export abstract class BaseFeature implements ZWaveFeature {
       nameChar.updateValue(serviceName);
     }
 
+    this.ensureConfiguredNameCompatibility(service, serviceName);
+
     if (
       this.endpoint.index > 0 &&
       SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
@@ -163,5 +193,26 @@ export abstract class BaseFeature implements ZWaveFeature {
     }
 
     return service;
+  }
+
+  private ensureConfiguredNameCompatibility(service: Service, serviceName: string): void {
+    if (!CONFIGURED_NAME_COMPAT_SERVICE_UUIDS.has(service.UUID)) {
+      return;
+    }
+
+    if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+      if (typeof service.addCharacteristic !== 'function') {
+        return;
+      }
+      service.addCharacteristic(this.platform.Characteristic.ConfiguredName);
+    }
+
+    const configuredNameChar = service.getCharacteristic(
+      this.platform.Characteristic.ConfiguredName,
+    );
+
+    if (configuredNameChar.value === undefined || configuredNameChar.value === '') {
+      configuredNameChar.updateValue(serviceName);
+    }
   }
 }

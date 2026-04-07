@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0-beta.9] - 2026-04-07
+
+### Fixed
+- **Home App Rename/Room Compatibility:** Restored a writable `Configured Name` compatibility characteristic on the actual user-facing standard services, including `LeakSensor`, `Switch`, `Lightbulb`, `LockMechanism`, `Thermostat`, `MotionSensor`, and related primary services. This aligns the plugin with known-working Homebridge plugins that expose renamable sensor/service accessories to the Home app.
+- **Configured Name Cache Repair:** One-time cache repair now preserves `Configured Name` on supported primary user-facing services while still pruning it from unsupported services like `Battery`.
+- **Regression Coverage:** Added payload, feature, and cache-repair tests to verify standard services publish compatibility `Configured Name` where intended, while unsupported services continue to omit it.
+
 ## [3.6.0-beta.8] - 2026-04-07
 
 ### Fixed

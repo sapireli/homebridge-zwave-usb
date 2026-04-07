@@ -350,6 +350,54 @@ describe('ZWaveAccessory', () => {
     expect(platform.api.updatePlatformAccessories).toHaveBeenCalledWith([cachedAccessory]);
   });
 
+  it('should preserve cached ConfiguredName on supported leak services', () => {
+    const configuredNameChar = {
+      UUID: platform.Characteristic.ConfiguredName,
+      value: 'Home Custom Name',
+      updateValue: jest.fn(),
+    };
+    const cachedLeakService = {
+      ...mockService,
+      UUID: '00000083-0000-1000-8000-0026BB765291',
+      testCharacteristic: jest.fn().mockImplementation(
+        (char) => char === platform.Characteristic.ConfiguredName,
+      ),
+      getCharacteristic: jest.fn().mockImplementation((char) => {
+        if (char === platform.Characteristic.ConfiguredName) {
+          return configuredNameChar;
+        }
+        return mockService.getCharacteristic();
+      }),
+      removeCharacteristic: jest.fn(),
+    };
+
+    const cachedAccessory = {
+      getService: jest
+        .fn()
+        .mockImplementation((serviceType: string) =>
+          serviceType === platform.Service.AccessoryInformation ? mockService : undefined,
+        ),
+      getServiceById: jest.fn().mockReturnValue(cachedLeakService),
+      addService: jest.fn().mockReturnValue(cachedLeakService),
+      removeService: jest.fn(),
+      services: [mockService, cachedLeakService],
+      displayName: 'HomeKit Custom Name',
+      UUID: 'test-uuid',
+      context: { nodeId: 2, homeId: 12345 },
+    };
+    platform.accessories = [cachedAccessory];
+
+    accessory = new ZWaveAccessory(
+      platform as unknown as ZWaveUsbPlatform,
+      node as IZWaveNode,
+      12345,
+    );
+
+    expect(cachedLeakService.removeCharacteristic).not.toHaveBeenCalledWith(configuredNameChar);
+    expect(cachedAccessory.context.cacheRepairVersion).toBe(ACCESSORY_CACHE_REPAIR_VERSION);
+    expect(platform.api.updatePlatformAccessories).toHaveBeenCalledWith([cachedAccessory]);
+  });
+
   it('should prune unsupported cached health characteristics from actuator services', () => {
     const statusFaultChar = { UUID: 'StatusFault' };
     const statusTamperedChar = { UUID: 'StatusTampered' };

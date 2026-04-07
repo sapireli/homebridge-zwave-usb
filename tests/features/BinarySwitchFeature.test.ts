@@ -43,6 +43,7 @@ describe('BinarySwitchFeature', () => {
     } as any;
 
     accessory = {
+      displayName: 'Binary Switch',
       getService: jest.fn(),
       getServiceById: jest.fn(),
       addService: jest.fn().mockImplementation((service) => {
@@ -185,6 +186,50 @@ describe('BinarySwitchFeature', () => {
     expect(switchService.addOptionalCharacteristic).not.toHaveBeenCalledWith(
       platform.Characteristic.ServiceLabelIndex,
     );
+  });
+
+  it('should add ConfiguredName compatibility to switch services', () => {
+    const configuredNameCharacteristic = {
+      value: '',
+      on: jest.fn().mockReturnThis(),
+      onGet: jest.fn().mockReturnThis(),
+      onSet: jest.fn().mockReturnThis(),
+      updateValue: jest.fn(),
+      setProps: jest.fn().mockReturnThis(),
+    };
+    const switchService = {
+      getCharacteristic: jest.fn().mockImplementation((char) => {
+        if (char === platform.Characteristic.ConfiguredName) {
+          return configuredNameCharacteristic;
+        }
+
+        return {
+          on: jest.fn().mockReturnThis(),
+          onGet: jest.fn().mockReturnThis(),
+          onSet: jest.fn().mockReturnThis(),
+          updateValue: jest.fn(),
+          setProps: jest.fn().mockReturnThis(),
+        };
+      }),
+      testCharacteristic: jest.fn().mockImplementation(
+        (char) => char !== platform.Characteristic.ConfiguredName,
+      ),
+      addCharacteristic: jest.fn(),
+      addOptionalCharacteristic: jest.fn(),
+      setCharacteristic: jest.fn().mockReturnThis(),
+      updateCharacteristic: jest.fn().mockReturnThis(),
+      setPrimaryService: jest.fn(),
+      UUID: '00000049-0000-1000-8000-0026BB765291',
+      displayName: 'Binary Switch',
+    };
+
+    accessory.getService.mockReturnValue(switchService);
+    feature.init();
+
+    expect(switchService.addCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.ConfiguredName,
+    );
+    expect(configuredNameCharacteristic.updateValue).toHaveBeenCalledWith('Binary Switch');
   });
 
   it('should update value', () => {

@@ -3,6 +3,7 @@ import { IdentifierCache } from 'hap-nodejs/dist/lib/model/IdentifierCache';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { AccessoryFactory } from '../src/accessories/AccessoryFactory';
 import { ControllerAccessory } from '../src/accessories/ControllerAccessory';
+import { CONFIGURED_NAME_COMPAT_SERVICE_UUIDS } from '../src/features/ZWaveFeature';
 import { MANAGER_SERVICE_UUID, PIN_CHAR_UUID, STATUS_CHAR_UUID } from '../src/platform/settings';
 
 type Scenario = {
@@ -363,13 +364,19 @@ describe('HAP service compliance', () => {
         );
 
         for (const charName of emitted) {
+          if (
+            charName === 'Configured Name' &&
+            CONFIGURED_NAME_COMPAT_SERVICE_UUIDS.has(service.UUID)
+          ) {
+            continue;
+          }
           expect(allowed.has(charName)).toBe(true);
         }
       }
     });
   }
 
-  it('does not publish Configured Name on switch services', async () => {
+  it('publishes Configured Name on switch services for Home app compatibility', async () => {
     const accessory = buildAccessory({
       label: 'Binary Switch',
       supportsCC: [CommandClasses['Binary Switch']],
@@ -384,10 +391,10 @@ describe('HAP service compliance', () => {
     expect(switchService?.primary).toBe(true);
     expect(
       switchService?.characteristics.some((characteristic) => characteristic.type === 'E3'),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it('does not publish Configured Name on leak services', async () => {
+  it('publishes Configured Name on leak services for Home app compatibility', async () => {
     const accessory = buildAccessory({
       label: 'Leak Notification',
       supportsCC: [CommandClasses.Notification],
@@ -407,7 +414,7 @@ describe('HAP service compliance', () => {
     expect(leakService?.primary).toBe(true);
     expect(
       leakService?.characteristics.some((characteristic) => characteristic.type === 'E3'),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('publishes Configured Name on AccessoryInformation for accessory rename compatibility', async () => {
@@ -432,6 +439,23 @@ describe('HAP service compliance', () => {
 
     expect(configuredName).toBeDefined();
     expect(configuredName?.perms).toContain('pw');
+  });
+
+  it('does not publish Configured Name on battery services', async () => {
+    const accessory = buildAccessory({
+      label: 'Battery',
+      supportsCC: [CommandClasses.Battery],
+      definedValueIDs: [
+        { commandClass: CommandClasses.Battery, endpoint: 0, property: 'level' },
+      ],
+    });
+
+    const hap = await serializeAccessory(accessory);
+    const batteryService = hap[0].services.find((service) => service.type === '96');
+
+    expect(
+      batteryService?.characteristics.some((characteristic) => characteristic.type === 'E3'),
+    ).toBe(false);
   });
 
   it('uses explicit HomeKit categories for standard accessory types', () => {

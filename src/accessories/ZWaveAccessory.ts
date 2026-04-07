@@ -2,7 +2,7 @@ import { PlatformAccessory, Service } from 'homebridge';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
-import { ZWaveFeature } from '../features/ZWaveFeature';
+import { CONFIGURED_NAME_COMPAT_SERVICE_UUIDS, ZWaveFeature } from '../features/ZWaveFeature';
 import { OBSOLETE_CHAR_UUIDS } from '../platform/settings';
 
 export const ACCESSORY_CACHE_REPAIR_VERSION = 1;
@@ -42,6 +42,7 @@ const CONFIGURED_NAME_SUPPORTED_SERVICE_UUIDS = new Set([
   '000000D9-0000-1000-8000-0026BB765291', // InputSource
   '00000228-0000-1000-8000-0026BB765291', // SmartSpeaker
   '0000020A-0000-1000-8000-0026BB765291', // WiFiRouter
+  ...CONFIGURED_NAME_COMPAT_SERVICE_UUIDS,
 ]);
 
 export class ZWaveAccessory {
