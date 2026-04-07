@@ -140,38 +140,22 @@ describe('ControllerAccessory', () => {
   });
 
   it('should handle inclusion start request', async () => {
-    const inclusionService = (accessory as any).inclusionService;
-    // Index 1 because Index 0 is the PIN characteristic handler registered earlier
-    const onSetHandler = inclusionService.getCharacteristic().onSet.mock.calls[1][0];
-
-    await onSetHandler(true);
+    await (accessory as any).handleSetInclusion(true);
     expect(mockController.startInclusion).toHaveBeenCalled();
   });
 
   it('should handle inclusion stop request', async () => {
-    const inclusionService = (accessory as any).inclusionService;
-    // Index 1 for Inclusion
-    const onSetHandler = inclusionService.getCharacteristic().onSet.mock.calls[1][0];
-
-    await onSetHandler(false);
+    await (accessory as any).handleSetInclusion(false);
     expect(mockController.stopInclusion).toHaveBeenCalled();
   });
 
   it('should handle exclusion start request', async () => {
-    const exclusionService = (accessory as any).exclusionService;
-    // Index 2 for Exclusion
-    const onSetHandler = exclusionService.getCharacteristic().onSet.mock.calls[2][0];
-
-    await onSetHandler(true);
+    await (accessory as any).handleSetExclusion(true);
     expect(mockController.startExclusion).toHaveBeenCalled();
   });
 
   it('should handle heal network start request', async () => {
-    const healService = (accessory as any).healService;
-    // Index 3 for Heal
-    const onSetHandler = healService.getCharacteristic().onSet.mock.calls[3][0];
-
-    await onSetHandler(true);
+    await (accessory as any).handleSetHeal(true);
     expect(mockController.startHealing).toHaveBeenCalled();
   });
 
@@ -179,11 +163,7 @@ describe('ControllerAccessory', () => {
     const mockNode = { status: 3, nodeId: 5 }; // Dead node
     mockController.nodes.set(5, mockNode);
     
-    const pruneService = (accessory as any).pruneService;
-    // Index 4 for Prune
-    const onSetHandler = pruneService.getCharacteristic().onSet.mock.calls[4][0];
-
-    await onSetHandler(true);
+    await (accessory as any).handleSetPrune(true);
     expect(mockController.removeFailedNode).toHaveBeenCalledWith(5);
   });
 
@@ -212,5 +192,13 @@ describe('ControllerAccessory', () => {
     
     mockController.emit('heal network progress', strictMap);
     expect(statusService.getCharacteristic().updateValue).toHaveBeenCalledWith('Heal: 1/2');
+  });
+
+  it('should register the custom S2 pin characteristic on the status service, not on switch services', () => {
+    const statusService = (accessory as any).statusService;
+    const inclusionService = (accessory as any).inclusionService;
+
+    expect(statusService.addOptionalCharacteristic).toHaveBeenCalled();
+    expect(inclusionService.addOptionalCharacteristic).not.toHaveBeenCalled();
   });
 });

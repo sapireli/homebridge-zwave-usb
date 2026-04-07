@@ -11,6 +11,7 @@ export class MultilevelSensorFeature extends BaseFeature {
   private humidityService: Service | undefined;
   private lightService: Service | undefined;
   private airQualityService: Service | undefined;
+  private carbonDioxideService: Service | undefined;
   public skipTemperature = false;
 
   init(): void {
@@ -37,6 +38,20 @@ export class MultilevelSensorFeature extends BaseFeature {
         .onGet(() => Math.max(this.getSensorValue('Illuminance') ?? 0.0001, 0.0001));
     }
 
+    if (this.hasSensorType('Carbon dioxide (CO2) level')) {
+      this.carbonDioxideService = this.getService(
+        this.platform.Service.CarbonDioxideSensor,
+        undefined,
+        subType,
+      );
+      this.carbonDioxideService
+        .getCharacteristic(this.platform.Characteristic.CarbonDioxideDetected)
+        .onGet(this.handleGetCarbonDioxideDetected.bind(this));
+      this.carbonDioxideService
+        .getCharacteristic(this.platform.Characteristic.CarbonDioxideLevel)
+        .onGet(() => this.getSensorValue('Carbon dioxide (CO2) level') ?? 0);
+    }
+
     // Air Quality Group
     if (
       this.hasSensorType('Carbon dioxide (CO2) level') ||
@@ -54,11 +69,6 @@ export class MultilevelSensorFeature extends BaseFeature {
         .getCharacteristic(this.platform.Characteristic.AirQuality)
         .onGet(this.handleGetAirQuality.bind(this));
 
-      if (this.hasSensorType('Carbon dioxide (CO2) level')) {
-        this.airQualityService
-          .getCharacteristic(this.platform.Characteristic.CarbonDioxideLevel)
-          .onGet(() => this.getSensorValue('Carbon dioxide (CO2) level') ?? 0);
-      }
       if (this.hasSensorType('Volatile Organic Compound level')) {
         this.airQualityService
           .getCharacteristic(this.platform.Characteristic.VOCDensity)
@@ -109,12 +119,6 @@ export class MultilevelSensorFeature extends BaseFeature {
       } catch {
         // Ignore background update errors for air quality
       }
-
-      const co2 = this.getSensorValue('Carbon dioxide (CO2) level');
-      if (co2 !== undefined) {
-        this.airQualityService.updateCharacteristic(this.platform.Characteristic.CarbonDioxideLevel, co2);
-      }
-
       const voc = this.getSensorValue('Volatile Organic Compound level');
       if (voc !== undefined) {
         this.airQualityService.updateCharacteristic(this.platform.Characteristic.VOCDensity, voc);
@@ -127,6 +131,19 @@ export class MultilevelSensorFeature extends BaseFeature {
           pm25,
         );
       }
+    }
+    if (this.carbonDioxideService) {
+      const co2 = this.getSensorValue('Carbon dioxide (CO2) level');
+      if (co2 !== undefined) {
+        this.carbonDioxideService.updateCharacteristic(
+          this.platform.Characteristic.CarbonDioxideLevel,
+          co2,
+        );
+      }
+      this.carbonDioxideService.updateCharacteristic(
+        this.platform.Characteristic.CarbonDioxideDetected,
+        this.handleGetCarbonDioxideDetected(),
+      );
     }
   }
 
@@ -175,6 +192,21 @@ export class MultilevelSensorFeature extends BaseFeature {
     }
 
     return this.platform.Characteristic.AirQuality.EXCELLENT;
+  }
+
+  private handleGetCarbonDioxideDetected(): number {
+    const co2 = this.getSensorValue('Carbon dioxide (CO2) level');
+    const binaryCo2 = this.node.getValue({
+      commandClass: CommandClasses['Binary Sensor'],
+      property: 'CO2',
+      endpoint: this.endpoint.index,
+    });
+
+    if (binaryCo2 === true || (typeof co2 === 'number' && co2 > 1000)) {
+      return this.platform.Characteristic.CarbonDioxideDetected.CO2_LEVELS_ABNORMAL;
+    }
+
+    return this.platform.Characteristic.CarbonDioxideDetected.CO2_LEVELS_NORMAL;
   }
 
   private hasSensorType(propertyName: string): boolean {

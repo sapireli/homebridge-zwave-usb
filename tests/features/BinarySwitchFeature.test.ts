@@ -33,6 +33,7 @@ describe('BinarySwitchFeature', () => {
         On: jest.fn(),
         Name: 'Name',
         ConfiguredName: 'ConfiguredName',
+        ServiceLabelIndex: 'ServiceLabelIndex',
         StatusFault: 'StatusFault',
         StatusTampered: 'StatusTampered',
       } as any,
@@ -158,6 +159,32 @@ describe('BinarySwitchFeature', () => {
     );
     expect(switchService.addOptionalCharacteristic).not.toHaveBeenCalledWith(
       platform.Characteristic.StatusTampered,
+    );
+  });
+
+  it('should not add ServiceLabelIndex to switch services on non-root endpoints', () => {
+    const switchService = {
+      getCharacteristic: jest.fn().mockReturnValue({
+        on: jest.fn().mockReturnThis(),
+        onGet: jest.fn().mockReturnThis(),
+        onSet: jest.fn().mockReturnThis(),
+        updateValue: jest.fn(),
+        setProps: jest.fn().mockReturnThis(),
+      }),
+      testCharacteristic: jest.fn().mockReturnValue(false),
+      addOptionalCharacteristic: jest.fn(),
+      setCharacteristic: jest.fn().mockReturnThis(),
+      updateCharacteristic: jest.fn().mockReturnThis(),
+      setPrimaryService: jest.fn(),
+      UUID: '00000049-0000-1000-8000-0026BB765291',
+    };
+
+    accessory.getServiceById.mockReturnValue(switchService);
+    endpoint.index = 2;
+    feature.init();
+
+    expect(switchService.addOptionalCharacteristic).not.toHaveBeenCalledWith(
+      platform.Characteristic.ServiceLabelIndex,
     );
   });
 

@@ -306,7 +306,6 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
         this.addOptionalCharacteristic((Characteristic as any).ZWaveStatus);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         this.addOptionalCharacteristic((Characteristic as any).S2PinEntry);
-        this.addOptionalCharacteristic(Characteristic.ServiceLabelIndex);
       }
     };
   }

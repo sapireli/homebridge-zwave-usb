@@ -1,5 +1,5 @@
 import { PlatformAccessory, Service } from 'homebridge';
-import { NodeStatus, CommandClasses } from '@zwave-js/core';
+import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { ZWaveFeature } from '../features/ZWaveFeature';
@@ -9,8 +9,8 @@ const STATUS_FAULT_SUPPORTED_SERVICE_UUIDS = new Set([
   '0000008D-0000-1000-8000-0026BB765291', // AirQualitySensor
   '0000007F-0000-1000-8000-0026BB765291', // CarbonMonoxideSensor
   '00000080-0000-1000-8000-0026BB765291', // ContactSensor
-  '00000083-0000-1000-8000-0026BB765291', // HumiditySensor
-  '00000081-0000-1000-8000-0026BB765291', // LeakSensor
+  '00000082-0000-1000-8000-0026BB765291', // HumiditySensor
+  '00000083-0000-1000-8000-0026BB765291', // LeakSensor
   '00000084-0000-1000-8000-0026BB765291', // LightSensor
   '00000085-0000-1000-8000-0026BB765291', // MotionSensor
   '00000087-0000-1000-8000-0026BB765291', // SmokeSensor
@@ -21,12 +21,24 @@ const STATUS_TAMPERED_SUPPORTED_SERVICE_UUIDS = new Set([
   '0000008D-0000-1000-8000-0026BB765291', // AirQualitySensor
   '0000007F-0000-1000-8000-0026BB765291', // CarbonMonoxideSensor
   '00000080-0000-1000-8000-0026BB765291', // ContactSensor
-  '00000083-0000-1000-8000-0026BB765291', // HumiditySensor
-  '00000081-0000-1000-8000-0026BB765291', // LeakSensor
+  '00000082-0000-1000-8000-0026BB765291', // HumiditySensor
+  '00000083-0000-1000-8000-0026BB765291', // LeakSensor
   '00000084-0000-1000-8000-0026BB765291', // LightSensor
   '00000085-0000-1000-8000-0026BB765291', // MotionSensor
   '00000087-0000-1000-8000-0026BB765291', // SmokeSensor
   '0000008A-0000-1000-8000-0026BB765291', // TemperatureSensor
+]);
+
+const CONFIGURED_NAME_SUPPORTED_SERVICE_UUIDS = new Set([
+  '0000003E-0000-1000-8000-0026BB765291', // AccessoryInformation
+  '000000D8-0000-1000-8000-0026BB765291', // Television
+  '00000113-0000-1000-8000-0026BB765291', // SmartSpeaker
+  '0000020A-0000-1000-8000-0026BB765291', // WiFiRouter
+]);
+
+const SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS = new Set([
+  '00000089-0000-1000-8000-0026BB765291', // StatelessProgrammableSwitch
+  '000000D0-0000-1000-8000-0026BB765291', // Valve
 ]);
 
 export class ZWaveAccessory {
@@ -155,8 +167,9 @@ export class ZWaveAccessory {
       });
     });
 
-    this.pruneConfiguredNameFromFunctionalServices();
+    this.pruneUnsupportedConfiguredName();
     this.pruneUnsupportedHealthCharacteristics();
+    this.pruneUnsupportedServiceLabelIndex();
   }
 
   public addFeature(feature: ZWaveFeature) {
@@ -243,19 +256,13 @@ export class ZWaveAccessory {
     this.refresh();
   }
 
-  private pruneConfiguredNameFromFunctionalServices(): void {
-    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation);
+  private pruneUnsupportedConfiguredName(): void {
     this.platformAccessory.services.forEach((service) => {
-      if (service === infoService) {
-        return;
-      }
-
-      if (service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
-        const configuredName = service.getCharacteristic(this.platform.Characteristic.ConfiguredName);
-        this.platform.log.debug(
-          `Pruning ConfiguredName from ${service.displayName} (Node ${this.node.nodeId})`,
-        );
-        service.removeCharacteristic(configuredName);
+      if (
+        service.testCharacteristic(this.platform.Characteristic.ConfiguredName) &&
+        !CONFIGURED_NAME_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
+      ) {
+        service.removeCharacteristic(service.getCharacteristic(this.platform.Characteristic.ConfiguredName));
       }
     });
   }
@@ -271,9 +278,6 @@ export class ZWaveAccessory {
         service.testCharacteristic(this.platform.Characteristic.StatusFault) &&
         !STATUS_FAULT_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
       ) {
-        this.platform.log.debug(
-          `Pruning unsupported StatusFault from ${service.displayName} (Node ${this.node.nodeId})`,
-        );
         service.removeCharacteristic(service.getCharacteristic(this.platform.Characteristic.StatusFault));
       }
 
@@ -281,14 +285,91 @@ export class ZWaveAccessory {
         service.testCharacteristic(this.platform.Characteristic.StatusTampered) &&
         !STATUS_TAMPERED_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
       ) {
-        this.platform.log.debug(
-          `Pruning unsupported StatusTampered from ${service.displayName} (Node ${this.node.nodeId})`,
-        );
         service.removeCharacteristic(
           service.getCharacteristic(this.platform.Characteristic.StatusTampered),
         );
       }
     });
+  }
+
+  private pruneUnsupportedServiceLabelIndex(): void {
+    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation);
+    this.platformAccessory.services.forEach((service) => {
+      if (service === infoService) {
+        return;
+      }
+
+      if (
+        service.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex) &&
+        !SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
+      ) {
+        service.removeCharacteristic(
+          service.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex),
+        );
+      }
+    });
+  }
+
+  private getServiceEndpointIndex(service: Service): number {
+    const subtype = (service as Service & { subtype?: string }).subtype;
+    if (!subtype) {
+      return 0;
+    }
+
+    const match = /^(\d+)/.exec(subtype);
+    return match ? Number(match[1]) : 0;
+  }
+
+  private getTamperedValue(endpointIndex: number): number {
+    const NOT_TAMPERED = this.platform.Characteristic.StatusTampered?.NOT_TAMPERED ?? 0;
+    const TAMPERED = this.platform.Characteristic.StatusTampered?.TAMPERED ?? 1;
+
+    if (this.node.supportsCC(CommandClasses['Binary Sensor'])) {
+      const binaryTamper = this.node.getValue({
+        commandClass: CommandClasses['Binary Sensor'],
+        property: 'Tamper',
+        endpoint: endpointIndex,
+      });
+      if (typeof binaryTamper === 'boolean') {
+        return binaryTamper ? TAMPERED : NOT_TAMPERED;
+      }
+    }
+
+    if (!this.node.supportsCC(CommandClasses.Notification)) {
+      return NOT_TAMPERED;
+    }
+
+    const tamperValueIds = this.node.getDefinedValueIDs().filter(
+      (valueId) =>
+        valueId.commandClass === CommandClasses.Notification &&
+        valueId.endpoint === endpointIndex &&
+        valueId.property === 'Home Security',
+    );
+
+    for (const valueId of tamperValueIds) {
+      const metadata = this.node.getValueMetadata(valueId) as
+        | { states?: Record<string, string> }
+        | undefined;
+      const states = metadata?.states ?? {};
+      const tamperEntries = Object.entries(states).filter(([, label]) =>
+        /tamper/i.test(label),
+      );
+
+      if (tamperEntries.length === 0) {
+        continue;
+      }
+
+      const value = this.node.getValue(valueId);
+      if (typeof value === 'number') {
+        return tamperEntries.some(([code]) => Number(code) === value) ? TAMPERED : NOT_TAMPERED;
+      }
+
+      if (typeof value === 'boolean') {
+        return value ? TAMPERED : NOT_TAMPERED;
+      }
+    }
+
+    return NOT_TAMPERED;
   }
 
   public refresh(args?: ZWaveValueEvent): void {
@@ -303,38 +384,15 @@ export class ZWaveAccessory {
       ? this.platform.Characteristic.StatusFault.GENERAL_FAULT
       : this.platform.Characteristic.StatusFault.NO_FAULT;
 
-    /**
-     * GLOBAL TAMPER MONITORING:
-     * Map Z-Wave tamper alarms (from Home Security) to HomeKit StatusTampered.
-     */
-    const NOT_TAMPERED = this.platform.Characteristic.StatusTampered?.NOT_TAMPERED ?? 0;
-    const TAMPERED = this.platform.Characteristic.StatusTampered?.TAMPERED ?? 1;
-    let tamperedVal = NOT_TAMPERED;
-    
-    // Fallback: If not ready, skip checking specific CC values to avoid cache errors.
-    if (!isFaulty && this.node.supportsCC?.(CommandClasses.Notification)) {
-      const tamperCover = this.node.getValue({
-        commandClass: CommandClasses.Notification,
-        property: 'Home Security',
-        propertyKey: 'Tampering, product covering removed',
-      });
-      const tamperCode = this.node.getValue({
-        commandClass: CommandClasses.Notification,
-        property: 'Home Security',
-        propertyKey: 'Tampering, Invalid Code',
-      });
-
-      if (tamperCover === 3 || tamperCode === 4) {
-        tamperedVal = TAMPERED;
-      }
-    }
-
     this.platformAccessory.services.forEach((service) => {
       if (service.testCharacteristic(this.platform.Characteristic.StatusFault)) {
         service.updateCharacteristic(this.platform.Characteristic.StatusFault, faultValue);
       }
       if (service.testCharacteristic(this.platform.Characteristic.StatusTampered)) {
-        service.updateCharacteristic(this.platform.Characteristic.StatusTampered, tamperedVal);
+        service.updateCharacteristic(
+          this.platform.Characteristic.StatusTampered,
+          this.getTamperedValue(this.getServiceEndpointIndex(service)),
+        );
       }
     });
 

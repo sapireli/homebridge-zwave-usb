@@ -1,6 +1,5 @@
 import { PlatformAccessory, Service, WithUUID } from 'homebridge';
 import { Endpoint } from 'zwave-js';
-import { CommandClasses } from '@zwave-js/core';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 
@@ -8,24 +7,17 @@ const STATUS_FAULT_SUPPORTED_SERVICE_UUIDS = new Set([
   '0000008D-0000-1000-8000-0026BB765291', // AirQualitySensor
   '0000007F-0000-1000-8000-0026BB765291', // CarbonMonoxideSensor
   '00000080-0000-1000-8000-0026BB765291', // ContactSensor
-  '00000083-0000-1000-8000-0026BB765291', // HumiditySensor
-  '00000081-0000-1000-8000-0026BB765291', // LeakSensor
+  '00000082-0000-1000-8000-0026BB765291', // HumiditySensor
+  '00000083-0000-1000-8000-0026BB765291', // LeakSensor
   '00000084-0000-1000-8000-0026BB765291', // LightSensor
   '00000085-0000-1000-8000-0026BB765291', // MotionSensor
   '00000087-0000-1000-8000-0026BB765291', // SmokeSensor
   '0000008A-0000-1000-8000-0026BB765291', // TemperatureSensor
 ]);
 
-const STATUS_TAMPERED_SUPPORTED_SERVICE_UUIDS = new Set([
-  '0000008D-0000-1000-8000-0026BB765291', // AirQualitySensor
-  '0000007F-0000-1000-8000-0026BB765291', // CarbonMonoxideSensor
-  '00000080-0000-1000-8000-0026BB765291', // ContactSensor
-  '00000083-0000-1000-8000-0026BB765291', // HumiditySensor
-  '00000081-0000-1000-8000-0026BB765291', // LeakSensor
-  '00000084-0000-1000-8000-0026BB765291', // LightSensor
-  '00000085-0000-1000-8000-0026BB765291', // MotionSensor
-  '00000087-0000-1000-8000-0026BB765291', // SmokeSensor
-  '0000008A-0000-1000-8000-0026BB765291', // TemperatureSensor
+const SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS = new Set([
+  '00000089-0000-1000-8000-0026BB765291', // StatelessProgrammableSwitch
+  '000000D0-0000-1000-8000-0026BB765291', // Valve
 ]);
 
 export interface ZWaveFeature {
@@ -154,8 +146,10 @@ export abstract class BaseFeature implements ZWaveFeature {
       nameChar.updateValue(serviceName);
     }
 
-    // Add Service Label Index for multi-endpoint devices to help with ordering/naming
-    if (this.endpoint.index > 0) {
+    if (
+      this.endpoint.index > 0 &&
+      SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
+    ) {
       if (!service.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
         service.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
       }
@@ -164,29 +158,11 @@ export abstract class BaseFeature implements ZWaveFeature {
         .updateValue(this.endpoint.index);
     }
 
-    /**
-     * HEALTH MONITORING FIX: Add StatusFault to functional services where appropriate.
-     * We skip this for 'StatelessProgrammableSwitch' (Buttons) as it's not standard there.
-     */
-    const skipUUID = '00000089-0000-1000-8000-0026BB765291'; // StatelessProgrammableSwitch
     if (
       !service.testCharacteristic(this.platform.Characteristic.StatusFault) &&
-      service.UUID !== skipUUID &&
       STATUS_FAULT_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
     ) {
       service.addOptionalCharacteristic(this.platform.Characteristic.StatusFault);
-    }
-
-    /**
-     * TAMPER MONITORING: Add StatusTampered to functional services if the node supports Notification CC.
-     */
-    if (
-      this.node.supportsCC?.(CommandClasses.Notification) &&
-      !service.testCharacteristic(this.platform.Characteristic.StatusTampered) &&
-      service.UUID !== skipUUID &&
-      STATUS_TAMPERED_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
-    ) {
-      service.addOptionalCharacteristic(this.platform.Characteristic.StatusTampered);
     }
 
     if (!this.managedServices.includes(service)) {

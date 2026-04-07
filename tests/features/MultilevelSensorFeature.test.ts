@@ -35,6 +35,7 @@ describe('MultilevelSensorFeature', () => {
         HumiditySensor: jest.fn(),
         LightSensor: jest.fn(),
         AirQualitySensor: jest.fn(),
+        CarbonDioxideSensor: jest.fn(),
       } as any,
       Characteristic: {
         CurrentTemperature: 'CurrentTemperature',
@@ -46,6 +47,10 @@ describe('MultilevelSensorFeature', () => {
           POOR: 5,
         },
         CarbonDioxideLevel: 'CarbonDioxideLevel',
+        CarbonDioxideDetected: {
+          CO2_LEVELS_NORMAL: 0,
+          CO2_LEVELS_ABNORMAL: 1,
+        },
         VOCDensity: 'VOCDensity',
         PM2_5Density: 'PM2_5Density',
         Name: 'Name',
@@ -200,5 +205,19 @@ describe('MultilevelSensorFeature', () => {
     node.status = 1 as any;
     const value = (feature as any).handleGetAirQuality();
     expect(value).toBe(platform.Characteristic.AirQuality.UNKNOWN);
+  });
+
+  it('should initialize Carbon Dioxide Sensor when CO2 data is available', () => {
+    node.getDefinedValueIDs.mockReturnValue([
+      {
+        commandClass: CommandClasses['Multilevel Sensor'],
+        property: 'Carbon dioxide (CO2) level',
+        endpoint: 0,
+      },
+    ]);
+
+    feature.init();
+
+    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.CarbonDioxideSensor, '0');
   });
 });

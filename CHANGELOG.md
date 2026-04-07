@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0-beta.0] - 2026-04-06
+
+### Changed
+- **HAP Compliance Sweep:** Reworked standard HomeKit service construction so emitted services and characteristics align with the local `hap-nodejs` definitions instead of legacy plugin behavior.
+- **Controller Service Compliance:** Moved the custom S2 PIN entry characteristic off standard `Switch` services and kept it on the plugin's custom manager service only.
+- **Environmental Sensor Mapping:** Split CO2 reporting out of `AirQualitySensor` and onto `CarbonDioxideSensor`, which is the HAP-correct service for carbon dioxide telemetry.
+
+### Fixed
+- **Standard Service Metadata:** Removed non-spec `ConfiguredName`, `ServiceLabelIndex`, `StatusFault`, and `StatusTampered` usage from unsupported standard services while preserving them where HAP actually defines them.
+- **Upgrade Cleanup:** Existing cached accessories now prune stale unsupported health, label, and configured-name characteristics during startup so invalid legacy metadata is repaired automatically.
+- **Compliance Regression Coverage:** Added scenario-based tests that build representative accessories and verify emitted standard services only use characteristics allowed by the active `hap-nodejs` service definitions.
+
 ## [3.5.4] - 2026-04-06
 
 ### Fixed

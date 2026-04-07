@@ -66,6 +66,10 @@ export class ControllerAccessory {
      */
     const normalizeUuid = (u: string) => u.replace(/-/g, '').toUpperCase();
 
+    const infoService = this.platformAccessory.getService(
+      this.platform.Service.AccessoryInformation,
+    )!;
+
     // --- AGGRESSIVE CLEANUP: Remove ALL obsolete services and characteristics ---
     this.platformAccessory.services.slice().forEach((service) => {
       const serviceUuidNorm = normalizeUuid(service.UUID);
@@ -92,6 +96,31 @@ export class ControllerAccessory {
         if (OBSOLETE_CHAR_UUIDS.some((u) => normalizeUuid(u) === charUuidNorm)) {
           this.platform.log.info(
             `Pruning obsolete characteristic: ${found.displayName} from ${service.displayName}`,
+          );
+          service.removeCharacteristic(found);
+        }
+      });
+
+      const serviceLabelIndexUuid = normalizeUuid(
+        this.platform.Characteristic.ServiceLabelIndex.UUID,
+      );
+      const serviceLabelNamespaceUuid = normalizeUuid(
+        this.platform.Characteristic.ServiceLabelNamespace.UUID,
+      );
+      service.characteristics.slice().forEach((found) => {
+        const charUuidNorm = normalizeUuid(found.UUID);
+        if (charUuidNorm === serviceLabelIndexUuid) {
+          this.platform.log.info(
+            `Pruning unsupported ServiceLabelIndex from ${service.displayName}`,
+          );
+          service.removeCharacteristic(found);
+        }
+        if (
+          service === infoService &&
+          charUuidNorm === serviceLabelNamespaceUuid
+        ) {
+          this.platform.log.info(
+            `Pruning unsupported ServiceLabelNamespace from ${service.displayName}`,
           );
           service.removeCharacteristic(found);
         }
@@ -129,18 +158,6 @@ export class ControllerAccessory {
       seenCanonicalSwitchSubtypes.add(subtype);
     });
 
-    // Add ServiceLabelNamespace to AccessoryInformation to help with naming multi-service accessories
-    const infoService = this.platformAccessory.getService(
-      this.platform.Service.AccessoryInformation,
-    )!;
-    if (!infoService.testCharacteristic(this.platform.Characteristic.ServiceLabelNamespace)) {
-      infoService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelNamespace);
-    }
-    // 1 = Arabic numerals (1, 2, 3...)
-    infoService
-      .getCharacteristic(this.platform.Characteristic.ServiceLabelNamespace)
-      .updateValue(1);
-
     // --- 1. System Status Service (Custom Service) ---
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const managerServiceType = (this.platform.Service as any).ZWaveManager;
@@ -158,13 +175,6 @@ export class ControllerAccessory {
       })
       .updateValue('System Status');
 
-    if (!this.statusService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
-      this.statusService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
-    }
-    this.statusService
-      .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
-      .updateValue(1);
-
     // System Status Characteristic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const statusCharType = (this.platform.Characteristic as any).ZWaveStatus;
@@ -181,12 +191,7 @@ export class ControllerAccessory {
     });
     this.statusChar.updateValue('Driver Ready');
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pinCharType = (this.platform.Characteristic as any).S2PinEntry;
-    if (this.statusService.testCharacteristic(pinCharType)) {
-      const cachedPinChar = this.statusService.getCharacteristic(pinCharType);
-      this.statusService.removeCharacteristic(cachedPinChar);
-    }
+    this.setupPinEntryCharacteristic(this.statusService);
 
     // --- 2. Inclusion Mode Switch ---
     this.inclusionService =
@@ -207,16 +212,6 @@ export class ControllerAccessory {
       })
       .updateValue('Inclusion Mode');
 
-    if (!this.inclusionService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
-      this.inclusionService.addOptionalCharacteristic(
-        this.platform.Characteristic.ServiceLabelIndex,
-      );
-    }
-    this.inclusionService
-      .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
-      .updateValue(2);
-    this.setupPinEntryCharacteristic(this.inclusionService);
-
     // --- 3. Exclusion Mode Switch ---
     this.exclusionService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Exclusion') ||
@@ -236,15 +231,6 @@ export class ControllerAccessory {
       })
       .updateValue('Exclusion Mode');
 
-    if (!this.exclusionService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
-      this.exclusionService.addOptionalCharacteristic(
-        this.platform.Characteristic.ServiceLabelIndex,
-      );
-    }
-    this.exclusionService
-      .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
-      .updateValue(3);
-
     // --- 4. Heal Network Switch ---
     this.healService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Heal') ||
@@ -260,13 +246,6 @@ export class ControllerAccessory {
       })
       .updateValue('Heal Network');
 
-    if (!this.healService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
-      this.healService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
-    }
-    this.healService
-      .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
-      .updateValue(4);
-
     // --- 5. Prune Dead Nodes Switch ---
     this.pruneService =
       this.platformAccessory.getServiceById(this.platform.Service.Switch, 'Prune') ||
@@ -281,13 +260,6 @@ export class ControllerAccessory {
         perms: [HAPPerm.PAIRED_READ as any],
       })
       .updateValue('Prune Dead Nodes');
-
-    if (!this.pruneService.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
-      this.pruneService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
-    }
-    this.pruneService
-      .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
-      .updateValue(5);
 
     // Setup Switch characteristic Handlers
     this.inclusionService
