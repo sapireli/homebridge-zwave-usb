@@ -160,7 +160,7 @@ export class MultilevelSensorFeature extends BaseFeature {
     });
 
     if (co2 === undefined && pm25 === undefined && binaryCo2 === undefined && voc === undefined) {
-      if (this.node.ready === false || this.node.status === NodeStatus.Dead) {
+      if (this.node.status === NodeStatus.Dead) {
         throw new this.platform.api.hap.HapStatusError(-70402);
       }
       if (this.platform.Characteristic.AirQuality.UNKNOWN !== undefined) {

@@ -153,8 +153,8 @@ describe('GarageDoorFeature', () => {
     );
   });
 
-  it('should use fallback current state when value is missing but node is reachable', () => {
-    node.ready = true;
+  it('should use fallback current state when value is missing but the node is alive and sleeping', () => {
+    node.ready = false;
     node.status = 1;
     node.getValue.mockReturnValue(undefined);
     feature.update();

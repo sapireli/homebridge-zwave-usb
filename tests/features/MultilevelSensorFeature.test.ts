@@ -199,9 +199,9 @@ describe('MultilevelSensorFeature', () => {
     );
   });
 
-  it('should return UNKNOWN air quality when data is missing but node is reachable', () => {
+  it('should return UNKNOWN air quality when data is missing but the node is alive and sleeping', () => {
     node.getValue.mockReturnValue(undefined);
-    node.ready = true as any;
+    node.ready = false as any;
     node.status = 1 as any;
     const value = (feature as any).handleGetAirQuality();
     expect(value).toBe(platform.Characteristic.AirQuality.UNKNOWN);

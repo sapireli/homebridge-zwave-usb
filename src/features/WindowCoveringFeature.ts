@@ -84,7 +84,7 @@ export class WindowCoveringFeature extends BaseFeature {
       return val === 99 ? 100 : val;
     }
 
-    if (this.node.ready === false || this.node.status === NodeStatus.Dead) {
+    if (this.node.status === NodeStatus.Dead) {
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
 

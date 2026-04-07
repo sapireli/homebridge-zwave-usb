@@ -75,7 +75,7 @@ export class LockFeature extends BaseFeature {
       return this.mapZWaveToHomeKit(Number(value));
     }
 
-    if (this.node.ready === false || this.node.status === NodeStatus.Dead) {
+    if (this.node.status === NodeStatus.Dead) {
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
 
@@ -116,7 +116,7 @@ export class LockFeature extends BaseFeature {
       }
     }
 
-    if (this.node.ready === false || this.node.status === NodeStatus.Dead) {
+    if (this.node.status === NodeStatus.Dead) {
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
 

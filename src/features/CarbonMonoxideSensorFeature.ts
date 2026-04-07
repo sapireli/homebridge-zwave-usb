@@ -80,7 +80,7 @@ export class CarbonMonoxideSensorFeature extends BaseFeature {
       }
     }
 
-    if (this.node.ready === false || this.node.status === NodeStatus.Dead) {
+    if (this.node.status === NodeStatus.Dead) {
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
 

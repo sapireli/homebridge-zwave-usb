@@ -129,7 +129,7 @@ export class ContactSensorFeature extends BaseFeature {
      * If the node is offline/not ready, propagate a HomeKit communication error.
      * Otherwise (healthy node, missing cache), return a safe default state.
      */
-    if (!this.node.ready || this.node.status === NodeStatus.Dead) {
+    if (this.node.status === NodeStatus.Dead) {
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
     return this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;

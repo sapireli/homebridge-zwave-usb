@@ -132,8 +132,8 @@ describe('ThermostatFeature', () => {
     expect(service.updateCharacteristic).toHaveBeenCalledWith('CurrentTemperature', 25);
   });
 
-  it('should fallback to target temperature when current temp is missing and node is reachable', () => {
-    node.ready = true;
+  it('should fallback to target temperature when current temp is missing and the node is alive and sleeping', () => {
+    node.ready = false;
     node.status = 1;
     node.getValue.mockImplementation((args: any) => {
       if (args.property === 'mode') {

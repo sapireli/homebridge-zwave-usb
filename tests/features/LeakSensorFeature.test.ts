@@ -139,9 +139,9 @@ describe('LeakSensorFeature', () => {
     });
   });
 
-  it('should return no leak when value is missing but node is reachable', () => {
+  it('should return no leak when value is missing but the node is alive and sleeping', () => {
     feature.init();
-    node.ready = true as any;
+    node.ready = false as any;
     node.status = 1 as any;
     node.supportsCC.mockReturnValue(false);
     feature.update();

@@ -130,8 +130,8 @@ describe('WindowCoveringFeature', () => {
     );
   });
 
-  it('should use fallback positions when values are missing but node is reachable', () => {
-    node.ready = true;
+  it('should use fallback positions when values are missing but the node is alive and sleeping', () => {
+    node.ready = false;
     node.status = 1;
     node.getValue.mockReturnValue(undefined);
     feature.update();

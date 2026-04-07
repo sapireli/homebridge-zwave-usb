@@ -140,9 +140,9 @@ describe('LockFeature', () => {
     );
   });
 
-  it('should use fallback states when values are missing but node is reachable', () => {
+  it('should use fallback states when values are missing but the node is alive and sleeping', () => {
     feature.init();
-    node.ready = true as any;
+    node.ready = false as any;
     node.status = 1 as any;
     node.getValue.mockReturnValue(undefined);
     feature.update();

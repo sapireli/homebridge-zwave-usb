@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0-beta.5] - 2026-04-07
+
+### Fixed
+- **Sleeping Node Home App Settings:** Stopped treating `ready === false` as a hard communication failure for getter fallbacks on sleeping-but-alive sensors and actuator-style devices. Healthy sleepy nodes now return their safe/default or last-known values instead of causing HomeKit settings saves to roll back.
+
 ## [3.6.0-beta.4] - 2026-04-07
 
 ### Fixed

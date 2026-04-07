@@ -191,9 +191,9 @@ describe('MotionSensorFeature', () => {
     jest.useRealTimers();
   });
 
-  it('should report no motion when the node is alive but no cached value is present', () => {
+  it('should report no motion when the node is alive but sleeping with no cached value', () => {
     feature.init();
-    node.ready = true as any;
+    node.ready = false as any;
     node.status = 4 as any;
     node.supportsCC.mockReturnValue(false);
     node.getValue.mockReturnValue(undefined);
