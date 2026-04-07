@@ -145,32 +145,21 @@ describe('ControllerAccessory', () => {
     expect(accessory).toBeDefined();
   });
 
-  it('should restore controller-only service label metadata for Home app labels', () => {
-    const infoServices = accessory.platformAccessory.getService.mock.results.map(
-      (result) => result.value,
-    );
-
-    expect(
-      infoServices.some((service) =>
-        service.getCharacteristic.mock.calls.some(
-          ([characteristic]) => characteristic === mockPlatform.Characteristic.ServiceLabelNamespace,
-        ),
-      ),
-    ).toBe(true);
+  it('should restore controller-only ConfiguredName metadata for Home app labels', () => {
     expect((accessory as any).statusService.getCharacteristic).toHaveBeenCalledWith(
-      mockPlatform.Characteristic.ServiceLabelIndex,
+      mockPlatform.Characteristic.ConfiguredName,
     );
     expect((accessory as any).inclusionService.getCharacteristic).toHaveBeenCalledWith(
-      mockPlatform.Characteristic.ServiceLabelIndex,
+      mockPlatform.Characteristic.ConfiguredName,
     );
     expect((accessory as any).exclusionService.getCharacteristic).toHaveBeenCalledWith(
-      mockPlatform.Characteristic.ServiceLabelIndex,
+      mockPlatform.Characteristic.ConfiguredName,
     );
     expect((accessory as any).healService.getCharacteristic).toHaveBeenCalledWith(
-      mockPlatform.Characteristic.ServiceLabelIndex,
+      mockPlatform.Characteristic.ConfiguredName,
     );
     expect((accessory as any).pruneService.getCharacteristic).toHaveBeenCalledWith(
-      mockPlatform.Characteristic.ServiceLabelIndex,
+      mockPlatform.Characteristic.ConfiguredName,
     );
   });
 
@@ -358,7 +347,7 @@ describe('ControllerAccessory', () => {
     expect((accessory as any).statusService).toBe(existingManagerService);
   });
 
-  it('should persist restored controller label metadata on an existing accessory', () => {
+  it('should persist restored controller ConfiguredName metadata on an existing accessory', () => {
     const existingAccessory = new mockPlatform.api.platformAccessory();
     existingAccessory.UUID = 'homebridge-zwave-usb-controller-305419896';
     existingAccessory.context = { cacheRepairVersion: CONTROLLER_CACHE_REPAIR_VERSION };
@@ -377,10 +366,7 @@ describe('ControllerAccessory', () => {
       characteristics: [],
       getCharacteristic: jest.fn().mockReturnValue(sharedChar),
       testCharacteristic: jest.fn().mockImplementation((characteristic) => {
-        if (characteristic === mockPlatform.Characteristic.ServiceLabelNamespace) {
-          return false;
-        }
-        if (characteristic === mockPlatform.Characteristic.ServiceLabelIndex) {
+        if (characteristic === mockPlatform.Characteristic.ConfiguredName) {
           return false;
         }
         return true;
@@ -428,11 +414,8 @@ describe('ControllerAccessory', () => {
     accessory.stop();
     accessory = new ControllerAccessory(mockPlatform, mockController);
 
-    expect(infoService.addOptionalCharacteristic).toHaveBeenCalledWith(
-      mockPlatform.Characteristic.ServiceLabelNamespace,
-    );
     expect(inclusionService.addOptionalCharacteristic).toHaveBeenCalledWith(
-      mockPlatform.Characteristic.ServiceLabelIndex,
+      mockPlatform.Characteristic.ConfiguredName,
     );
     expect(mockPlatform.api.updatePlatformAccessories).toHaveBeenCalledWith([existingAccessory]);
   });

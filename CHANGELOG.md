@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0-beta.11] - 2026-04-07
+
+### Fixed
+- **Controller Home App Labels:** Replaced the unsuccessful controller-only `ServiceLabelNamespace`/`ServiceLabelIndex` experiment with the older `2.x` controller-only `Configured Name` fallback on the controller services (`System Status`, `Inclusion Mode`, `Exclusion Mode`, `Heal Network`, `Prune Dead Nodes`).
+- **Controller Cache Migration:** Bumped the controller cache-repair version so installs coming from `3.6.0-beta.10` prune the controller `ServiceLabel*` metadata and restore the `Configured Name` path instead.
+- **Regression Coverage:** Updated controller and schema tests to verify the controller-only `Configured Name` exception and upgrade behavior.
+
 ## [3.6.0-beta.10] - 2026-04-07
 
 ### Fixed

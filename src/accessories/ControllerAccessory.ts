@@ -10,7 +10,7 @@ import {
 } from '../platform/settings';
 import { NodeStatus } from '@zwave-js/core';
 
-export const CONTROLLER_CACHE_REPAIR_VERSION = 1;
+export const CONTROLLER_CACHE_REPAIR_VERSION = 2;
 
 export class ControllerAccessory {
   private statusService: Service;
@@ -32,8 +32,6 @@ export class ControllerAccessory {
   // Track listeners for cleanup
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private handlers: Record<string, (...args: any[]) => void> = {};
-
-  private static readonly CONTROLLER_SERVICE_LABEL_NAMESPACE = 1;
 
   constructor(
     private readonly platform: ZWaveUsbPlatform,
@@ -70,6 +68,8 @@ export class ControllerAccessory {
      * Helper to normalize UUIDs for reliable comparison during metadata pruning.
      */
     const normalizeUuid = (u: string) => u.replace(/-/g, '').toUpperCase();
+    const getCharacteristicUuid = (characteristicType: { UUID?: string } | string) =>
+      typeof characteristicType === 'string' ? characteristicType : (characteristicType.UUID ?? '');
 
     const infoService = this.platformAccessory.getService(
       this.platform.Service.AccessoryInformation,
@@ -114,7 +114,27 @@ export class ControllerAccessory {
           }
         });
 
-        // Intentionally preserve controller-only label metadata for Apple Home UI clarity.
+        const serviceLabelIndexUuid = normalizeUuid(
+          getCharacteristicUuid(this.platform.Characteristic.ServiceLabelIndex),
+        );
+        const serviceLabelNamespaceUuid = normalizeUuid(
+          getCharacteristicUuid(this.platform.Characteristic.ServiceLabelNamespace),
+        );
+        service.characteristics.slice().forEach((found) => {
+          const charUuidNorm = normalizeUuid(found.UUID);
+          if (charUuidNorm === serviceLabelIndexUuid) {
+            this.platform.log.info(
+              `Pruning unsupported ServiceLabelIndex from ${service.displayName}`,
+            );
+            service.removeCharacteristic(found);
+          }
+          if (service === infoService && charUuidNorm === serviceLabelNamespaceUuid) {
+            this.platform.log.info(
+              `Pruning unsupported ServiceLabelNamespace from ${service.displayName}`,
+            );
+            service.removeCharacteristic(found);
+          }
+        });
       });
 
       const canonicalSwitchSubtypes = new Set(['Inclusion', 'Exclusion', 'Heal', 'Prune']);
@@ -150,7 +170,7 @@ export class ControllerAccessory {
       context.cacheRepairVersion = CONTROLLER_CACHE_REPAIR_VERSION;
     }
 
-    let didUpdateLabelMetadata = this.ensureControllerServiceLabelNamespace(infoService);
+    let didUpdateConfiguredNames = false;
 
     // --- 1. System Status Service (Custom Service) ---
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -169,8 +189,8 @@ export class ControllerAccessory {
         perms: [HAPPerm.PAIRED_READ as any],
       })
       .updateValue('System Status');
-    didUpdateLabelMetadata =
-      this.ensureControllerServiceLabelIndex(this.statusService, 1) || didUpdateLabelMetadata;
+    didUpdateConfiguredNames =
+      this.syncConfiguredName(this.statusService, 'System Status') || didUpdateConfiguredNames;
 
     // System Status Characteristic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -208,8 +228,8 @@ export class ControllerAccessory {
         perms: [HAPPerm.PAIRED_READ as any],
       })
       .updateValue('Inclusion Mode');
-    didUpdateLabelMetadata =
-      this.ensureControllerServiceLabelIndex(this.inclusionService, 2) || didUpdateLabelMetadata;
+    didUpdateConfiguredNames =
+      this.syncConfiguredName(this.inclusionService, 'Inclusion Mode') || didUpdateConfiguredNames;
 
     // --- 3. Exclusion Mode Switch ---
     this.exclusionService =
@@ -229,8 +249,8 @@ export class ControllerAccessory {
         perms: [HAPPerm.PAIRED_READ as any],
       })
       .updateValue('Exclusion Mode');
-    didUpdateLabelMetadata =
-      this.ensureControllerServiceLabelIndex(this.exclusionService, 3) || didUpdateLabelMetadata;
+    didUpdateConfiguredNames =
+      this.syncConfiguredName(this.exclusionService, 'Exclusion Mode') || didUpdateConfiguredNames;
 
     // --- 4. Heal Network Switch ---
     this.healService =
@@ -246,8 +266,8 @@ export class ControllerAccessory {
         perms: [HAPPerm.PAIRED_READ as any],
       })
       .updateValue('Heal Network');
-    didUpdateLabelMetadata =
-      this.ensureControllerServiceLabelIndex(this.healService, 4) || didUpdateLabelMetadata;
+    didUpdateConfiguredNames =
+      this.syncConfiguredName(this.healService, 'Heal Network') || didUpdateConfiguredNames;
 
     // --- 5. Prune Dead Nodes Switch ---
     this.pruneService =
@@ -263,8 +283,8 @@ export class ControllerAccessory {
         perms: [HAPPerm.PAIRED_READ as any],
       })
       .updateValue('Prune Dead Nodes');
-    didUpdateLabelMetadata =
-      this.ensureControllerServiceLabelIndex(this.pruneService, 5) || didUpdateLabelMetadata;
+    didUpdateConfiguredNames =
+      this.syncConfiguredName(this.pruneService, 'Prune Dead Nodes') || didUpdateConfiguredNames;
 
     // Setup Switch characteristic Handlers
     this.inclusionService
@@ -297,7 +317,7 @@ export class ControllerAccessory {
     this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
     this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
 
-    if (existingAccessory && (didRepairCache || didUpdateLabelMetadata)) {
+    if (existingAccessory && (didRepairCache || didUpdateConfiguredNames)) {
       this.platform.api.updatePlatformAccessories([this.platformAccessory]);
     }
 
@@ -320,36 +340,20 @@ export class ControllerAccessory {
     });
   }
 
-  private ensureControllerServiceLabelNamespace(infoService: Service): boolean {
+  private syncConfiguredName(service: Service, value?: string): boolean {
     let didChange = false;
+    const configuredNameValue = value || service.displayName;
 
-    if (!infoService.testCharacteristic(this.platform.Characteristic.ServiceLabelNamespace)) {
-      infoService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelNamespace);
+    if (!service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
+      service.addOptionalCharacteristic(this.platform.Characteristic.ConfiguredName);
       didChange = true;
     }
 
-    const namespaceChar = infoService.getCharacteristic(
-      this.platform.Characteristic.ServiceLabelNamespace,
+    const configuredNameChar = service.getCharacteristic(
+      this.platform.Characteristic.ConfiguredName,
     );
-    if (namespaceChar.value !== ControllerAccessory.CONTROLLER_SERVICE_LABEL_NAMESPACE) {
-      namespaceChar.updateValue(ControllerAccessory.CONTROLLER_SERVICE_LABEL_NAMESPACE);
-      didChange = true;
-    }
-
-    return didChange;
-  }
-
-  private ensureControllerServiceLabelIndex(service: Service, index: number): boolean {
-    let didChange = false;
-
-    if (!service.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
-      service.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
-      didChange = true;
-    }
-
-    const labelIndexChar = service.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
-    if (labelIndexChar.value !== index) {
-      labelIndexChar.updateValue(index);
+    if (configuredNameChar.value !== configuredNameValue) {
+      configuredNameChar.updateValue(configuredNameValue);
       didChange = true;
     }
 
