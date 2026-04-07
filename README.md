@@ -107,7 +107,7 @@ npm install -g homebridge-zwave-usb
 
 When pairing a Security 2 (S2) device, you must enter a 5-digit PIN found on the device label or box.
 
-### Method 1: Using HomeKit (Recommended)
+### Method 1: Using a Third-Party HomeKit App (Recommended)
 1. Use a third-party app like **Controller for HomeKit**, **Eve**, or **Home+**.
 2. Find the **"Z-Wave Controller"** accessory and the **"Z-Wave Manager"** service.
 3. Write the 5-digit PIN into the **"S2 PIN Entry"** field.
@@ -131,21 +131,26 @@ This plugin adds a management accessory to your Home app to handle network opera
 - **Heal Network**: A switch to trigger a background mesh network optimization.
 - **Prune Dead Nodes**: Automatically removes devices marked as "Dead" (failed) from the network. **Safe for battery devices**: This only removes nodes the controller has confirmed as failed (Status 3); it will never remove a device that is simply "Asleep" (Status 1).
 
+Controller switch labels are exposed using a compatibility path for Home app visibility. Some HomeKit apps may still render these actions differently.
+
 ### 🛠️ Advanced Management
 
 The plugin provides additional tools for network maintenance:
 
 - **Dual S2 PIN Entry**: When a device requires a PIN, you can enter it via the Homebridge terminal (`echo "12345" > s2_pin.txt`) or via the `S2 PIN Entry` characteristic in third-party HomeKit apps.
-- **Automated Reconciliation**: Orphaned accessories are automatically removed from HomeKit 60 seconds after startup if the node is no longer present in the Z-Wave network.
+- **Explicit Stale Accessory Cleanup**: The custom UI includes a maintenance action to remove stale cached accessories when a node has been removed from the Z-Wave network but Homebridge still has an old cached entry.
 
 ## 🛠️ Maintenance & Firmware Updates
 
 The plugin includes a dedicated **Maintenance** tab within the Homebridge custom UI (accessible via the plugin settings).
 
 - **Node Overview**: View a complete list of all Z-Wave nodes in your network, including their status and current firmware versions.
+- **HomeKit Publication State**: See whether a node is already published to HomeKit, still cached and waiting for interview wake-up, or intentionally deferred until interview metadata is available.
+- **Node Rename**: Rename the Z-Wave node from the plugin UI without recreating the HomeKit accessory.
 - **Official Updates**: Click "Check Update" to query the official Z-Wave JS Firmware Update Service. If a manufacturer-approved update is available, you can start the OTA transfer with a single click.
 - **Battery Device Support**: Firmware updates are supported for battery-powered devices. You will be prompted to manually wake the device after starting the process to initiate the transfer.
 - **Real-time Progress**: Monitor the progress of the firmware transfer via a live progress bar.
+- **Clean Up Stale Accessories**: Remove stale cached Homebridge accessories explicitly from the maintenance UI instead of relying on automatic startup pruning.
 
 ## ❓ Troubleshooting
 
