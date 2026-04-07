@@ -1,4 +1,5 @@
 import { Accessory, Characteristic, HapStatusError, Service, uuid } from 'hap-nodejs';
+import { IdentifierCache } from 'hap-nodejs/dist/lib/model/IdentifierCache';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { AccessoryFactory } from '../src/accessories/AccessoryFactory';
 import { ControllerAccessory } from '../src/accessories/ControllerAccessory';
@@ -110,6 +111,23 @@ function buildAccessory(scenario: Scenario) {
   accessory.initialize();
 
   return accessory.platformAccessory;
+}
+
+async function serializeAccessory(accessory: Accessory) {
+  const cache = new IdentifierCache('11:22:33:44:55:66');
+  (
+    accessory as Accessory & {
+      _identifierCache?: IdentifierCache;
+      _assignIDs: (cache: IdentifierCache) => void;
+    }
+  )._identifierCache = cache;
+  (
+    accessory as Accessory & {
+      _assignIDs: (cache: IdentifierCache) => void;
+    }
+  )._assignIDs(cache);
+
+  return accessory.toHAP(undefined as never, false);
 }
 
 function allowedCharacteristicNames(service: InstanceType<typeof Service.AccessoryInformation>) {
@@ -350,6 +368,47 @@ describe('HAP service compliance', () => {
       }
     });
   }
+
+  it('does not publish Configured Name on switch services', async () => {
+    const accessory = buildAccessory({
+      label: 'Binary Switch',
+      supportsCC: [CommandClasses['Binary Switch']],
+      definedValueIDs: [
+        { commandClass: CommandClasses['Binary Switch'], endpoint: 0, property: 'currentValue' },
+      ],
+    });
+
+    const hap = await serializeAccessory(accessory);
+    const switchService = hap[0].services.find((service) => service.type === '49');
+
+    expect(switchService?.primary).toBeUndefined();
+    expect(
+      switchService?.characteristics.some((characteristic) => characteristic.type === 'E3'),
+    ).toBe(false);
+  });
+
+  it('does not publish Configured Name on leak services', async () => {
+    const accessory = buildAccessory({
+      label: 'Leak Notification',
+      supportsCC: [CommandClasses.Notification],
+      definedValueIDs: [
+        {
+          commandClass: CommandClasses.Notification,
+          endpoint: 0,
+          property: 'Water Alarm',
+          propertyKey: 'Water leak status',
+        },
+      ],
+    });
+
+    const hap = await serializeAccessory(accessory);
+    const leakService = hap[0].services.find((service) => service.type === '83');
+
+    expect(leakService?.primary).toBeUndefined();
+    expect(
+      leakService?.characteristics.some((characteristic) => characteristic.type === 'E3'),
+    ).toBe(false);
+  });
 
   it('keeps controller switch services within the HAP characteristic set', () => {
     const platform = createPlatform();

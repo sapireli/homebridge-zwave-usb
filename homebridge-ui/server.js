@@ -15,6 +15,10 @@ class UiServer extends HomebridgePluginUiServer {
       return await this.ipcRequest(`/nodes/${nodeId}/name`, 'POST', { name });
     });
 
+    this.onRequest('cleanup-stale-accessories', async () => {
+      return await this.ipcRequest('/accessories/prune-stale', 'POST');
+    });
+
     this.onRequest('check-firmware', async (nodeId) => {
       return await this.ipcRequest(`/firmware/updates/${nodeId}`, 'GET');
     });
@@ -40,7 +44,6 @@ class UiServer extends HomebridgePluginUiServer {
     }
 
     const port = parseInt(fs.readFileSync(portFile, 'utf8'), 10);
-    console.log(`Connecting to Plugin IPC on port ${port} for ${url}`);
 
     return new Promise((resolve, reject) => {
       const options = {
@@ -57,11 +60,24 @@ class UiServer extends HomebridgePluginUiServer {
         let data = '';
         res.on('data', (chunk) => (data += chunk));
         res.on('end', () => {
+          const rawPayload = data.trim();
+          let parsedPayload = rawPayload;
           try {
-            resolve(JSON.parse(data));
+            parsedPayload = rawPayload ? JSON.parse(rawPayload) : null;
           } catch (e) {
-            resolve(data);
+            parsedPayload = rawPayload;
           }
+
+          if ((res.statusCode || 500) >= 400) {
+            const message =
+              parsedPayload && typeof parsedPayload === 'object' && 'error' in parsedPayload
+                ? parsedPayload.error
+                : rawPayload || `IPC Request failed with status ${res.statusCode}`;
+            reject(new Error(String(message)));
+            return;
+          }
+
+          resolve(parsedPayload);
         });
       });
 

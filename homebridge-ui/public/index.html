@@ -156,6 +156,7 @@
                 <label for="S2_AccessControl_LR">S2 Access Control (LR)</label>
                 <input type="text" class="form-control" id="S2_AccessControl_LR" maxlength="32" />
               </div>
+              <div id="securityKeyValidationMessage" class="small text-danger" style="display: none;"></div>
             </fieldset>
 
             <fieldset>
@@ -183,6 +184,14 @@
           </p>
           <div class="alert alert-warning py-2 small" role="alert">
             <strong>Beta Feature:</strong> Z-Wave Firmware Updates are provided as-is. Use at your own risk. Feedback is welcome!
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="text-muted small">
+              Nodes that have not completed interview yet are intentionally held back from HomeKit until their service metadata is stable.
+            </div>
+            <button class="btn btn-sm btn-outline-danger" id="cleanupStaleAccessories">
+              Clean Up Stale Accessories
+            </button>
           </div>
           <div class="table-responsive">
             <table class="table table-sm" id="nodeTable">
@@ -229,13 +238,14 @@
       <button class="btn btn-sm btn-primary" id="executeConfirm">OK</button>
     </div>
   </div>
-
+  <script src="./ui-helpers.js"></script>
   <script>
     (async () => {
       let currentConfig = {};
       let isPromptOpen = false;
       let activeNodeId = null;
       let activeUpdateData = null;
+      const uiHelpers = window.ZWaveUsbUiHelpers;
 
       const getInt = (id, def) => {
         const el = document.getElementById(id);
@@ -244,42 +254,67 @@
         return isNaN(val) ? def : val;
       };
 
-      const getConfig = () => {
-        const securityKeys = {
-          S0_Legacy: document.getElementById('S0_Legacy').value,
-          S2_Unauthenticated: document.getElementById('S2_Unauthenticated').value,
-          S2_Authenticated: document.getElementById('S2_Authenticated').value,
-          S2_AccessControl: document.getElementById('S2_AccessControl').value,
-          S2_Authenticated_LR: document.getElementById('S2_Authenticated_LR').value,
-          S2_AccessControl_LR: document.getElementById('S2_AccessControl_LR').value,
-        };
+      const applySecurityKeyValidation = (normalizedSecurityKeys, invalidFields) => {
+        const messageEl = document.getElementById('securityKeyValidationMessage');
 
-        const newConfig = {
-          ...currentConfig,
+        uiHelpers.SECURITY_KEY_FIELDS.forEach((field) => {
+          const input = document.getElementById(field);
+          if (!input) return;
+
+          input.value = normalizedSecurityKeys[field] || '';
+          const isInvalid = invalidFields.includes(field);
+          input.classList.toggle('is-invalid', isInvalid);
+          input.setCustomValidity(isInvalid ? 'Security keys must be exactly 32 hexadecimal characters.' : '');
+        });
+
+        if (!messageEl) return;
+        if (invalidFields.length > 0) {
+          messageEl.style.display = 'block';
+          messageEl.textContent = 'Security keys must be exactly 32 hexadecimal characters.';
+        } else {
+          messageEl.style.display = 'none';
+          messageEl.textContent = '';
+        }
+      };
+
+      const getConfig = () => {
+        const result = uiHelpers.buildPluginConfig(currentConfig, {
           name: document.getElementById('name').value,
-          platform: 'ZWaveUSB',
           serialPort: document.getElementById('serialPort').value,
           inclusionTimeoutSeconds: getInt('inclusionTimeoutSeconds', 60),
           debug: document.getElementById('debug').checked,
-        };
+          securityKeys: {
+            S0_Legacy: document.getElementById('S0_Legacy').value,
+            S2_Unauthenticated: document.getElementById('S2_Unauthenticated').value,
+            S2_Authenticated: document.getElementById('S2_Authenticated').value,
+            S2_AccessControl: document.getElementById('S2_AccessControl').value,
+            S2_Authenticated_LR: document.getElementById('S2_Authenticated_LR').value,
+            S2_AccessControl_LR: document.getElementById('S2_AccessControl_LR').value,
+          },
+        });
 
-        if (Object.values(securityKeys).some((k) => k && k.length > 0)) {
-          newConfig.securityKeys = securityKeys;
-        } else {
-          delete newConfig.securityKeys;
-        }
-
-        return newConfig;
+        applySecurityKeyValidation(
+          result.normalizedSecurityKeys,
+          result.invalidSecurityKeyFields,
+        );
+        return result;
       };
 
       const updateConfig = async () => {
         if (window.homebridge) {
-          const newConfig = getConfig();
-          await window.homebridge.updatePluginConfig([newConfig]);
+          const { config } = getConfig();
+          await window.homebridge.updatePluginConfig([config]);
+          currentConfig = config;
         }
       };
 
-      const statusMap = ['Unknown', 'Asleep', 'Awake', 'Dead', 'Alive'];
+	      const statusMap = ['Unknown', 'Asleep', 'Awake', 'Dead', 'Alive'];
+	      const homeKitStateMap = {
+	        controller: '',
+	        published: '',
+	        'cached-pending': 'Cached in HomeKit, waiting for interview wake-up',
+	        'pending-interview': 'Not in HomeKit yet, waiting for interview metadata',
+	      };
 
       const loadNodes = async () => {
         if (isPromptOpen) return;
@@ -298,10 +333,11 @@
           nodes.forEach((node) => {
             const tr = document.createElement('tr');
             const status = statusMap[node.status] || 'Unknown';
-            const progress = node.firmwareProgress;
-            const nodeName = node.name || node.label || 'Node ' + node.nodeId;
+	            const progress = node.firmwareProgress;
+	            const nodeName = node.name || node.label || 'Node ' + node.nodeId;
+	            const homeKitState = homeKitStateMap[node.homekitState] || '';
 
-            let actionHtml = '';
+	            let actionHtml = '';
             if (progress) {
               const pct = Math.round((progress.sent / progress.total) * 100);
               actionHtml = `
@@ -320,13 +356,16 @@
               `;
             }
 
-            tr.innerHTML = `
-              <td>${node.nodeId}</td>
-              <td id="node-name-${node.nodeId}">${nodeName}</td>
-              <td><span class="badge badge-${status === 'Alive' || status === 'Awake' ? 'success' : 'secondary'}">${status}</span></td>
-              <td>${node.firmwareVersion || 'Unknown'}</td>
-              <td id="node-action-${node.nodeId}">${actionHtml}</td>
-            `;
+	            tr.innerHTML = `
+	              <td>${node.nodeId}</td>
+	              <td id="node-name-${node.nodeId}">${nodeName}</td>
+	              <td>
+	                <span class="badge badge-${status === 'Alive' || status === 'Awake' ? 'success' : 'secondary'}">${status}</span>
+	                ${homeKitState ? `<div class="small text-muted mt-1">${homeKitState}</div>` : ''}
+	              </td>
+	              <td>${node.firmwareVersion || 'Unknown'}</td>
+	              <td id="node-action-${node.nodeId}">${actionHtml}</td>
+	            `;
             tbody.appendChild(tr);
           });
         } catch (err) {
@@ -409,8 +448,8 @@
       });
 
       // Modal Button Handlers
-      document.getElementById('cancelRename').addEventListener('click', hideModals);
-      document.getElementById('confirmRename').addEventListener('click', async () => {
+	      document.getElementById('cancelRename').addEventListener('click', hideModals);
+	      document.getElementById('confirmRename').addEventListener('click', async () => {
         const newName = document.getElementById('newLabelInput').value.trim();
         const nodeId = activeNodeId;
         hideModals();
@@ -426,8 +465,8 @@
         }
       });
 
-      document.getElementById('cancelConfirm').addEventListener('click', hideModals);
-      document.getElementById('executeConfirm').addEventListener('click', async () => {
+	      document.getElementById('cancelConfirm').addEventListener('click', hideModals);
+	      document.getElementById('executeConfirm').addEventListener('click', async () => {
         const nodeId = activeNodeId;
         const updateData = activeUpdateData;
         hideModals();
@@ -439,8 +478,23 @@
         } catch (err) {
           window.homebridge.toast.error(err.message);
           loadNodes();
-        }
-      });
+	        }
+	      });
+
+	      document.getElementById('cleanupStaleAccessories').addEventListener('click', async () => {
+	        try {
+	          const result = await window.homebridge.request('cleanup-stale-accessories');
+	          const removed = result?.removed ?? 0;
+	          window.homebridge.toast.success(
+	            removed > 0
+	              ? `Removed ${removed} stale accessory${removed === 1 ? '' : 'ies'} from cache.`
+	              : 'No stale accessories were found.',
+	          );
+	          loadNodes();
+	        } catch (err) {
+	          window.homebridge.toast.error(err.message);
+	        }
+	      });
 
       const init = async () => {
         if (!window.homebridge) return;
@@ -462,6 +516,10 @@
         document.getElementById('S2_AccessControl').value = keys.S2_AccessControl || '';
         document.getElementById('S2_Authenticated_LR').value = keys.S2_Authenticated_LR || '';
         document.getElementById('S2_AccessControl_LR').value = keys.S2_AccessControl_LR || '';
+        applySecurityKeyValidation(
+          uiHelpers.normalizeSecurityKeys(keys),
+          uiHelpers.getInvalidSecurityKeyFields(keys),
+        );
 
         // Advanced
         document.getElementById('inclusionTimeoutSeconds').value =

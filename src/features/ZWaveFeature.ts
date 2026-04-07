@@ -3,18 +3,6 @@ import { Endpoint } from 'zwave-js';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 
-const STATUS_FAULT_SUPPORTED_SERVICE_UUIDS = new Set([
-  '0000008D-0000-1000-8000-0026BB765291', // AirQualitySensor
-  '0000007F-0000-1000-8000-0026BB765291', // CarbonMonoxideSensor
-  '00000080-0000-1000-8000-0026BB765291', // ContactSensor
-  '00000082-0000-1000-8000-0026BB765291', // HumiditySensor
-  '00000083-0000-1000-8000-0026BB765291', // LeakSensor
-  '00000084-0000-1000-8000-0026BB765291', // LightSensor
-  '00000085-0000-1000-8000-0026BB765291', // MotionSensor
-  '00000087-0000-1000-8000-0026BB765291', // SmokeSensor
-  '0000008A-0000-1000-8000-0026BB765291', // TemperatureSensor
-]);
-
 const SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS = new Set([
   '00000089-0000-1000-8000-0026BB765291', // StatelessProgrammableSwitch
   '000000D0-0000-1000-8000-0026BB765291', // Valve
@@ -78,6 +66,16 @@ export abstract class BaseFeature implements ZWaveFeature {
 
   public getEndpointIndex(): number {
     return this.endpoint.index;
+  }
+
+  protected supportsCC(commandClass: number): boolean {
+    if (typeof this.endpoint.supportsCC === 'function') {
+      return this.endpoint.supportsCC(commandClass);
+    }
+
+    return typeof this.node.supportsCC === 'function'
+      ? this.node.supportsCC(commandClass)
+      : false;
   }
 
   /**
@@ -150,19 +148,9 @@ export abstract class BaseFeature implements ZWaveFeature {
       this.endpoint.index > 0 &&
       SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
     ) {
-      if (!service.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
-        service.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
-      }
       service
         .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
         .updateValue(this.endpoint.index);
-    }
-
-    if (
-      !service.testCharacteristic(this.platform.Characteristic.StatusFault) &&
-      STATUS_FAULT_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
-    ) {
-      service.addOptionalCharacteristic(this.platform.Characteristic.StatusFault);
     }
 
     if (!this.managedServices.includes(service)) {

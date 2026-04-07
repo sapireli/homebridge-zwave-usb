@@ -152,4 +152,36 @@ describe('ThermostatFeature', () => {
     const value = (feature as any).handleGetCurrentTemp();
     expect(value).toBe(21);
   });
+
+  it('should not optimistically report HEAT when switching to AUTO mode', async () => {
+    const targetChar = service.getCharacteristic();
+    const setTargetHandler = targetChar.onSet.mock.calls[0][0];
+
+    await setTargetHandler(platform.Characteristic.TargetHeatingCoolingState.AUTO);
+
+    expect(node.setValue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commandClass: 64,
+        property: 'mode',
+        endpoint: 0,
+      }),
+      3,
+    );
+    expect(service.updateCharacteristic).not.toHaveBeenCalledWith(
+      platform.Characteristic.CurrentHeatingCoolingState,
+      platform.Characteristic.CurrentHeatingCoolingState.HEAT,
+    );
+  });
+
+  it('should still optimistically report COOL when switching to cool mode', async () => {
+    const targetChar = service.getCharacteristic();
+    const setTargetHandler = targetChar.onSet.mock.calls[0][0];
+
+    await setTargetHandler(platform.Characteristic.TargetHeatingCoolingState.COOL);
+
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.CurrentHeatingCoolingState,
+      platform.Characteristic.CurrentHeatingCoolingState.COOL,
+    );
+  });
 });

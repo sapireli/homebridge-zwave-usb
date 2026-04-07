@@ -1,5 +1,5 @@
 import { Service, CharacteristicValue } from 'homebridge';
-import { CommandClasses } from '@zwave-js/core';
+import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
@@ -180,20 +180,19 @@ export class ThermostatFeature extends BaseFeature {
         zwaveMode,
       );
 
-      /**
-       * MODE DESYNC FIX: Optimistically update current state to match target.
-       */
-      const currentState =
-        value === this.platform.Characteristic.TargetHeatingCoolingState.OFF
-          ? this.platform.Characteristic.CurrentHeatingCoolingState.OFF
-          : value === this.platform.Characteristic.TargetHeatingCoolingState.COOL
-            ? this.platform.Characteristic.CurrentHeatingCoolingState.COOL
-            : this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
+      if (value !== this.platform.Characteristic.TargetHeatingCoolingState.AUTO) {
+        const currentState =
+          value === this.platform.Characteristic.TargetHeatingCoolingState.OFF
+            ? this.platform.Characteristic.CurrentHeatingCoolingState.OFF
+            : value === this.platform.Characteristic.TargetHeatingCoolingState.COOL
+              ? this.platform.Characteristic.CurrentHeatingCoolingState.COOL
+              : this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
 
-      this.service.updateCharacteristic(
-        this.platform.Characteristic.CurrentHeatingCoolingState,
-        currentState,
-      );
+        this.service.updateCharacteristic(
+          this.platform.Characteristic.CurrentHeatingCoolingState,
+          currentState,
+        );
+      }
     } catch (err) {
       this.platform.log.error('Failed to set thermostat mode:', err);
       throw new this.platform.api.hap.HapStatusError(-70402);
@@ -233,7 +232,7 @@ export class ThermostatFeature extends BaseFeature {
       return this.lastKnownTemp;
     }
 
-    if (this.node.ready === false || this.node.status === 3) {
+    if (this.node.ready === false || this.node.status === NodeStatus.Dead) {
       throw new this.platform.api.hap.HapStatusError(-70402); // SERVICE_COMMUNICATION_FAILURE
     }
 

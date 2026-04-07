@@ -221,4 +221,76 @@ describe('CentralSceneFeature', () => {
       platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS,
     );
   });
+
+  it('should resolve the current scene when keyAttribute arrives first', () => {
+    node.getValueMetadata.mockReturnValue({ states: { '2': 'Button 2' } });
+    feature.init();
+
+    node.getValue.mockImplementation((vid) => {
+      if (vid.property === 'scene') return 2;
+      return undefined;
+    });
+
+    feature.update({
+      commandClass: CommandClasses['Central Scene'],
+      endpoint: 0,
+      property: 'keyAttribute',
+      newValue: 5,
+    });
+
+    expect(characteristic.updateValue).toHaveBeenCalledWith(
+      platform.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS,
+    );
+    expect(accessory.getServiceById).toHaveBeenCalledWith(
+      platform.Service.StatelessProgrammableSwitch,
+      '0-2',
+    );
+  });
+
+  it('should not replay a cached scene during cold refresh', () => {
+    node.getValueMetadata.mockReturnValue({ states: { '1': 'Button 1' } });
+    feature.init();
+    characteristic.updateValue.mockClear();
+
+    feature.update();
+
+    expect(characteristic.updateValue).not.toHaveBeenCalled();
+  });
+
+  it('should not emit a duplicate single press when a release follows a press immediately', () => {
+    node.getValueMetadata.mockReturnValue({ states: { '1': 'Button 1' } });
+    feature.init();
+    characteristic.updateValue.mockClear();
+
+    node.getValue.mockImplementation((vid) => {
+      if (vid.property === 'keyAttribute') return 0;
+      return undefined;
+    });
+
+    feature.update({
+      commandClass: CommandClasses['Central Scene'],
+      endpoint: 0,
+      property: 'scene',
+      newValue: 1,
+    });
+
+    expect(characteristic.updateValue).toHaveBeenCalledTimes(1);
+    expect(characteristic.updateValue).toHaveBeenLastCalledWith(
+      platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS,
+    );
+
+    node.getValue.mockImplementation((vid) => {
+      if (vid.property === 'keyAttribute') return 1;
+      return undefined;
+    });
+
+    feature.update({
+      commandClass: CommandClasses['Central Scene'],
+      endpoint: 0,
+      property: 'scene',
+      newValue: 1,
+    });
+
+    expect(characteristic.updateValue).toHaveBeenCalledTimes(1);
+  });
 });

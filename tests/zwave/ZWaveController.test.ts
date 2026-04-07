@@ -169,4 +169,23 @@ describe('ZWaveController (Direct Mode)', () => {
 
     expect(onNodeUpdated).toHaveBeenCalledTimes(6);
   });
+
+  it('should resolve S2 PIN entry from the controller callback path', async () => {
+    controller = new ZWaveController(log, '/dev/ttyACM0', { storagePath: '/tmp' });
+    const onStatusUpdated = jest.fn();
+    controller.on('status updated', onStatusUpdated);
+
+    await controller.start();
+
+    const DriverMock = Driver as jest.MockedClass<typeof Driver>;
+    const driverOptions = DriverMock.mock.calls.at(-1)![1] as {
+      inclusionUserCallbacks: { validateDSKAndEnterPIN: (dsk: string) => Promise<string | false> };
+    };
+
+    const pinPromise = driverOptions.inclusionUserCallbacks.validateDSKAndEnterPIN('12345-67890');
+    controller.setS2Pin('00123');
+
+    await expect(pinPromise).resolves.toBe('00123');
+    expect(onStatusUpdated).toHaveBeenCalledWith('S2 PIN REQUIRED');
+  });
 });

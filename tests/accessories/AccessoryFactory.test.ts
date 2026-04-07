@@ -6,6 +6,7 @@ import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
 import { IZWaveNode } from '../../src/zwave/interfaces';
 import { ContactSensorFeature } from '../../src/features/ContactSensorFeature';
 import { MotionSensorFeature } from '../../src/features/MotionSensorFeature';
+import { SmokeSensorFeature } from '../../src/features/SmokeSensorFeature';
 
 describe('AccessoryFactory', () => {
   let platform: any;
@@ -259,6 +260,71 @@ describe('AccessoryFactory', () => {
     addFeatureSpy.mockRestore();
   });
 
+  it('should change graph signature when notification-backed sensor discovery changes', () => {
+    const ep0 = {
+      index: 0,
+      supportsCC: jest
+        .fn()
+        .mockImplementation(
+          (cc) => cc === CommandClasses['Door Lock'] || cc === CommandClasses.Notification,
+        ),
+    };
+
+    node.getAllEndpoints.mockReturnValue([ep0]);
+    node.getDefinedValueIDs.mockReturnValue([
+      {
+        endpoint: 0,
+        commandClass: CommandClasses.Notification,
+        property: 'Access Control',
+      },
+      {
+        endpoint: 0,
+        commandClass: CommandClasses.Notification,
+        property: 'Home Security',
+      },
+      {
+        endpoint: 0,
+        commandClass: CommandClasses['Door Lock'],
+        property: 'currentMode',
+      },
+    ]);
+
+    const withoutSensors = AccessoryFactory.getGraphSignature(node);
+
+    node.getDefinedValueIDs.mockReturnValue([
+      {
+        endpoint: 0,
+        commandClass: CommandClasses.Notification,
+        property: 'Access Control',
+        propertyKey: 'Door status',
+      },
+      {
+        endpoint: 0,
+        commandClass: CommandClasses.Notification,
+        property: 'Home Security',
+        propertyKey: 'Motion sensor status',
+      },
+      {
+        endpoint: 0,
+        commandClass: CommandClasses['Door Lock'],
+        property: 'currentMode',
+      },
+    ]);
+    node.getValue.mockImplementation((valueId: { propertyKey?: string }) => {
+      if (valueId.propertyKey === 'Door status') {
+        return 22;
+      }
+      if (valueId.propertyKey === 'Motion sensor status') {
+        return 8;
+      }
+      return undefined;
+    });
+
+    const withSensors = AccessoryFactory.getGraphSignature(node);
+
+    expect(withSensors).not.toBe(withoutSensors);
+  });
+
   it('should not attach lock sensors when sensor-like property keys are under wrong notification categories', () => {
     const addFeatureSpy = jest.spyOn(ZWaveAccessory.prototype, 'addFeature');
 
@@ -303,6 +369,36 @@ describe('AccessoryFactory', () => {
 
     expect(hasContact).toBe(false);
     expect(hasMotion).toBe(false);
+
+    addFeatureSpy.mockRestore();
+  });
+
+  it('should keep graph signature and attached features aligned for notification-backed sensors', () => {
+    const addFeatureSpy = jest.spyOn(ZWaveAccessory.prototype, 'addFeature');
+
+    const ep0 = {
+      index: 0,
+      supportsCC: jest
+        .fn()
+        .mockImplementation((cc) => cc === CommandClasses.Notification),
+    };
+
+    node.getAllEndpoints.mockReturnValue([ep0]);
+    node.getDefinedValueIDs.mockReturnValue([
+      {
+        endpoint: 0,
+        commandClass: CommandClasses.Notification,
+        property: 'Smoke Alarm',
+      },
+    ]);
+
+    const signature = AccessoryFactory.getGraphSignature(node as IZWaveNode);
+    AccessoryFactory.create(platform, node as IZWaveNode, 123);
+
+    expect(signature).toContain('smoke-sensor');
+    expect(
+      addFeatureSpy.mock.calls.some(([feature]) => feature instanceof SmokeSensorFeature),
+    ).toBe(true);
 
     addFeatureSpy.mockRestore();
   });

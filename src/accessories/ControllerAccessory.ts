@@ -8,6 +8,9 @@ import {
   HAPFormat,
   HAPPerm,
 } from '../platform/settings';
+import { NodeStatus } from '@zwave-js/core';
+
+export const CONTROLLER_CACHE_REPAIR_VERSION = 1;
 
 export class ControllerAccessory {
   private statusService: Service;
@@ -70,93 +73,101 @@ export class ControllerAccessory {
       this.platform.Service.AccessoryInformation,
     )!;
 
-    // --- AGGRESSIVE CLEANUP: Remove ALL obsolete services and characteristics ---
-    this.platformAccessory.services.slice().forEach((service) => {
-      const serviceUuidNorm = normalizeUuid(service.UUID);
+    const context = ((this.platformAccessory.context as {
+      cacheRepairVersion?: number;
+    }) || {});
+    this.platformAccessory.context = context;
 
-      // Remove obsolete services
-      const isObsoleteManager = OBSOLETE_MANAGER_UUIDS.some(
-        (u) => normalizeUuid(u) === serviceUuidNorm,
-      );
-      const isDuplicateCurrent =
-        serviceUuidNorm === normalizeUuid(MANAGER_SERVICE_UUID) &&
-        service !== this.platformAccessory.getService(MANAGER_SERVICE_UUID);
+    let didRepairCache = false;
+    if (existingAccessory && context.cacheRepairVersion !== CONTROLLER_CACHE_REPAIR_VERSION) {
+      // --- One-time cache repair for stale controller services/characteristics ---
+      this.platformAccessory.services.slice().forEach((service) => {
+        const serviceUuidNorm = normalizeUuid(service.UUID);
 
-      if (isObsoleteManager || isDuplicateCurrent) {
-        this.platform.log.info(
-          `Pruning obsolete or duplicate service: ${service.displayName} (${service.UUID})`,
+        const isObsoleteManager = OBSOLETE_MANAGER_UUIDS.some(
+          (u) => normalizeUuid(u) === serviceUuidNorm,
         );
-        this.platformAccessory.removeService(service);
-        return; // Service gone
-      }
+        const isDuplicateCurrent =
+          serviceUuidNorm === normalizeUuid(MANAGER_SERVICE_UUID) &&
+          service !== this.platformAccessory.getService(MANAGER_SERVICE_UUID);
 
-      // Clean up obsolete characteristics from retained services (like Switch)
-      service.characteristics.slice().forEach((found) => {
-        const charUuidNorm = normalizeUuid(found.UUID);
-        if (OBSOLETE_CHAR_UUIDS.some((u) => normalizeUuid(u) === charUuidNorm)) {
+        if (isObsoleteManager || isDuplicateCurrent) {
           this.platform.log.info(
-            `Pruning obsolete characteristic: ${found.displayName} from ${service.displayName}`,
+            `Pruning obsolete or duplicate service: ${service.displayName} (${service.UUID})`,
           );
-          service.removeCharacteristic(found);
+          this.platformAccessory.removeService(service);
+          return;
         }
+
+        service.characteristics.slice().forEach((found) => {
+          const charUuidNorm = normalizeUuid(found.UUID);
+          if (OBSOLETE_CHAR_UUIDS.some((u) => normalizeUuid(u) === charUuidNorm)) {
+            this.platform.log.info(
+              `Pruning obsolete characteristic: ${found.displayName} from ${service.displayName}`,
+            );
+            service.removeCharacteristic(found);
+          }
+        });
+
+        const serviceLabelIndexUuid = normalizeUuid(
+          this.platform.Characteristic.ServiceLabelIndex.UUID,
+        );
+        const serviceLabelNamespaceUuid = normalizeUuid(
+          this.platform.Characteristic.ServiceLabelNamespace.UUID,
+        );
+        service.characteristics.slice().forEach((found) => {
+          const charUuidNorm = normalizeUuid(found.UUID);
+          if (charUuidNorm === serviceLabelIndexUuid) {
+            this.platform.log.info(
+              `Pruning unsupported ServiceLabelIndex from ${service.displayName}`,
+            );
+            service.removeCharacteristic(found);
+          }
+          if (service === infoService && charUuidNorm === serviceLabelNamespaceUuid) {
+            this.platform.log.info(
+              `Pruning unsupported ServiceLabelNamespace from ${service.displayName}`,
+            );
+            service.removeCharacteristic(found);
+          }
+        });
       });
 
-      const serviceLabelIndexUuid = normalizeUuid(
-        this.platform.Characteristic.ServiceLabelIndex.UUID,
-      );
-      const serviceLabelNamespaceUuid = normalizeUuid(
-        this.platform.Characteristic.ServiceLabelNamespace.UUID,
-      );
-      service.characteristics.slice().forEach((found) => {
-        const charUuidNorm = normalizeUuid(found.UUID);
-        if (charUuidNorm === serviceLabelIndexUuid) {
-          this.platform.log.info(
-            `Pruning unsupported ServiceLabelIndex from ${service.displayName}`,
-          );
-          service.removeCharacteristic(found);
+      const canonicalSwitchSubtypes = new Set(['Inclusion', 'Exclusion', 'Heal', 'Prune']);
+      const seenCanonicalSwitchSubtypes = new Set<string>();
+      this.platformAccessory.services.slice().forEach((service) => {
+        if (service.UUID !== this.platform.Service.Switch.UUID) {
+          return;
         }
-        if (
-          service === infoService &&
-          charUuidNorm === serviceLabelNamespaceUuid
-        ) {
+
+        const subtype = (service as unknown as { subtype?: string }).subtype;
+        if (!subtype || !canonicalSwitchSubtypes.has(subtype)) {
           this.platform.log.info(
-            `Pruning unsupported ServiceLabelNamespace from ${service.displayName}`,
+            `Pruning legacy controller switch service: ${service.displayName} (${service.UUID})`,
           );
-          service.removeCharacteristic(found);
+          this.platformAccessory.removeService(service);
+          return;
         }
+
+        if (seenCanonicalSwitchSubtypes.has(subtype)) {
+          this.platform.log.info(
+            `Pruning duplicate controller switch service (${subtype}): ${service.displayName}`,
+          );
+          this.platformAccessory.removeService(service);
+          return;
+        }
+
+        seenCanonicalSwitchSubtypes.add(subtype);
       });
-    });
 
-    /**
-     * Homebridge Config UI X can show stale state if legacy/duplicate Switch services
-     * exist for the same logical controller action. Keep only canonical subtyped services.
-     */
-    const canonicalSwitchSubtypes = new Set(['Inclusion', 'Exclusion', 'Heal', 'Prune']);
-    const seenCanonicalSwitchSubtypes = new Set<string>();
-    this.platformAccessory.services.slice().forEach((service) => {
-      if (service.UUID !== this.platform.Service.Switch.UUID) {
-        return;
-      }
+      context.cacheRepairVersion = CONTROLLER_CACHE_REPAIR_VERSION;
+      didRepairCache = true;
+    } else if (!existingAccessory) {
+      context.cacheRepairVersion = CONTROLLER_CACHE_REPAIR_VERSION;
+    }
 
-      const subtype = (service as unknown as { subtype?: string }).subtype;
-      if (!subtype || !canonicalSwitchSubtypes.has(subtype)) {
-        this.platform.log.info(
-          `Pruning legacy controller switch service: ${service.displayName} (${service.UUID})`,
-        );
-        this.platformAccessory.removeService(service);
-        return;
-      }
-
-      if (seenCanonicalSwitchSubtypes.has(subtype)) {
-        this.platform.log.info(
-          `Pruning duplicate controller switch service (${subtype}): ${service.displayName}`,
-        );
-        this.platformAccessory.removeService(service);
-        return;
-      }
-
-      seenCanonicalSwitchSubtypes.add(subtype);
-    });
+    if (existingAccessory && didRepairCache) {
+      this.platform.api.updatePlatformAccessories([this.platformAccessory]);
+    }
 
     // --- 1. System Status Service (Custom Service) ---
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -596,18 +607,9 @@ export class ControllerAccessory {
         // Find all Dead nodes
         const deadNodeIds: number[] = [];
         for (const [nodeId, node] of this.controller.nodes) {
-          /**
-           * PRUNE FIX: Check for correct Dead status (3).
-           * NodeStatus Enum (zwave-js):
-           * 0: Unknown
-           * 1: Asleep
-           * 2: Awake
-           * 3: Dead
-           * 4: Alive
-           */
-          if (nodeId !== 1 && node.status === 3) {
+          if (nodeId !== 1 && node.status === NodeStatus.Dead) {
             deadNodeIds.push(nodeId);
-          } else if (node.status === 1) {
+          } else if (node.status === NodeStatus.Asleep) {
             this.platform.log.debug(`Prune: Node ${nodeId} is ASLEEP (Battery). Skipping.`);
           }
         }

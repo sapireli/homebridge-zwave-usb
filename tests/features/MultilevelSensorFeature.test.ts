@@ -220,4 +220,42 @@ describe('MultilevelSensorFeature', () => {
 
     expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.CarbonDioxideSensor, '0');
   });
+
+  it('should map intermediate and poor air quality thresholds correctly', () => {
+    node.getValue.mockImplementation((args) => {
+      if (args.commandClass === CommandClasses['Binary Sensor'] && args.property === 'CO2') {
+        return undefined;
+      }
+      if (args.property === 'Carbon dioxide (CO2) level') {
+        return 820;
+      }
+      if (args.property === 'Particulate Matter 2.5') {
+        return 24;
+      }
+      if (args.property === 'Volatile Organic Compound level') {
+        return 1200;
+      }
+      return undefined;
+    });
+
+    expect((feature as any).handleGetAirQuality()).toBe(platform.Characteristic.AirQuality.FAIR);
+
+    node.getValue.mockImplementation((args) => {
+      if (args.commandClass === CommandClasses['Binary Sensor'] && args.property === 'CO2') {
+        return undefined;
+      }
+      if (args.property === 'Carbon dioxide (CO2) level') {
+        return 1600;
+      }
+      if (args.property === 'Particulate Matter 2.5') {
+        return 60;
+      }
+      if (args.property === 'Volatile Organic Compound level') {
+        return 9000;
+      }
+      return undefined;
+    });
+
+    expect((feature as any).handleGetAirQuality()).toBe(platform.Characteristic.AirQuality.POOR);
+  });
 });

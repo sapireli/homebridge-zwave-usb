@@ -1,5 +1,5 @@
 import { Service } from 'homebridge';
-import { CommandClasses } from '@zwave-js/core';
+import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
@@ -160,7 +160,7 @@ export class MultilevelSensorFeature extends BaseFeature {
     });
 
     if (co2 === undefined && pm25 === undefined && binaryCo2 === undefined && voc === undefined) {
-      if (this.node.ready === false || this.node.status === 3) {
+      if (this.node.ready === false || this.node.status === NodeStatus.Dead) {
         throw new this.platform.api.hap.HapStatusError(-70402);
       }
       if (this.platform.Characteristic.AirQuality.UNKNOWN !== undefined) {

@@ -2,7 +2,7 @@ import { API, HAP, PlatformConfig } from 'homebridge';
 import { ZWaveNode, Endpoint } from 'zwave-js';
 import { CommandClasses } from '@zwave-js/core';
 import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
-import { MotionSensorFeature } from '../../src/features/MotionSensorFeature';
+import { MOTION_CLEAR_TIMEOUT_MS, MotionSensorFeature } from '../../src/features/MotionSensorFeature';
 import { PLATFORM_NAME } from '../../src/platform/settings';
 
 describe('MotionSensorFeature', () => {
@@ -139,6 +139,20 @@ describe('MotionSensorFeature', () => {
     });
   });
 
+  it('should use endpoint-specific CC support when the node root does not advertise motion sensors', () => {
+    feature.init();
+    node.supportsCC.mockReturnValue(false);
+    endpoint.supportsCC = jest.fn().mockImplementation((cc) => cc === CommandClasses.Notification);
+    node.getValue.mockReturnValue(8);
+
+    feature.update();
+
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.MotionDetected,
+      true,
+    );
+  });
+
   it('should detect motion via Philio specific Motion status property key', () => {
     feature.init();
     node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
@@ -155,7 +169,7 @@ describe('MotionSensorFeature', () => {
     );
   });
 
-  it('should auto-clear motion after 60 seconds if no idle event is sent', () => {
+  it('should auto-clear motion after 30 seconds if no idle event is sent', () => {
     jest.useFakeTimers();
     feature.init();
     node.supportsCC.mockImplementation((cc) => cc === CommandClasses.Notification);
@@ -167,8 +181,7 @@ describe('MotionSensorFeature', () => {
       true,
     );
 
-    // Fast-forward 60s
-    jest.advanceTimersByTime(60000);
+    jest.advanceTimersByTime(MOTION_CLEAR_TIMEOUT_MS);
     
     expect(service.updateCharacteristic).toHaveBeenCalledWith(
       platform.Characteristic.MotionDetected,
@@ -176,5 +189,20 @@ describe('MotionSensorFeature', () => {
     );
     
     jest.useRealTimers();
+  });
+
+  it('should report no motion when the node is alive but no cached value is present', () => {
+    feature.init();
+    node.ready = true as any;
+    node.status = 4 as any;
+    node.supportsCC.mockReturnValue(false);
+    node.getValue.mockReturnValue(undefined);
+
+    feature.update();
+
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.MotionDetected,
+      false,
+    );
   });
 });

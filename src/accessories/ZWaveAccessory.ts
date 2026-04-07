@@ -3,7 +3,9 @@ import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { ZWaveFeature } from '../features/ZWaveFeature';
-import { HOMEKIT_METADATA_SCHEMA_REVISION, OBSOLETE_CHAR_UUIDS } from '../platform/settings';
+import { OBSOLETE_CHAR_UUIDS } from '../platform/settings';
+
+export const ACCESSORY_CACHE_REPAIR_VERSION = 1;
 
 const STATUS_FAULT_SUPPORTED_SERVICE_UUIDS = new Set([
   '0000008D-0000-1000-8000-0026BB765291', // AirQualitySensor
@@ -29,13 +31,6 @@ const STATUS_TAMPERED_SUPPORTED_SERVICE_UUIDS = new Set([
   '0000008A-0000-1000-8000-0026BB765291', // TemperatureSensor
 ]);
 
-const CONFIGURED_NAME_SUPPORTED_SERVICE_UUIDS = new Set([
-  '0000003E-0000-1000-8000-0026BB765291', // AccessoryInformation
-  '000000D8-0000-1000-8000-0026BB765291', // Television
-  '00000113-0000-1000-8000-0026BB765291', // SmartSpeaker
-  '0000020A-0000-1000-8000-0026BB765291', // WiFiRouter
-]);
-
 const SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS = new Set([
   '00000089-0000-1000-8000-0026BB765291', // StatelessProgrammableSwitch
   '000000D0-0000-1000-8000-0026BB765291', // Valve
@@ -50,7 +45,6 @@ export class ZWaveAccessory {
     public readonly platform: ZWaveUsbPlatform,
     public node: IZWaveNode,
     public readonly homeId: number,
-    private readonly options: { forceUuidSeed?: string } = {},
   ) {
     // WARNING: This UUID generation string MUST NOT BE CHANGED!
     // This deterministic string ensures that devices maintain the same HomeKit identity across restarts.
@@ -86,63 +80,39 @@ export class ZWaveAccessory {
     const existingAccessory =
       this.platform.accessories.find((accessory) => {
         const context = accessory.context as
-          | { nodeId?: number; homeId?: number; renameGeneration?: string }
+          | { nodeId?: number; homeId?: number }
           | undefined;
         return context?.nodeId === this.node.nodeId && context?.homeId === this.homeId;
       }) ||
       this.platform.accessories.find((accessory) => accessory.UUID === uuid);
-    const nodeName = this.node.name || this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
-    const forceUuidSeed = this.options.forceUuidSeed?.trim();
+    const nodeName = this.getDesiredName();
 
     if (existingAccessory) {
       this.platformAccessory = existingAccessory;
     } else {
-      const creationUuid = forceUuidSeed
-        ? this.platform.api.hap.uuid.generate(`${stableId}-rename-${forceUuidSeed}`)
-        : uuid;
       this.platform.log.info(`Creating new accessory for ${nodeName} (UUID: ${uuid})`);
-      this.platformAccessory = new this.platform.api.platformAccessory(nodeName, creationUuid);
+      this.platformAccessory = new this.platform.api.platformAccessory(nodeName, uuid);
       this.platform.api.registerPlatformAccessories('homebridge-zwave-usb', 'ZWaveUSB', [
         this.platformAccessory,
       ]);
       this.platform.accessories.push(this.platformAccessory);
     }
 
-    // Set accessory information (Hardware Fingerprint - Must be stable)
-    const manufacturer = this.node.deviceConfig?.manufacturer || 'Unknown';
-    const model = this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
-    const serial = `Node ${this.node.nodeId}`;
-
-    const infoService = this.platformAccessory.getService(
-      this.platform.Service.AccessoryInformation,
-    )!;
-    const advertisedFirmwareRevision = this.node.firmwareVersion
-      ? `${this.node.firmwareVersion}-${HOMEKIT_METADATA_SCHEMA_REVISION}`
-      : `1.0.0-${HOMEKIT_METADATA_SCHEMA_REVISION}`;
-
-    infoService
-      .setCharacteristic(this.platform.Characteristic.Manufacturer, manufacturer)
-      .setCharacteristic(this.platform.Characteristic.Model, model)
-      .setCharacteristic(this.platform.Characteristic.SerialNumber, serial)
-      .setCharacteristic(this.platform.Characteristic.FirmwareRevision, advertisedFirmwareRevision);
-
-    if (!existingAccessory) {
-      // Seed the initial HomeKit-facing name once for freshly created accessories.
-      this.platformAccessory.displayName = nodeName;
-      infoService.setCharacteristic(this.platform.Characteristic.Name, nodeName);
-    }
-
     const context = ((this.platformAccessory.context as {
       nodeId?: number;
       homeId?: number;
-      renameGeneration?: string;
+      cacheRepairVersion?: number;
+      metadataSignature?: string;
+      graphSignature?: string;
     }) || {});
     this.platformAccessory.context = context;
     context.nodeId = this.node.nodeId;
     context.homeId = this.homeId;
-    if (forceUuidSeed) {
-      context.renameGeneration = forceUuidSeed;
-    }
+
+    const metadataSignature = this.applyAccessoryMetadata({
+      syncName: !existingAccessory || !this.platformAccessory.displayName,
+    });
+    context.metadataSignature = metadataSignature;
 
     /**
      * Helper to normalize UUIDs for reliable comparison during metadata pruning.
@@ -155,30 +125,51 @@ export class ZWaveAccessory {
      * characteristics from existing accessories in the cache. This allows us to fix
      * permission bugs or remove ghost services while maintaining the device's identity.
      */
-    this.platformAccessory.services.forEach((service) => {
-      service.characteristics.slice().forEach((found) => {
-        const charUuidNorm = normalizeUuid(found.UUID);
-        if (OBSOLETE_CHAR_UUIDS.some((u) => normalizeUuid(u) === charUuidNorm)) {
-          this.platform.log.debug(
-            `Pruning obsolete characteristic: ${found.displayName} from ${service.displayName} (Node ${this.node.nodeId})`,
-          );
-          service.removeCharacteristic(found);
-        }
+    let didRepairCache = false;
+    if (existingAccessory && context.cacheRepairVersion !== ACCESSORY_CACHE_REPAIR_VERSION) {
+      this.platformAccessory.services.forEach((service) => {
+        service.characteristics.slice().forEach((found) => {
+          const charUuidNorm = normalizeUuid(found.UUID);
+          if (OBSOLETE_CHAR_UUIDS.some((u) => normalizeUuid(u) === charUuidNorm)) {
+            this.platform.log.debug(
+              `Pruning obsolete characteristic: ${found.displayName} from ${service.displayName} (Node ${this.node.nodeId})`,
+            );
+            service.removeCharacteristic(found);
+          }
+        });
       });
-    });
 
-    this.pruneUnsupportedConfiguredName();
-    this.pruneUnsupportedHealthCharacteristics();
-    this.pruneUnsupportedServiceLabelIndex();
+      this.pruneUnsupportedConfiguredName();
+      this.pruneUnsupportedHealthCharacteristics();
+      this.pruneUnsupportedServiceLabelIndex();
+      context.cacheRepairVersion = ACCESSORY_CACHE_REPAIR_VERSION;
+      didRepairCache = true;
+    } else if (!existingAccessory) {
+      context.cacheRepairVersion = ACCESSORY_CACHE_REPAIR_VERSION;
+    }
+
+    if (existingAccessory && didRepairCache) {
+      this.platform.api.updatePlatformAccessories([this.platformAccessory]);
+    }
   }
 
   public addFeature(feature: ZWaveFeature) {
     this.features.push(feature);
   }
 
+  public setGraphSignature(signature: string): void {
+    const context = ((this.platformAccessory.context as { graphSignature?: string }) || {});
+    this.platformAccessory.context = context;
+    context.graphSignature = signature;
+  }
+
+  public getGraphSignature(): string | undefined {
+    return (this.platformAccessory.context as { graphSignature?: string } | undefined)?.graphSignature;
+  }
+
   /**
    * Applies a plugin-controlled rename to the default accessory metadata.
-   * This is intentionally conservative and is only used for explicit recreate flows.
+   * Normal node refreshes do not call this; it is reserved for explicit plugin renames.
    */
   public rename(newName: string): void {
     this.platform.log.info(`Syncing HomeKit name for Node ${this.node.nodeId} -> ${newName}`);
@@ -194,6 +185,8 @@ export class ZWaveAccessory {
     for (const feature of this.features) {
       feature.rename(newName);
     }
+
+    this.platform.api.updatePlatformAccessories([this.platformAccessory]);
   }
 
   /**
@@ -204,6 +197,12 @@ export class ZWaveAccessory {
    */
   public updateNode(newNode: IZWaveNode): void {
     this.node = newNode;
+    const context = ((this.platformAccessory.context as {
+      metadataSignature?: string;
+    }) || {});
+    const previousSignature = context.metadataSignature;
+    const nextSignature = this.applyAccessoryMetadata();
+    context.metadataSignature = nextSignature;
     for (const feature of this.features) {
       const endpointIndex = feature.getEndpointIndex();
       const newEndpoint = newNode.getAllEndpoints().find((e) => e.index === endpointIndex);
@@ -211,31 +210,85 @@ export class ZWaveAccessory {
         feature.updateNode(newNode, newEndpoint);
       }
     }
+
+    if (previousSignature !== nextSignature) {
+      this.platform.api.updatePlatformAccessories([this.platformAccessory]);
+    }
   }
 
-  public initialize(): void {
+  public initialize(options: { pruneUnmanagedServices?: boolean } = {}): void {
     if (this.initialized) {
       this.platform.log.debug(`Node ${this.node.nodeId} already initialized, refreshing...`);
       this.refresh();
       return;
     }
-    this.initialized = true;
 
-    // Initialize all features
-    for (const feature of this.features) {
-      feature.init();
+    const initializedFeatures: ZWaveFeature[] = [];
+    try {
+      for (const feature of this.features) {
+        feature.init();
+        initializedFeatures.push(feature);
+      }
+
+      if (options.pruneUnmanagedServices) {
+        this.pruneUnmanagedServices();
+      }
+
+      this.refresh();
+      this.platform.api.updatePlatformAccessories([this.platformAccessory]);
+      this.initialized = true;
+    } catch (error) {
+      for (const feature of initializedFeatures.reverse()) {
+        feature.stop();
+      }
+      throw error;
+    }
+  }
+
+  private getDesiredName(): string {
+    return this.node.name || this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
+  }
+
+  private getEffectiveName(): string {
+    return this.platformAccessory.displayName || this.getDesiredName();
+  }
+
+  private applyAccessoryMetadata(options: { syncName?: boolean } = {}): string {
+    const manufacturer = this.node.deviceConfig?.manufacturer || 'Unknown';
+    const model = this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
+    const serial = `Node ${this.node.nodeId}`;
+    const name = this.getEffectiveName();
+    const firmwareRevision = this.node.firmwareVersion || '1.0.0';
+    const metadataSignature = JSON.stringify({
+      manufacturer,
+      model,
+      serial,
+      firmwareRevision,
+    });
+
+    const infoService = this.platformAccessory.getService(
+      this.platform.Service.AccessoryInformation,
+    )!;
+
+    infoService
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, manufacturer)
+      .setCharacteristic(this.platform.Characteristic.Model, model)
+      .setCharacteristic(this.platform.Characteristic.SerialNumber, serial)
+      .setCharacteristic(this.platform.Characteristic.FirmwareRevision, firmwareRevision);
+
+    if (options.syncName) {
+      this.platformAccessory.displayName = name;
+      infoService.setCharacteristic(this.platform.Characteristic.Name, name);
     }
 
-    /**
-     * GHOST SERVICE PRUNING:
-     * We keep only the services that were explicitly created/managed by the added features.
-     * This prevents redundant or broken services from lingering in the cache if the device
-     * configuration or CC support changes.
-     */
+    return metadataSignature;
+  }
+
+  private pruneUnmanagedServices(): void {
     const activeServices = new Set<Service>();
-    activeServices.add(
-      this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!,
-    );
+    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation)!;
+    activeServices.add(infoService);
+
     for (const feature of this.features) {
       for (const service of feature.getServices()) {
         activeServices.add(service);
@@ -245,23 +298,21 @@ export class ZWaveAccessory {
     this.platformAccessory.services.slice().forEach((service) => {
       if (!activeServices.has(service)) {
         this.platform.log.info(
-          `Pruning ghost service from cache: ${service.displayName} (Node ${this.node.nodeId})`,
+          `Removing stale service during explicit graph reconcile: ${service.displayName} (Node ${this.node.nodeId})`,
         );
         this.platformAccessory.removeService(service);
       }
     });
-
-    this.platform.api.updatePlatformAccessories([this.platformAccessory]);
-
-    this.refresh();
   }
 
   private pruneUnsupportedConfiguredName(): void {
+    const infoService = this.platformAccessory.getService(this.platform.Service.AccessoryInformation);
     this.platformAccessory.services.forEach((service) => {
-      if (
-        service.testCharacteristic(this.platform.Characteristic.ConfiguredName) &&
-        !CONFIGURED_NAME_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
-      ) {
+      if (service === infoService) {
+        return;
+      }
+
+      if (service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
         service.removeCharacteristic(service.getCharacteristic(this.platform.Characteristic.ConfiguredName));
       }
     });
@@ -320,15 +371,24 @@ export class ZWaveAccessory {
     return match ? Number(match[1]) : 0;
   }
 
+  private endpointSupportsCC(endpointIndex: number, commandClass: number): boolean {
+    const endpoints =
+      typeof this.node.getAllEndpoints === 'function' ? this.node.getAllEndpoints() : [];
+    const endpoint = endpoints.find((candidate) => candidate.index === endpointIndex);
+    if (endpoint && typeof endpoint.supportsCC === 'function') {
+      return endpoint.supportsCC(commandClass);
+    }
+
+    return typeof this.node.supportsCC === 'function'
+      ? this.node.supportsCC(commandClass)
+      : false;
+  }
+
   private getTamperedValue(endpointIndex: number): number {
     const NOT_TAMPERED = this.platform.Characteristic.StatusTampered?.NOT_TAMPERED ?? 0;
     const TAMPERED = this.platform.Characteristic.StatusTampered?.TAMPERED ?? 1;
-    const supportsCC =
-      typeof this.node.supportsCC === 'function'
-        ? (cc: number) => this.node.supportsCC(cc)
-        : () => false;
 
-    if (supportsCC(CommandClasses['Binary Sensor'])) {
+    if (this.endpointSupportsCC(endpointIndex, CommandClasses['Binary Sensor'])) {
       const binaryTamper = this.node.getValue({
         commandClass: CommandClasses['Binary Sensor'],
         property: 'Tamper',
@@ -339,7 +399,7 @@ export class ZWaveAccessory {
       }
     }
 
-    if (!supportsCC(CommandClasses.Notification)) {
+    if (!this.endpointSupportsCC(endpointIndex, CommandClasses.Notification)) {
       return NOT_TAMPERED;
     }
 
@@ -389,12 +449,11 @@ export class ZWaveAccessory {
       : this.platform.Characteristic.StatusFault.NO_FAULT;
 
     this.platformAccessory.services.forEach((service) => {
-      if (service.testCharacteristic(this.platform.Characteristic.StatusFault)) {
-        service.updateCharacteristic(this.platform.Characteristic.StatusFault, faultValue);
+      if (STATUS_FAULT_SUPPORTED_SERVICE_UUIDS.has(service.UUID)) {
+        service.getCharacteristic(this.platform.Characteristic.StatusFault).updateValue(faultValue);
       }
-      if (service.testCharacteristic(this.platform.Characteristic.StatusTampered)) {
-        service.updateCharacteristic(
-          this.platform.Characteristic.StatusTampered,
+      if (STATUS_TAMPERED_SUPPORTED_SERVICE_UUIDS.has(service.UUID)) {
+        service.getCharacteristic(this.platform.Characteristic.StatusTampered).updateValue(
           this.getTamperedValue(this.getServiceEndpointIndex(service)),
         );
       }

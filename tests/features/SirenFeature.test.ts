@@ -162,4 +162,20 @@ describe('SirenFeature', () => {
       50
     );
   });
+
+  it('should use endpoint-specific Sound Switch support when the node root does not advertise it', () => {
+    node.supportsCC.mockReturnValue(false);
+    endpoint.supportsCC.mockImplementation((cc: number) => cc === 121);
+    node.getValue.mockImplementation((params: any) => {
+      if (params.property === 'defaultVolume') {
+        return 30;
+      }
+      return 1;
+    });
+
+    feature.update();
+
+    expect(service.updateCharacteristic).toHaveBeenCalledWith('On', true);
+    expect(service.updateCharacteristic).toHaveBeenCalledWith('RotationSpeed', 30);
+  });
 });

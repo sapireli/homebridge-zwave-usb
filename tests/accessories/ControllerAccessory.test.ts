@@ -1,5 +1,9 @@
 import { Characteristic, PlatformAccessory, Service } from 'homebridge';
-import { ControllerAccessory } from '../../src/accessories/ControllerAccessory';
+import {
+  ControllerAccessory,
+  CONTROLLER_CACHE_REPAIR_VERSION,
+} from '../../src/accessories/ControllerAccessory';
+import { MANAGER_SERVICE_UUID } from '../../src/platform/settings';
 import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
 import { IZWaveController } from '../../src/zwave/interfaces';
 import { EventEmitter } from 'events';
@@ -85,6 +89,7 @@ const mockPlatform = {
       removeService = jest.fn();
     },
     registerPlatformAccessories: jest.fn(),
+    updatePlatformAccessories: jest.fn(),
   },
   accessories: [],
   Service: {
@@ -131,6 +136,7 @@ describe('ControllerAccessory', () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     accessory.stop();
   });
 
@@ -200,5 +206,71 @@ describe('ControllerAccessory', () => {
 
     expect(statusService.addOptionalCharacteristic).toHaveBeenCalled();
     expect(inclusionService.addOptionalCharacteristic).not.toHaveBeenCalled();
+  });
+
+  it('should forward a padded S2 PIN from HomeKit to the controller and reset the characteristic', () => {
+    jest.useFakeTimers();
+    const pinChar = (accessory as any).pinChar;
+    pinChar.updateValue.mockClear();
+
+    const onSetHandler = pinChar.onSet.mock.calls[0][0];
+    onSetHandler(123);
+
+    expect(mockController.setS2Pin).toHaveBeenCalledWith('00123');
+
+    jest.advanceTimersByTime(2000);
+    expect(pinChar.updateValue).toHaveBeenCalledWith(0);
+  });
+
+  it('should ignore invalid S2 PIN values from HomeKit', () => {
+    const pinChar = (accessory as any).pinChar;
+    const onSetHandler = pinChar.onSet.mock.calls[0][0];
+
+    onSetHandler(100000);
+
+    expect(mockController.setS2Pin).not.toHaveBeenCalled();
+    expect(mockPlatform.log.warn).toHaveBeenCalled();
+  });
+
+  it('should skip controller cache repair once the migration version is recorded', () => {
+    const existingAccessory = new mockPlatform.api.platformAccessory();
+    existingAccessory.UUID = 'homebridge-zwave-usb-controller-305419896';
+    existingAccessory.context = { cacheRepairVersion: CONTROLLER_CACHE_REPAIR_VERSION };
+    existingAccessory.services = [
+      {
+        UUID: 'legacy-service',
+        displayName: 'Legacy',
+        characteristics: [{ UUID: 'legacy-char', displayName: 'Legacy Char' }],
+        removeCharacteristic: jest.fn(),
+      },
+    ];
+    existingAccessory.removeService = jest.fn();
+    mockPlatform.accessories = [existingAccessory];
+
+    accessory.stop();
+    accessory = new ControllerAccessory(mockPlatform, mockController);
+
+    expect(existingAccessory.removeService).not.toHaveBeenCalled();
+  });
+
+  it('should persist an existing controller accessory after one-time cache repair', () => {
+    const existingAccessory = new mockPlatform.api.platformAccessory();
+    existingAccessory.UUID = 'homebridge-zwave-usb-controller-305419896';
+    existingAccessory.context = {};
+    existingAccessory.services = [
+      {
+        UUID: MANAGER_SERVICE_UUID,
+        displayName: 'Legacy',
+        characteristics: [{ UUID: 'legacy-char', displayName: 'Legacy Char' }],
+        removeCharacteristic: jest.fn(),
+      },
+    ];
+    existingAccessory.removeService = jest.fn();
+    mockPlatform.accessories = [existingAccessory];
+
+    accessory.stop();
+    accessory = new ControllerAccessory(mockPlatform, mockController);
+
+    expect(mockPlatform.api.updatePlatformAccessories).toHaveBeenCalledWith([existingAccessory]);
   });
 });

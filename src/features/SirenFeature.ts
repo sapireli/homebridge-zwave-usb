@@ -1,5 +1,5 @@
 import { Service, CharacteristicValue } from 'homebridge';
-import { CommandClasses } from '@zwave-js/core';
+import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
@@ -24,7 +24,7 @@ export class SirenFeature extends BaseFeature {
      * VOLUME SUPPORT FIX: Add RotationSpeed characteristic if Sound Switch is supported
      * to act as a Volume slider in the Apple Home app.
      */
-    if (this.node.supportsCC(CommandClasses['Sound Switch'])) {
+    if (this.supportsCC(CommandClasses['Sound Switch'])) {
       if (!this.service.testCharacteristic(this.platform.Characteristic.RotationSpeed)) {
         this.service.addCharacteristic(this.platform.Characteristic.RotationSpeed);
       }
@@ -50,7 +50,7 @@ export class SirenFeature extends BaseFeature {
     const onVal = this.handleGetState();
     this.service.updateCharacteristic(this.platform.Characteristic.On, onVal);
 
-    if (this.node.supportsCC(CommandClasses['Sound Switch'])) {
+    if (this.supportsCC(CommandClasses['Sound Switch'])) {
       const volVal = this.handleGetVolume();
       this.service.updateCharacteristic(this.platform.Characteristic.RotationSpeed, volVal);
     }
@@ -112,7 +112,7 @@ export class SirenFeature extends BaseFeature {
       }
     }
 
-    if (this.node.ready === false || this.node.status === 3) {
+    if (this.node.ready === false || this.node.status === NodeStatus.Dead) {
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
 

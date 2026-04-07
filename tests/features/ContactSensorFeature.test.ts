@@ -152,4 +152,33 @@ describe('ContactSensorFeature', () => {
       platform.Characteristic.ContactSensorState.CONTACT_DETECTED,
     );
   });
+
+  it('should use endpoint-specific CC support when the node root does not advertise contact sensors', () => {
+    feature.init();
+    node.supportsCC.mockReturnValue(false);
+    endpoint.supportsCC = jest.fn().mockImplementation((cc) => cc === CommandClasses.Notification);
+    node.getValue.mockReturnValue(22);
+
+    feature.update();
+
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.ContactSensorState,
+      platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED,
+    );
+  });
+
+  it('should report closed when the node is alive but no cached value is present', () => {
+    feature.init();
+    node.ready = true as any;
+    node.status = 4 as any;
+    node.supportsCC.mockReturnValue(false);
+    node.getValue.mockReturnValue(undefined);
+
+    feature.update();
+
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.ContactSensorState,
+      platform.Characteristic.ContactSensorState.CONTACT_DETECTED,
+    );
+  });
 });

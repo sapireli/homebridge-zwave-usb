@@ -1,7 +1,9 @@
 import { Service } from 'homebridge';
-import { CommandClasses } from '@zwave-js/core';
+import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
+
+export const MOTION_CLEAR_TIMEOUT_MS = 30_000;
 
 /**
  * MotionSensorFeature maps Z-Wave Home Security notifications to HomeKit Motion Sensor.
@@ -61,7 +63,7 @@ export class MotionSensorFeature extends BaseFeature {
           this.motionState = false;
           this.clearTimer = undefined;
           this.service.updateCharacteristic(this.platform.Characteristic.MotionDetected, false);
-        }, 30000);
+        }, MOTION_CLEAR_TIMEOUT_MS);
         this.clearTimer.unref();
       } else {
         this.motionState = false;
@@ -79,7 +81,7 @@ export class MotionSensorFeature extends BaseFeature {
 
   private getSensorValue(): boolean {
     // 1. Check Notification CC (Home Security - Motion)
-    if (this.node.supportsCC(CommandClasses.Notification)) {
+    if (this.supportsCC(CommandClasses.Notification)) {
       const val =
         this.node.getValue({
           commandClass: CommandClasses.Notification,
@@ -111,7 +113,7 @@ export class MotionSensorFeature extends BaseFeature {
     }
 
     // 2. Fallback to Binary Sensor
-    if (this.node.supportsCC(CommandClasses['Binary Sensor'])) {
+    if (this.supportsCC(CommandClasses['Binary Sensor'])) {
       const value =
         this.node.getValue({
           commandClass: CommandClasses['Binary Sensor'],
@@ -134,7 +136,7 @@ export class MotionSensorFeature extends BaseFeature {
      * If the node is offline/not ready, propagate a HomeKit communication error.
      * Otherwise (healthy node, missing cache), return a safe default state.
      */
-    if (!this.node.ready || this.node.status === 4) {
+    if (!this.node.ready || this.node.status === NodeStatus.Dead) {
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
     return false;

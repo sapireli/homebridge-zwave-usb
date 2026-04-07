@@ -3,12 +3,15 @@ import { CommandClasses } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
+const RELEASE_DEDUPE_WINDOW_MS = 750;
+
 /**
  * CentralSceneFeature implements support for buttons and remotes.
  * It maps each 'scene' (button) to a separate StatelessProgrammableSwitch service.
  */
 export class CentralSceneFeature extends BaseFeature {
   private services = new Map<number, Service>();
+  private lastEmittedAction = new Map<number, { keyAttribute: number; emittedAt: number }>();
 
   init(): void {
     /**
@@ -105,6 +108,15 @@ export class CentralSceneFeature extends BaseFeature {
   }
 
   private triggerButton(sceneId: number, keyAttribute: number) {
+    const lastAction = this.lastEmittedAction.get(sceneId);
+    if (
+      keyAttribute === 1 &&
+      lastAction?.keyAttribute === 0 &&
+      Date.now() - lastAction.emittedAt <= RELEASE_DEDUPE_WINDOW_MS
+    ) {
+      return;
+    }
+
     const service = this.getOrCreateButtonService(sceneId);
 
     // Map Z-Wave keyAttribute to HomeKit ProgrammableSwitchEvent
@@ -132,6 +144,10 @@ export class CentralSceneFeature extends BaseFeature {
       service
         .getCharacteristic(this.platform.Characteristic.ProgrammableSwitchEvent)
         .updateValue(hkEvent);
+      this.lastEmittedAction.set(sceneId, {
+        keyAttribute,
+        emittedAt: Date.now(),
+      });
     }
   }
 }

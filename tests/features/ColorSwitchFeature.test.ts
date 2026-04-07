@@ -129,13 +129,41 @@ describe('ColorSwitchFeature', () => {
     await satHandler(100);
 
     // Should call setValue with Green component
-    // Note: setLinkColor uses hslToRgb(120, 100, 50) -> R=0, G=255, B=0
     expect(node.setValue).toHaveBeenCalledWith(
         expect.objectContaining({
             commandClass: 51,
             property: 'targetColor',
         }),
         expect.objectContaining({ green: 255 })
+    );
+  });
+
+  it('should preserve brightness when changing hue on a dimmed light', async () => {
+    const hueChar = service.getCharacteristic();
+    const hueHandler = hueChar.onSet.mock.calls[1][0];
+
+    node.getValue.mockImplementation((args: any) => {
+      if (args.commandClass === 38 && args.property === 'currentValue') {
+        return 25;
+      }
+      if (args.commandClass === 51 && args.property === 'currentColor') {
+        return { red: 64, green: 0, blue: 0, warmWhite: 0, coldWhite: 0 };
+      }
+      return undefined;
+    });
+
+    await hueHandler(120);
+
+    expect(node.setValue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commandClass: 51,
+        property: 'targetColor',
+      }),
+      expect.objectContaining({
+        red: 0,
+        green: 64,
+        blue: 0,
+      }),
     );
   });
 });

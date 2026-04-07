@@ -1,5 +1,5 @@
 import { Service } from 'homebridge';
-import { CommandClasses } from '@zwave-js/core';
+import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
@@ -39,7 +39,7 @@ export class CarbonMonoxideSensorFeature extends BaseFeature {
 
   private getSensorValue(): number {
     // 1. Check Notification CC (CO Alarm)
-    if (this.node.supportsCC(CommandClasses.Notification)) {
+    if (this.supportsCC(CommandClasses.Notification)) {
       const val =
         this.node.getValue({
           commandClass: CommandClasses.Notification,
@@ -62,7 +62,7 @@ export class CarbonMonoxideSensorFeature extends BaseFeature {
     }
 
     // 2. Fallback to Binary Sensor
-    if (this.node.supportsCC(CommandClasses['Binary Sensor'])) {
+    if (this.supportsCC(CommandClasses['Binary Sensor'])) {
       /**
        * CO2 FIX: Do not check for CO2 property here. Binary CO2 sensors are now
        * mapped to the MultilevelSensorFeature (Air Quality) in AccessoryFactory.
@@ -80,7 +80,7 @@ export class CarbonMonoxideSensorFeature extends BaseFeature {
       }
     }
 
-    if (this.node.ready === false || this.node.status === 3) {
+    if (this.node.ready === false || this.node.status === NodeStatus.Dead) {
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
 

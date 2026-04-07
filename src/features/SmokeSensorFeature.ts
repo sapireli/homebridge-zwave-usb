@@ -1,5 +1,5 @@
 import { Service } from 'homebridge';
-import { CommandClasses } from '@zwave-js/core';
+import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
@@ -39,7 +39,7 @@ export class SmokeSensorFeature extends BaseFeature {
 
   private getSensorValue(): number {
     // 1. Check Notification CC (Smoke Alarm)
-    if (this.node.supportsCC(CommandClasses.Notification)) {
+    if (this.supportsCC(CommandClasses.Notification)) {
       const val =
         this.node.getValue({
           commandClass: CommandClasses.Notification,
@@ -62,7 +62,7 @@ export class SmokeSensorFeature extends BaseFeature {
     }
 
     // 2. Fallback to Binary Sensor
-    if (this.node.supportsCC(CommandClasses['Binary Sensor'])) {
+    if (this.supportsCC(CommandClasses['Binary Sensor'])) {
       const value = this.node.getValue({
         commandClass: CommandClasses['Binary Sensor'],
         property: 'Smoke',
@@ -76,7 +76,7 @@ export class SmokeSensorFeature extends BaseFeature {
       }
     }
 
-    if (this.node.ready === false || this.node.status === 3) {
+    if (this.node.ready === false || this.node.status === NodeStatus.Dead) {
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
 

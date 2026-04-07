@@ -141,4 +141,18 @@ describe('SmokeSensorFeature', () => {
       platform.Characteristic.SmokeDetected.SMOKE_NOT_DETECTED,
     );
   });
+
+  it('should use endpoint-specific CC support when the node root does not advertise smoke sensors', () => {
+    feature.init();
+    node.supportsCC.mockReturnValue(false);
+    endpoint.supportsCC = jest.fn().mockImplementation((cc) => cc === CommandClasses.Notification);
+    node.getValue.mockReturnValue(1);
+
+    feature.update();
+
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.SmokeDetected,
+      platform.Characteristic.SmokeDetected.SMOKE_DETECTED,
+    );
+  });
 });

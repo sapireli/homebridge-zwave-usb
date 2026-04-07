@@ -1,5 +1,5 @@
 import { Service, CharacteristicValue } from 'homebridge';
-import { CommandClasses } from '@zwave-js/core';
+import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { BaseFeature } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
@@ -75,7 +75,7 @@ export class LockFeature extends BaseFeature {
       return this.mapZWaveToHomeKit(Number(value));
     }
 
-    if (this.node.ready === false || this.node.status === 3) {
+    if (this.node.ready === false || this.node.status === NodeStatus.Dead) {
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
 
@@ -116,7 +116,7 @@ export class LockFeature extends BaseFeature {
       }
     }
 
-    if (this.node.ready === false || this.node.status === 3) {
+    if (this.node.ready === false || this.node.status === NodeStatus.Dead) {
       throw new this.platform.api.hap.HapStatusError(-70402);
     }
 

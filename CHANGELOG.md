@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0-beta.2] - 2026-04-07
+
+### Changed
+- **Accessory Lifecycle Stabilization:** Reworked accessory creation, naming, cache repair, and graph reconciliation so HomeKit objects stay stable during startup, sleeping-node refreshes, and capability changes.
+- **Semantic Behavior Sweep:** Corrected feature-level behavior for color, thermostat, motion, sensor, and central-scene handling so runtime state matches HomeKit expectations more closely.
+- **UI/IPC Hardening:** Split config UI validation into reusable helpers and tightened the Homebridge UI server so backend errors now surface correctly instead of appearing successful.
+
+### Fixed
+- **Name/Settings Reliability:** Removed destructive rename recreation and sticky plugin-side name ownership, while preserving explicit plugin renames and stable cached HomeKit names.
+- **HAP Compliance and Cache Repair:** Limited metadata and health characteristics to HAP-supported services, moved stale repair into one-time migrations, and added validator-backed schema regression coverage.
+- **Sensor and Status Correctness:** Fixed endpoint-aware CC detection, `NodeStatus` handling, motion timeout consistency, air-quality thresholds, tamper/fault updates, and actuator/sensor fallback semantics.
+- **Central Scene Duplicates:** Prevented duplicate HomeKit single-press events on remotes that emit both press and immediate release for the same tap.
+- **S2 PIN Flow:** Added direct coverage for HomeKit S2 PIN writes and the inclusion callback path, while hardening security-key validation in the config UI.
+- **Controller and Maintenance Paths:** Hardened stale-accessory cleanup, controller service migration, explicit maintenance actions, and IPC wiring across the Homebridge UI.
+
 ## [3.6.0-beta.1] - 2026-04-06
 
 ### Fixed
