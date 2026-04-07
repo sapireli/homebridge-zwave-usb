@@ -33,6 +33,8 @@ export class ControllerAccessory {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private handlers: Record<string, (...args: any[]) => void> = {};
 
+  private static readonly CONTROLLER_SERVICE_LABEL_NAMESPACE = 1;
+
   constructor(
     private readonly platform: ZWaveUsbPlatform,
     private readonly controller: IZWaveController,
@@ -68,8 +70,6 @@ export class ControllerAccessory {
      * Helper to normalize UUIDs for reliable comparison during metadata pruning.
      */
     const normalizeUuid = (u: string) => u.replace(/-/g, '').toUpperCase();
-    const getCharacteristicUuid = (characteristicType: { UUID?: string } | string) =>
-      typeof characteristicType === 'string' ? characteristicType : (characteristicType.UUID ?? '');
 
     const infoService = this.platformAccessory.getService(
       this.platform.Service.AccessoryInformation,
@@ -114,27 +114,7 @@ export class ControllerAccessory {
           }
         });
 
-        const serviceLabelIndexUuid = normalizeUuid(
-          getCharacteristicUuid(this.platform.Characteristic.ServiceLabelIndex),
-        );
-        const serviceLabelNamespaceUuid = normalizeUuid(
-          getCharacteristicUuid(this.platform.Characteristic.ServiceLabelNamespace),
-        );
-        service.characteristics.slice().forEach((found) => {
-          const charUuidNorm = normalizeUuid(found.UUID);
-          if (charUuidNorm === serviceLabelIndexUuid) {
-            this.platform.log.info(
-              `Pruning unsupported ServiceLabelIndex from ${service.displayName}`,
-            );
-            service.removeCharacteristic(found);
-          }
-          if (service === infoService && charUuidNorm === serviceLabelNamespaceUuid) {
-            this.platform.log.info(
-              `Pruning unsupported ServiceLabelNamespace from ${service.displayName}`,
-            );
-            service.removeCharacteristic(found);
-          }
-        });
+        // Intentionally preserve controller-only label metadata for Apple Home UI clarity.
       });
 
       const canonicalSwitchSubtypes = new Set(['Inclusion', 'Exclusion', 'Heal', 'Prune']);
@@ -170,9 +150,7 @@ export class ControllerAccessory {
       context.cacheRepairVersion = CONTROLLER_CACHE_REPAIR_VERSION;
     }
 
-    if (existingAccessory && didRepairCache) {
-      this.platform.api.updatePlatformAccessories([this.platformAccessory]);
-    }
+    let didUpdateLabelMetadata = this.ensureControllerServiceLabelNamespace(infoService);
 
     // --- 1. System Status Service (Custom Service) ---
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -191,6 +169,8 @@ export class ControllerAccessory {
         perms: [HAPPerm.PAIRED_READ as any],
       })
       .updateValue('System Status');
+    didUpdateLabelMetadata =
+      this.ensureControllerServiceLabelIndex(this.statusService, 1) || didUpdateLabelMetadata;
 
     // System Status Characteristic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -228,6 +208,8 @@ export class ControllerAccessory {
         perms: [HAPPerm.PAIRED_READ as any],
       })
       .updateValue('Inclusion Mode');
+    didUpdateLabelMetadata =
+      this.ensureControllerServiceLabelIndex(this.inclusionService, 2) || didUpdateLabelMetadata;
 
     // --- 3. Exclusion Mode Switch ---
     this.exclusionService =
@@ -247,6 +229,8 @@ export class ControllerAccessory {
         perms: [HAPPerm.PAIRED_READ as any],
       })
       .updateValue('Exclusion Mode');
+    didUpdateLabelMetadata =
+      this.ensureControllerServiceLabelIndex(this.exclusionService, 3) || didUpdateLabelMetadata;
 
     // --- 4. Heal Network Switch ---
     this.healService =
@@ -262,6 +246,8 @@ export class ControllerAccessory {
         perms: [HAPPerm.PAIRED_READ as any],
       })
       .updateValue('Heal Network');
+    didUpdateLabelMetadata =
+      this.ensureControllerServiceLabelIndex(this.healService, 4) || didUpdateLabelMetadata;
 
     // --- 5. Prune Dead Nodes Switch ---
     this.pruneService =
@@ -277,6 +263,8 @@ export class ControllerAccessory {
         perms: [HAPPerm.PAIRED_READ as any],
       })
       .updateValue('Prune Dead Nodes');
+    didUpdateLabelMetadata =
+      this.ensureControllerServiceLabelIndex(this.pruneService, 5) || didUpdateLabelMetadata;
 
     // Setup Switch characteristic Handlers
     this.inclusionService
@@ -309,6 +297,10 @@ export class ControllerAccessory {
     this.healService.updateCharacteristic(this.platform.Characteristic.On, false);
     this.pruneService.updateCharacteristic(this.platform.Characteristic.On, false);
 
+    if (existingAccessory && (didRepairCache || didUpdateLabelMetadata)) {
+      this.platform.api.updatePlatformAccessories([this.platformAccessory]);
+    }
+
     // --- Listen for controller events to sync state ---
     this.setupControllerHandlers();
   }
@@ -326,6 +318,42 @@ export class ControllerAccessory {
 
       return serviceSubtype === subtype;
     });
+  }
+
+  private ensureControllerServiceLabelNamespace(infoService: Service): boolean {
+    let didChange = false;
+
+    if (!infoService.testCharacteristic(this.platform.Characteristic.ServiceLabelNamespace)) {
+      infoService.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelNamespace);
+      didChange = true;
+    }
+
+    const namespaceChar = infoService.getCharacteristic(
+      this.platform.Characteristic.ServiceLabelNamespace,
+    );
+    if (namespaceChar.value !== ControllerAccessory.CONTROLLER_SERVICE_LABEL_NAMESPACE) {
+      namespaceChar.updateValue(ControllerAccessory.CONTROLLER_SERVICE_LABEL_NAMESPACE);
+      didChange = true;
+    }
+
+    return didChange;
+  }
+
+  private ensureControllerServiceLabelIndex(service: Service, index: number): boolean {
+    let didChange = false;
+
+    if (!service.testCharacteristic(this.platform.Characteristic.ServiceLabelIndex)) {
+      service.addOptionalCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
+      didChange = true;
+    }
+
+    const labelIndexChar = service.getCharacteristic(this.platform.Characteristic.ServiceLabelIndex);
+    if (labelIndexChar.value !== index) {
+      labelIndexChar.updateValue(index);
+      didChange = true;
+    }
+
+    return didChange;
   }
 
   private setupControllerHandlers() {

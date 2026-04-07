@@ -145,6 +145,35 @@ describe('ControllerAccessory', () => {
     expect(accessory).toBeDefined();
   });
 
+  it('should restore controller-only service label metadata for Home app labels', () => {
+    const infoServices = accessory.platformAccessory.getService.mock.results.map(
+      (result) => result.value,
+    );
+
+    expect(
+      infoServices.some((service) =>
+        service.getCharacteristic.mock.calls.some(
+          ([characteristic]) => characteristic === mockPlatform.Characteristic.ServiceLabelNamespace,
+        ),
+      ),
+    ).toBe(true);
+    expect((accessory as any).statusService.getCharacteristic).toHaveBeenCalledWith(
+      mockPlatform.Characteristic.ServiceLabelIndex,
+    );
+    expect((accessory as any).inclusionService.getCharacteristic).toHaveBeenCalledWith(
+      mockPlatform.Characteristic.ServiceLabelIndex,
+    );
+    expect((accessory as any).exclusionService.getCharacteristic).toHaveBeenCalledWith(
+      mockPlatform.Characteristic.ServiceLabelIndex,
+    );
+    expect((accessory as any).healService.getCharacteristic).toHaveBeenCalledWith(
+      mockPlatform.Characteristic.ServiceLabelIndex,
+    );
+    expect((accessory as any).pruneService.getCharacteristic).toHaveBeenCalledWith(
+      mockPlatform.Characteristic.ServiceLabelIndex,
+    );
+  });
+
   it('should handle inclusion start request', async () => {
     await (accessory as any).handleSetInclusion(true);
     expect(mockController.startInclusion).toHaveBeenCalled();
@@ -327,5 +356,84 @@ describe('ControllerAccessory', () => {
       expect.objectContaining({ UUID: MANAGER_SERVICE_UUID, subtype: 'Status' }),
     );
     expect((accessory as any).statusService).toBe(existingManagerService);
+  });
+
+  it('should persist restored controller label metadata on an existing accessory', () => {
+    const existingAccessory = new mockPlatform.api.platformAccessory();
+    existingAccessory.UUID = 'homebridge-zwave-usb-controller-305419896';
+    existingAccessory.context = { cacheRepairVersion: CONTROLLER_CACHE_REPAIR_VERSION };
+
+    const sharedChar = {
+      value: undefined,
+      onSet: jest.fn().mockReturnThis(),
+      updateValue: jest.fn().mockReturnThis(),
+      setProps: jest.fn().mockReturnThis(),
+      props: {},
+    };
+    const createService = (uuid: string, subtype?: string) => ({
+      UUID: uuid,
+      subtype,
+      displayName: subtype || uuid,
+      characteristics: [],
+      getCharacteristic: jest.fn().mockReturnValue(sharedChar),
+      testCharacteristic: jest.fn().mockImplementation((characteristic) => {
+        if (characteristic === mockPlatform.Characteristic.ServiceLabelNamespace) {
+          return false;
+        }
+        if (characteristic === mockPlatform.Characteristic.ServiceLabelIndex) {
+          return false;
+        }
+        return true;
+      }),
+      addOptionalCharacteristic: jest.fn(),
+      removeCharacteristic: jest.fn(),
+      updateCharacteristic: jest.fn(),
+      setCharacteristic: jest.fn().mockReturnThis(),
+    });
+
+    const infoService = createService('AccessoryInformation');
+    const managerService = createService(MANAGER_SERVICE_UUID, 'Status');
+    const inclusionService = createService('Switch', 'Inclusion');
+    const exclusionService = createService('Switch', 'Exclusion');
+    const healService = createService('Switch', 'Heal');
+    const pruneService = createService('Switch', 'Prune');
+
+    existingAccessory.services = [
+      infoService,
+      managerService,
+      inclusionService,
+      exclusionService,
+      healService,
+      pruneService,
+    ];
+    existingAccessory.getService = jest
+      .fn()
+      .mockImplementation((serviceType) =>
+        serviceType === mockPlatform.Service.AccessoryInformation ? infoService : undefined,
+      );
+    existingAccessory.getServiceById = jest.fn().mockImplementation((serviceType, subtype) => {
+      if (serviceType !== mockPlatform.Service.Switch) {
+        return undefined;
+      }
+      return {
+        Inclusion: inclusionService,
+        Exclusion: exclusionService,
+        Heal: healService,
+        Prune: pruneService,
+      }[subtype as 'Inclusion' | 'Exclusion' | 'Heal' | 'Prune'];
+    });
+    existingAccessory.addService = jest.fn();
+    mockPlatform.accessories = [existingAccessory];
+
+    accessory.stop();
+    accessory = new ControllerAccessory(mockPlatform, mockController);
+
+    expect(infoService.addOptionalCharacteristic).toHaveBeenCalledWith(
+      mockPlatform.Characteristic.ServiceLabelNamespace,
+    );
+    expect(inclusionService.addOptionalCharacteristic).toHaveBeenCalledWith(
+      mockPlatform.Characteristic.ServiceLabelIndex,
+    );
+    expect(mockPlatform.api.updatePlatformAccessories).toHaveBeenCalledWith([existingAccessory]);
   });
 });

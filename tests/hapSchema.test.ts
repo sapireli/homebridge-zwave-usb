@@ -520,7 +520,7 @@ describe('HAP service compliance', () => {
     expect(endpointSwitchService?.subtype).toBe('2');
   });
 
-  it('keeps controller switch services within the HAP characteristic set', () => {
+  it('keeps controller-only label metadata isolated to the controller accessory', () => {
     const platform = createPlatform();
     const controller = {
       homeId: 12345,
@@ -540,6 +540,24 @@ describe('HAP service compliance', () => {
     const controllerAccessory = new ControllerAccessory(platform as never, controller as never);
 
     for (const service of controllerAccessory.platformAccessory.services) {
+      if (service.UUID === Service.AccessoryInformation.UUID) {
+        const emitted = [...service.characteristics, ...service.optionalCharacteristics].map(
+          (char) => char.displayName,
+        );
+
+        for (const charName of emitted) {
+          if (charName === 'Service Label Namespace') {
+            continue;
+          }
+          expect(
+            allowedCharacteristicNames(
+              new Service.AccessoryInformation() as InstanceType<typeof Service.AccessoryInformation>,
+            ).has(charName),
+          ).toBe(true);
+        }
+        continue;
+      }
+
       if (service.UUID !== Service.Switch.UUID) {
         continue;
       }
@@ -553,6 +571,9 @@ describe('HAP service compliance', () => {
       );
 
       for (const charName of emitted) {
+        if (charName === 'Service Label Index') {
+          continue;
+        }
         expect(allowed.has(charName)).toBe(true);
       }
     }

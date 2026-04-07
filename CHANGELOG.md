@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0-beta.10] - 2026-04-07
+
+### Fixed
+- **Controller Home App Labels:** Restored the old controller-only label metadata path by reintroducing `ServiceLabelNamespace` on the controller accessory and `ServiceLabelIndex` on the controller action services (`System Status`, `Inclusion`, `Exclusion`, `Heal`, `Prune`).
+- **Controller Upgrade Persistence:** Existing cached controller accessories now restore and persist the label metadata on upgrade so the Home app can pick up the old controller switch labels again without rebuilding the bridge identity.
+- **Regression Coverage:** Added controller-specific tests to verify the label metadata is emitted and persisted while keeping the exception isolated to the controller accessory path.
+
 ## [3.6.0-beta.9] - 2026-04-07
 
 ### Fixed
