@@ -95,7 +95,7 @@ describe('ContactSensorFeature', () => {
 
   it('should initialize ContactSensor service', () => {
     feature.init();
-    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.ContactSensor, '0');
+    expect(accessory.getService).toHaveBeenCalledWith(platform.Service.ContactSensor);
   });
 
   it('should read Notification CC (Access Control) - Closed (23)', () => {

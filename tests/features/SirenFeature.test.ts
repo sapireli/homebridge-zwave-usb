@@ -86,7 +86,7 @@ describe('SirenFeature', () => {
   });
 
   it('should initialize siren as a Fan service', () => {
-    expect(accessory.platformAccessory.getServiceById).toHaveBeenCalledWith('Fan', '0');
+    expect(accessory.platformAccessory.getService).toHaveBeenCalledWith('Fan');
   });
 
   it('should update state from Sound Switch report', () => {

@@ -81,7 +81,7 @@ describe('ColorSwitchFeature', () => {
   });
 
   it('should initialize lightbulb service', () => {
-    expect(accessory.platformAccessory.getServiceById).toHaveBeenCalledWith('Lightbulb', '0');
+    expect(accessory.platformAccessory.getService).toHaveBeenCalledWith('Lightbulb');
   });
 
   it('should update state from Z-Wave', () => {

@@ -102,7 +102,7 @@ describe('LockFeature', () => {
 
   it('should initialize LockMechanism service', () => {
     feature.init();
-    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.LockMechanism, '0');
+    expect(accessory.getService).toHaveBeenCalledWith(platform.Service.LockMechanism);
   });
 
   it('should update Lock Current State (Secured -> 255)', () => {

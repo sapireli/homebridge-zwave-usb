@@ -21,6 +21,26 @@ import { ColorSwitchFeature } from '../features/ColorSwitchFeature';
 import { SirenFeature } from '../features/SirenFeature';
 
 export class AccessoryFactory {
+  private static readonly FEATURE_CATEGORY_PRIORITY: Array<[string, number]> = [
+    ['garage-door', 4],
+    ['lock', 6],
+    ['thermostat', 9],
+    ['window-covering', 14],
+    ['central-scene', 15],
+    ['color-switch', 5],
+    ['multilevel-switch', 5],
+    ['binary-switch', 8],
+    ['siren', 3],
+    ['leak-sensor', 10],
+    ['motion-sensor', 10],
+    ['contact-sensor', 10],
+    ['smoke-sensor', 10],
+    ['carbon-monoxide-sensor', 10],
+    ['multilevel-sensor', 10],
+    ['multilevel-sensor-skip-temperature', 10],
+    ['battery', 10],
+  ];
+
   private static readonly FEATURE_ATTACHERS: Record<
     string,
     (
@@ -149,8 +169,13 @@ export class AccessoryFactory {
     node: IZWaveNode,
     homeId: number,
   ): ZWaveAccessory {
-    const accessory = new ZWaveAccessory(platform, node, homeId);
     const featurePlans = this.getFeaturePlans(node);
+    const accessory = new ZWaveAccessory(
+      platform,
+      node,
+      homeId,
+      this.getCategory(featurePlans),
+    );
     const graphSignature = this.getGraphSignature(node);
 
     for (const { endpoint, featureKinds } of featurePlans) {
@@ -160,6 +185,20 @@ export class AccessoryFactory {
     accessory.setGraphSignature(graphSignature);
 
     return accessory;
+  }
+
+  private static getCategory(
+    featurePlans: Array<{ endpoint: Endpoint; featureKinds: string[] }>,
+  ): number {
+    const featureKinds = new Set(featurePlans.flatMap(({ featureKinds }) => featureKinds));
+
+    for (const [featureKind, category] of this.FEATURE_CATEGORY_PRIORITY) {
+      if (featureKinds.has(featureKind)) {
+        return category;
+      }
+    }
+
+    return 1;
   }
 
   private static getHandledByEndpoints(

@@ -92,7 +92,7 @@ describe('MotionSensorFeature', () => {
 
   it('should initialize MotionSensor service', () => {
     feature.init();
-    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.MotionSensor, '0');
+    expect(accessory.getService).toHaveBeenCalledWith(platform.Service.MotionSensor);
   });
 
   it('should detect motion via Notification CC (Home Security - 8)', () => {

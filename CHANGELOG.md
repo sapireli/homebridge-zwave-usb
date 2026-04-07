@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0-beta.3] - 2026-04-07
+
+### Fixed
+- **Home App Settings Compatibility:** Restored a writable `Configured Name` compatibility path on user-facing accessory services so the Home app can save accessory settings changes again instead of failing with "Could not change settings."
+- **Accessory Metadata Shape:** Assigned explicit HomeKit categories to standard node accessories and stopped emitting subtype `"0"` on root services so serialized HAP payloads more closely match normal Homebridge/HAP accessory shapes.
+- **Cache Repair Rules:** Preserved `Configured Name` on supported user-facing services during one-time cache repair while continuing to prune it from unsupported services like `BatteryService`.
+
 ## [3.6.0-beta.2] - 2026-04-07
 
 ### Changed

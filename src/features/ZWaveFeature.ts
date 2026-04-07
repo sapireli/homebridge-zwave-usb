@@ -8,6 +8,28 @@ const SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS = new Set([
   '000000D0-0000-1000-8000-0026BB765291', // Valve
 ]);
 
+const CONFIGURED_NAME_COMPAT_SERVICE_UUIDS = new Set([
+  '00000043-0000-1000-8000-0026BB765291', // Lightbulb
+  '00000047-0000-1000-8000-0026BB765291', // Outlet
+  '00000049-0000-1000-8000-0026BB765291', // Switch
+  '00000040-0000-1000-8000-0026BB765291', // Fan
+  '00000041-0000-1000-8000-0026BB765291', // GarageDoorOpener
+  '00000045-0000-1000-8000-0026BB765291', // LockMechanism
+  '0000004A-0000-1000-8000-0026BB765291', // Thermostat
+  '0000008C-0000-1000-8000-0026BB765291', // WindowCovering
+  '00000080-0000-1000-8000-0026BB765291', // ContactSensor
+  '00000083-0000-1000-8000-0026BB765291', // LeakSensor
+  '00000085-0000-1000-8000-0026BB765291', // MotionSensor
+  '00000087-0000-1000-8000-0026BB765291', // SmokeSensor
+  '0000007F-0000-1000-8000-0026BB765291', // CarbonMonoxideSensor
+  '0000008A-0000-1000-8000-0026BB765291', // TemperatureSensor
+  '00000082-0000-1000-8000-0026BB765291', // HumiditySensor
+  '00000084-0000-1000-8000-0026BB765291', // LightSensor
+  '0000008D-0000-1000-8000-0026BB765291', // AirQualitySensor
+  '00000097-0000-1000-8000-0026BB765291', // CarbonDioxideSensor
+  '00000089-0000-1000-8000-0026BB765291', // StatelessProgrammableSwitch
+]);
+
 export interface ZWaveFeature {
   init(): void;
   update(args?: ZWaveValueEvent): void;
@@ -109,6 +131,7 @@ export abstract class BaseFeature implements ZWaveFeature {
     name?: string,
     subType?: string,
   ): Service {
+    const normalizedSubType = subType && subType !== '0' ? subType : undefined;
     const serviceName =
       name ||
       (this.endpoint.index > 0
@@ -117,12 +140,14 @@ export abstract class BaseFeature implements ZWaveFeature {
 
     let service: Service | undefined;
     let wasCreated = false;
-    if (subType) {
+    if (normalizedSubType) {
       service =
-        this.accessory.getServiceById(serviceType, subType);
+        this.accessory.getServiceById(serviceType, normalizedSubType);
       if (!service) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        service = this.accessory.addService(new (serviceType as any)(serviceName, subType));
+        service = this.accessory.addService(
+          new (serviceType as any)(serviceName, normalizedSubType),
+        );
         wasCreated = true;
       }
     } else {
@@ -144,6 +169,8 @@ export abstract class BaseFeature implements ZWaveFeature {
       nameChar.updateValue(serviceName);
     }
 
+    this.ensureConfiguredNameCompatibility(service, serviceName, wasCreated);
+
     if (
       this.endpoint.index > 0 &&
       SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS.has(service.UUID)
@@ -158,5 +185,35 @@ export abstract class BaseFeature implements ZWaveFeature {
     }
 
     return service;
+  }
+
+  private ensureConfiguredNameCompatibility(
+    service: Service,
+    serviceName: string,
+    wasCreated: boolean,
+  ): void {
+    if (!CONFIGURED_NAME_COMPAT_SERVICE_UUIDS.has(service.UUID)) {
+      return;
+    }
+
+    const configuredNameType = this.platform.Characteristic.ConfiguredName;
+    const configuredNameUuid =
+      typeof configuredNameType === 'string'
+        ? configuredNameType
+        : configuredNameType.UUID;
+    const existingConfiguredName = service.characteristics?.find(
+      (characteristic) =>
+        characteristic.UUID === configuredNameUuid ||
+        characteristic === (configuredNameType as unknown as typeof characteristic),
+    );
+
+    if (!existingConfiguredName) {
+      service.addOptionalCharacteristic(configuredNameType);
+    }
+
+    const configuredName = service.getCharacteristic(configuredNameType);
+    if (wasCreated && (configuredName.value === undefined || configuredName.value === '')) {
+      configuredName.updateValue(serviceName);
+    }
   }
 }

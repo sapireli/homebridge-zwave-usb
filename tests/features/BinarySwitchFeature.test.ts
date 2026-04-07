@@ -129,9 +129,8 @@ describe('BinarySwitchFeature', () => {
 
   it('should initialize service', () => {
     feature.init();
-    // Since index is 0, subtype is "0".
-    // The BaseFeature.getService logic calls getServiceById if subType is present.
-    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.Switch, '0');
+    expect(accessory.getService).toHaveBeenCalledWith(platform.Service.Switch);
+    expect(accessory.getServiceById).not.toHaveBeenCalledWith(platform.Service.Switch, '0');
   });
 
   it('should not add unsupported health characteristics to switch services', () => {

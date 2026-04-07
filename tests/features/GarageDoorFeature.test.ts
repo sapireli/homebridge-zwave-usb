@@ -87,7 +87,7 @@ describe('GarageDoorFeature', () => {
   });
 
   it('should initialize garage door service', () => {
-    expect(accessory.platformAccessory.getServiceById).toHaveBeenCalledWith('GarageDoorOpener', '0');
+    expect(accessory.platformAccessory.getService).toHaveBeenCalledWith('GarageDoorOpener');
   });
 
   it('should update state from Barrier Operator report', () => {

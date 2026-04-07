@@ -95,7 +95,7 @@ describe('SmokeSensorFeature', () => {
 
   it('should initialize SmokeSensor service', () => {
     feature.init();
-    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.SmokeSensor, '0');
+    expect(accessory.getService).toHaveBeenCalledWith(platform.Service.SmokeSensor);
   });
 
   it('should detect smoke via Notification CC (Smoke Alarm - 1)', () => {

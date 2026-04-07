@@ -82,7 +82,7 @@ describe('WindowCoveringFeature', () => {
   });
 
   it('should initialize window covering service', () => {
-    expect(accessory.platformAccessory.getServiceById).toHaveBeenCalledWith('WindowCovering', '0');
+    expect(accessory.platformAccessory.getService).toHaveBeenCalledWith('WindowCovering');
   });
 
   it('should update current position from Multilevel Switch report', () => {

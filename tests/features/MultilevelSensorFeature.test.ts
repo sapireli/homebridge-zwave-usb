@@ -120,7 +120,7 @@ describe('MultilevelSensorFeature', () => {
       },
     ]);
     feature.init();
-    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.TemperatureSensor, '0');
+    expect(accessory.getService).toHaveBeenCalledWith(platform.Service.TemperatureSensor);
   });
 
   it('should convert Fahrenheit to Celsius', () => {
@@ -177,7 +177,7 @@ describe('MultilevelSensorFeature', () => {
       },
     ]);
     feature.init();
-    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.HumiditySensor, '0');
+    expect(accessory.getService).toHaveBeenCalledWith(platform.Service.HumiditySensor);
   });
 
   it('should update Humidity', () => {
@@ -218,7 +218,7 @@ describe('MultilevelSensorFeature', () => {
 
     feature.init();
 
-    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.CarbonDioxideSensor, '0');
+    expect(accessory.getService).toHaveBeenCalledWith(platform.Service.CarbonDioxideSensor);
   });
 
   it('should map intermediate and poor air quality thresholds correctly', () => {

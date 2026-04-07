@@ -92,7 +92,7 @@ describe('LeakSensorFeature', () => {
 
   it('should initialize LeakSensor service', () => {
     feature.init();
-    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.LeakSensor, '0');
+    expect(accessory.getService).toHaveBeenCalledWith(platform.Service.LeakSensor);
   });
 
   it('should detect leak via Notification CC (Water Alarm - 2)', () => {

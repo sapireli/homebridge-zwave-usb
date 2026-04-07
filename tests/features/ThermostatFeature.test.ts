@@ -94,8 +94,7 @@ describe('ThermostatFeature', () => {
   });
 
   it('should initialize thermostat service', () => {
-    // Because endpoint index is 0, subtype is '0', so it calls getServiceById
-    expect(accessory.platformAccessory.getServiceById).toHaveBeenCalledWith('Thermostat', '0');
+    expect(accessory.platformAccessory.getService).toHaveBeenCalledWith('Thermostat');
   });
 
   it('should update current temperature', () => {

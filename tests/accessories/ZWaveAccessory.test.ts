@@ -235,15 +235,15 @@ describe('ZWaveAccessory', () => {
     ]);
   });
 
-  it('should prune cached ConfiguredName from functional services', () => {
+  it('should prune cached ConfiguredName from unsupported services', () => {
     const configuredNameChar = {
       UUID: platform.Characteristic.ConfiguredName,
       value: 'Cached Name',
       updateValue: jest.fn(),
     };
-    const cachedSwitchService = {
+    const cachedBatteryService = {
       ...mockService,
-      UUID: '00000049-0000-1000-8000-0026BB765291',
+      UUID: '00000096-0000-1000-8000-0026BB765291',
       testCharacteristic: jest.fn().mockImplementation(
         (char) => char === platform.Characteristic.ConfiguredName,
       ),
@@ -262,10 +262,10 @@ describe('ZWaveAccessory', () => {
         .mockImplementation((serviceType: string) =>
           serviceType === platform.Service.AccessoryInformation ? mockService : undefined,
         ),
-      getServiceById: jest.fn().mockReturnValue(cachedSwitchService),
-      addService: jest.fn().mockReturnValue(cachedSwitchService),
+      getServiceById: jest.fn().mockReturnValue(cachedBatteryService),
+      addService: jest.fn().mockReturnValue(cachedBatteryService),
       removeService: jest.fn(),
-      services: [mockService, cachedSwitchService],
+      services: [mockService, cachedBatteryService],
       displayName: 'HomeKit Custom Name',
       UUID: 'test-uuid',
       context: { nodeId: 2, homeId: 12345 },
@@ -278,7 +278,7 @@ describe('ZWaveAccessory', () => {
       12345,
     );
 
-    expect(cachedSwitchService.removeCharacteristic).toHaveBeenCalledWith(configuredNameChar);
+    expect(cachedBatteryService.removeCharacteristic).toHaveBeenCalledWith(configuredNameChar);
     expect(cachedAccessory.context.cacheRepairVersion).toBe(ACCESSORY_CACHE_REPAIR_VERSION);
     expect(platform.api.updatePlatformAccessories).toHaveBeenCalledWith([cachedAccessory]);
   });

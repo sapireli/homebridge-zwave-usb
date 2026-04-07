@@ -92,7 +92,7 @@ describe('MultilevelSwitchFeature', () => {
 
   it('should initialize Lightbulb service', () => {
     feature.init();
-    expect(accessory.getServiceById).toHaveBeenCalledWith(platform.Service.Lightbulb, '0');
+    expect(accessory.getService).toHaveBeenCalledWith(platform.Service.Lightbulb);
   });
 
   it('should update On state (Value > 0)', () => {

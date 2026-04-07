@@ -1,4 +1,4 @@
-import { Accessory, Characteristic, HapStatusError, Service, uuid } from 'hap-nodejs';
+import { Accessory, Categories, Characteristic, HapStatusError, Service, uuid } from 'hap-nodejs';
 import { IdentifierCache } from 'hap-nodejs/dist/lib/model/IdentifierCache';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { AccessoryFactory } from '../src/accessories/AccessoryFactory';
@@ -135,6 +135,27 @@ function allowedCharacteristicNames(service: InstanceType<typeof Service.Accesso
     [...service.characteristics, ...service.optionalCharacteristics].map((char) => char.displayName),
   );
 }
+
+const CONFIGURED_NAME_COMPAT_SERVICE_TYPES = new Set([
+  Service.Switch.UUID,
+  Service.Lightbulb.UUID,
+  Service.Fan.UUID,
+  Service.GarageDoorOpener.UUID,
+  Service.LockMechanism.UUID,
+  Service.Thermostat.UUID,
+  Service.WindowCovering.UUID,
+  Service.ContactSensor.UUID,
+  Service.LeakSensor.UUID,
+  Service.MotionSensor.UUID,
+  Service.SmokeSensor.UUID,
+  Service.CarbonMonoxideSensor.UUID,
+  Service.TemperatureSensor.UUID,
+  Service.HumiditySensor.UUID,
+  Service.LightSensor.UUID,
+  Service.AirQualitySensor.UUID,
+  Service.CarbonDioxideSensor.UUID,
+  Service.StatelessProgrammableSwitch.UUID,
+]);
 
 describe('HAP service compliance', () => {
   const scenarios: Scenario[] = [
@@ -357,6 +378,9 @@ describe('HAP service compliance', () => {
 
         const reference = new (service.constructor as typeof Service)(service.displayName, service.subtype);
         const allowed = allowedCharacteristicNames(reference as InstanceType<typeof Service.AccessoryInformation>);
+        if (CONFIGURED_NAME_COMPAT_SERVICE_TYPES.has(service.UUID)) {
+          allowed.add('Configured Name');
+        }
 
         const emitted = [...service.characteristics, ...service.optionalCharacteristics].map(
           (char) => char.displayName,
@@ -369,7 +393,7 @@ describe('HAP service compliance', () => {
     });
   }
 
-  it('does not publish Configured Name on switch services', async () => {
+  it('publishes Configured Name on switch services for Home app settings compatibility', async () => {
     const accessory = buildAccessory({
       label: 'Binary Switch',
       supportsCC: [CommandClasses['Binary Switch']],
@@ -384,10 +408,10 @@ describe('HAP service compliance', () => {
     expect(switchService?.primary).toBeUndefined();
     expect(
       switchService?.characteristics.some((characteristic) => characteristic.type === 'E3'),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it('does not publish Configured Name on leak services', async () => {
+  it('publishes Configured Name on leak services for Home app settings compatibility', async () => {
     const accessory = buildAccessory({
       label: 'Leak Notification',
       supportsCC: [CommandClasses.Notification],
@@ -407,7 +431,69 @@ describe('HAP service compliance', () => {
     expect(leakService?.primary).toBeUndefined();
     expect(
       leakService?.characteristics.some((characteristic) => characteristic.type === 'E3'),
-    ).toBe(false);
+    ).toBe(true);
+  });
+
+  it('uses explicit HomeKit categories for standard accessory types', () => {
+    const switchAccessory = buildAccessory({
+      label: 'Binary Switch',
+      supportsCC: [CommandClasses['Binary Switch']],
+      definedValueIDs: [
+        { commandClass: CommandClasses['Binary Switch'], endpoint: 0, property: 'currentValue' },
+      ],
+    });
+    const leakAccessory = buildAccessory({
+      label: 'Leak Notification',
+      supportsCC: [CommandClasses.Notification],
+      definedValueIDs: [
+        {
+          commandClass: CommandClasses.Notification,
+          endpoint: 0,
+          property: 'Water Alarm',
+          propertyKey: 'Water leak status',
+        },
+      ],
+    });
+    const thermostatAccessory = buildAccessory({
+      label: 'Thermostat',
+      supportsCC: [CommandClasses['Thermostat Mode']],
+      definedValueIDs: [
+        { commandClass: CommandClasses['Thermostat Mode'], endpoint: 0, property: 'mode' },
+      ],
+    });
+
+    expect(switchAccessory.category).toBe(Categories.SWITCH);
+    expect(leakAccessory.category).toBe(Categories.SENSOR);
+    expect(thermostatAccessory.category).toBe(Categories.THERMOSTAT);
+  });
+
+  it('omits subtype for root services but keeps it for non-root endpoints', () => {
+    const rootLeakAccessory = buildAccessory({
+      label: 'Leak Notification',
+      supportsCC: [CommandClasses.Notification],
+      definedValueIDs: [
+        {
+          commandClass: CommandClasses.Notification,
+          endpoint: 0,
+          property: 'Water Alarm',
+          propertyKey: 'Water leak status',
+        },
+      ],
+    });
+    const endpointSwitchAccessory = buildAccessory({
+      label: 'Binary Switch Endpoint',
+      endpointIndex: 2,
+      supportsCC: [CommandClasses['Binary Switch']],
+      definedValueIDs: [
+        { commandClass: CommandClasses['Binary Switch'], endpoint: 2, property: 'currentValue' },
+      ],
+    });
+
+    const rootLeakService = rootLeakAccessory.getService(Service.LeakSensor);
+    const endpointSwitchService = endpointSwitchAccessory.getServiceById(Service.Switch, '2');
+
+    expect(rootLeakService?.subtype).toBeUndefined();
+    expect(endpointSwitchService?.subtype).toBe('2');
   });
 
   it('keeps controller switch services within the HAP characteristic set', () => {

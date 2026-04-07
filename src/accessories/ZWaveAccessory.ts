@@ -36,6 +36,28 @@ const SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS = new Set([
   '000000D0-0000-1000-8000-0026BB765291', // Valve
 ]);
 
+const CONFIGURED_NAME_COMPAT_SERVICE_UUIDS = new Set([
+  '00000043-0000-1000-8000-0026BB765291', // Lightbulb
+  '00000047-0000-1000-8000-0026BB765291', // Outlet
+  '00000049-0000-1000-8000-0026BB765291', // Switch
+  '00000040-0000-1000-8000-0026BB765291', // Fan
+  '00000041-0000-1000-8000-0026BB765291', // GarageDoorOpener
+  '00000045-0000-1000-8000-0026BB765291', // LockMechanism
+  '0000004A-0000-1000-8000-0026BB765291', // Thermostat
+  '0000008C-0000-1000-8000-0026BB765291', // WindowCovering
+  '00000080-0000-1000-8000-0026BB765291', // ContactSensor
+  '00000083-0000-1000-8000-0026BB765291', // LeakSensor
+  '00000085-0000-1000-8000-0026BB765291', // MotionSensor
+  '00000087-0000-1000-8000-0026BB765291', // SmokeSensor
+  '0000007F-0000-1000-8000-0026BB765291', // CarbonMonoxideSensor
+  '0000008A-0000-1000-8000-0026BB765291', // TemperatureSensor
+  '00000082-0000-1000-8000-0026BB765291', // HumiditySensor
+  '00000084-0000-1000-8000-0026BB765291', // LightSensor
+  '0000008D-0000-1000-8000-0026BB765291', // AirQualitySensor
+  '00000097-0000-1000-8000-0026BB765291', // CarbonDioxideSensor
+  '00000089-0000-1000-8000-0026BB765291', // StatelessProgrammableSwitch
+]);
+
 export class ZWaveAccessory {
   public readonly platformAccessory: PlatformAccessory;
   private features: ZWaveFeature[] = [];
@@ -45,6 +67,7 @@ export class ZWaveAccessory {
     public readonly platform: ZWaveUsbPlatform,
     public node: IZWaveNode,
     public readonly homeId: number,
+    private readonly category = 1,
   ) {
     // WARNING: This UUID generation string MUST NOT BE CHANGED!
     // This deterministic string ensures that devices maintain the same HomeKit identity across restarts.
@@ -91,11 +114,21 @@ export class ZWaveAccessory {
       this.platformAccessory = existingAccessory;
     } else {
       this.platform.log.info(`Creating new accessory for ${nodeName} (UUID: ${uuid})`);
-      this.platformAccessory = new this.platform.api.platformAccessory(nodeName, uuid);
+      this.platformAccessory = new this.platform.api.platformAccessory(
+        nodeName,
+        uuid,
+        this.category,
+      );
       this.platform.api.registerPlatformAccessories('homebridge-zwave-usb', 'ZWaveUSB', [
         this.platformAccessory,
       ]);
       this.platform.accessories.push(this.platformAccessory);
+    }
+
+    let didUpdateCategory = false;
+    if (this.platformAccessory.category !== this.category) {
+      this.platformAccessory.category = this.category;
+      didUpdateCategory = !!existingAccessory;
     }
 
     const context = ((this.platformAccessory.context as {
@@ -148,7 +181,7 @@ export class ZWaveAccessory {
       context.cacheRepairVersion = ACCESSORY_CACHE_REPAIR_VERSION;
     }
 
-    if (existingAccessory && didRepairCache) {
+    if (existingAccessory && (didRepairCache || didUpdateCategory)) {
       this.platform.api.updatePlatformAccessories([this.platformAccessory]);
     }
   }
@@ -312,8 +345,13 @@ export class ZWaveAccessory {
         return;
       }
 
-      if (service.testCharacteristic(this.platform.Characteristic.ConfiguredName)) {
-        service.removeCharacteristic(service.getCharacteristic(this.platform.Characteristic.ConfiguredName));
+      if (
+        service.testCharacteristic(this.platform.Characteristic.ConfiguredName) &&
+        !CONFIGURED_NAME_COMPAT_SERVICE_UUIDS.has(service.UUID)
+      ) {
+        service.removeCharacteristic(
+          service.getCharacteristic(this.platform.Characteristic.ConfiguredName),
+        );
       }
     });
   }

@@ -1,4 +1,5 @@
 import { CommandClasses } from '@zwave-js/core';
+import { Categories } from 'homebridge';
 import { AccessoryFactory } from '../../src/accessories/AccessoryFactory';
 import { LockFeature } from '../../src/features/LockFeature';
 import { ZWaveAccessory } from '../../src/accessories/ZWaveAccessory';
@@ -132,6 +133,51 @@ describe('AccessoryFactory', () => {
     // To really test it, we should mock the feature classes.
     const zAccessory = AccessoryFactory.create(platform, node, 123);
     expect(zAccessory).toBeDefined();
+  });
+
+  it('should assign SWITCH category to binary switch accessories', () => {
+    const ep0 = {
+      index: 0,
+      supportsCC: jest.fn().mockImplementation((cc) => cc === CommandClasses['Binary Switch']),
+    };
+
+    node.getAllEndpoints.mockReturnValue([ep0]);
+    node.getDefinedValueIDs.mockReturnValue([
+      { endpoint: 0, commandClass: CommandClasses['Binary Switch'], property: 'currentValue' },
+    ]);
+
+    AccessoryFactory.create(platform, node, 123);
+
+    expect(platform.api.platformAccessory).toHaveBeenCalledWith(
+      expect.any(String),
+      'test-uuid',
+      Categories.SWITCH,
+    );
+  });
+
+  it('should assign SENSOR category to leak sensor accessories', () => {
+    const ep0 = {
+      index: 0,
+      supportsCC: jest.fn().mockImplementation((cc) => cc === CommandClasses.Notification),
+    };
+
+    node.getAllEndpoints.mockReturnValue([ep0]);
+    node.getDefinedValueIDs.mockReturnValue([
+      {
+        endpoint: 0,
+        commandClass: CommandClasses.Notification,
+        property: 'Water Alarm',
+        propertyKey: 'Water leak status',
+      },
+    ]);
+
+    AccessoryFactory.create(platform, node, 123);
+
+    expect(platform.api.platformAccessory).toHaveBeenCalledWith(
+      expect.any(String),
+      'test-uuid',
+      Categories.SENSOR,
+    );
   });
 
   it('should attach LockFeature when endpoint supports Door Lock CC only', () => {

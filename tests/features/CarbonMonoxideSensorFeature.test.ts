@@ -95,10 +95,7 @@ describe('CarbonMonoxideSensorFeature', () => {
 
   it('should initialize CarbonMonoxideSensor service', () => {
     feature.init();
-    expect(accessory.getServiceById).toHaveBeenCalledWith(
-      platform.Service.CarbonMonoxideSensor,
-      '0',
-    );
+    expect(accessory.getService).toHaveBeenCalledWith(platform.Service.CarbonMonoxideSensor);
   });
 
   it('should detect CO via Notification CC (CO Alarm - 1)', () => {
