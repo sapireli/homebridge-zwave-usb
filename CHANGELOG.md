@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0] - 2026-04-07
+
+### Changed
+- **Accessory Stability Sweep:** Reworked accessory creation, naming, cache repair, and graph reconciliation so HomeKit objects remain stable through startup, sleeping-node refreshes, interview completion, and capability changes.
+- **Feature Semantics Cleanup:** Corrected behavior for color brightness preservation, thermostat state handling, motion timeout semantics, sensor value interpretation, and central-scene deduplication so runtime state matches HomeKit expectations more closely.
+- **UI/IPC Hardening:** Tightened Homebridge UI validation and IPC error handling, added explicit stale-accessory maintenance actions, and expanded direct test coverage for S2 PIN and management flows.
+
+### Fixed
+- **Home App Settings Reliability:** Restored Home app room and name updates by stabilizing accessory metadata, publishing writable `Configured Name` compatibility on the actual user-facing services, and keeping `AccessoryInformation` and primary-service payloads consistent for bridged sensor and actuator accessories.
+- **HAP Compliance and Upgrade Repair:** Limited standard metadata and health characteristics to the appropriate services, corrected CO2 service mapping, moved stale cleanup into versioned migrations, and added validator-backed schema regression coverage against the local `hap-nodejs` definitions.
+- **Node Lifecycle and Fault Handling:** Hardened sleeping-node behavior, unready-node publication policy, endpoint-aware CC detection, status/tamper/fault updates, and graph reconciliation so accessories no longer wedge or drift as node state changes.
+- **Controller Reliability:** Fixed custom manager service reuse, preserved S2 PIN handling on the custom controller path, and restored the older controller-only `Configured Name` fallback for the controller action services so Home app labels behave like the pre-compliance releases.
+- **Regression Coverage:** Expanded the automated suite across accessory lifecycle, feature semantics, controller paths, config UI helpers, IPC wiring, and serialized HAP payload validation.
+
 ## [3.6.0-beta.11] - 2026-04-07
 
 ### Fixed
