@@ -257,20 +257,75 @@ describe('ControllerAccessory', () => {
     const existingAccessory = new mockPlatform.api.platformAccessory();
     existingAccessory.UUID = 'homebridge-zwave-usb-controller-305419896';
     existingAccessory.context = {};
+    const existingManagerService = {
+      getCharacteristic: jest.fn().mockReturnValue(existingAccessory._sharedCharMock),
+      testCharacteristic: jest.fn().mockReturnValue(true),
+      addOptionalCharacteristic: jest.fn(),
+      removeCharacteristic: jest.fn(),
+      updateCharacteristic: jest.fn(),
+      setCharacteristic: jest.fn().mockReturnThis(),
+      UUID: MANAGER_SERVICE_UUID,
+      subtype: 'Status',
+      displayName: 'Legacy',
+      characteristics: [{ UUID: 'legacy-char', displayName: 'Legacy Char' }],
+    };
     existingAccessory.services = [
-      {
-        UUID: MANAGER_SERVICE_UUID,
-        displayName: 'Legacy',
-        characteristics: [{ UUID: 'legacy-char', displayName: 'Legacy Char' }],
-        removeCharacteristic: jest.fn(),
-      },
+      existingManagerService,
     ];
     existingAccessory.removeService = jest.fn();
+    existingAccessory.addService = jest.fn().mockImplementation(() => existingAccessory._createServiceMock());
     mockPlatform.accessories = [existingAccessory];
 
     accessory.stop();
     accessory = new ControllerAccessory(mockPlatform, mockController);
 
     expect(mockPlatform.api.updatePlatformAccessories).toHaveBeenCalledWith([existingAccessory]);
+  });
+
+  it('should reuse an existing cached manager service with subtype Status instead of adding a duplicate', () => {
+    const existingAccessory = new mockPlatform.api.platformAccessory();
+    existingAccessory.UUID = 'homebridge-zwave-usb-controller-305419896';
+    existingAccessory.context = { cacheRepairVersion: CONTROLLER_CACHE_REPAIR_VERSION };
+    const infoService = {
+      setCharacteristic: jest.fn().mockReturnThis(),
+      getCharacteristic: jest.fn().mockReturnValue(existingAccessory._sharedCharMock),
+      testCharacteristic: jest.fn().mockReturnValue(true),
+      addOptionalCharacteristic: jest.fn(),
+      removeCharacteristic: jest.fn(),
+      updateCharacteristic: jest.fn(),
+      UUID: 'AccessoryInformation',
+      characteristics: [],
+    };
+
+    const existingManagerService = {
+      UUID: MANAGER_SERVICE_UUID,
+      subtype: 'Status',
+      displayName: 'System Status',
+      characteristics: [],
+      getCharacteristic: jest.fn().mockReturnValue(existingAccessory._sharedCharMock),
+      testCharacteristic: jest.fn().mockReturnValue(true),
+      addOptionalCharacteristic: jest.fn(),
+      removeCharacteristic: jest.fn(),
+      updateCharacteristic: jest.fn(),
+      setCharacteristic: jest.fn().mockReturnThis(),
+    };
+
+    existingAccessory.services = [infoService, existingManagerService];
+    existingAccessory.getService = jest
+      .fn()
+      .mockImplementation((serviceType) =>
+        serviceType === mockPlatform.Service.AccessoryInformation ? infoService : undefined,
+      );
+    existingAccessory.getServiceById = jest.fn();
+    existingAccessory.addService = jest.fn().mockImplementation(() => existingAccessory._createServiceMock());
+    mockPlatform.accessories = [existingAccessory];
+
+    accessory.stop();
+    accessory = new ControllerAccessory(mockPlatform, mockController);
+
+    expect(existingAccessory.addService).not.toHaveBeenCalledWith(
+      expect.objectContaining({ UUID: MANAGER_SERVICE_UUID, subtype: 'Status' }),
+    );
+    expect((accessory as any).statusService).toBe(existingManagerService);
   });
 });

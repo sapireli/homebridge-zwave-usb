@@ -68,6 +68,8 @@ export class ControllerAccessory {
      * Helper to normalize UUIDs for reliable comparison during metadata pruning.
      */
     const normalizeUuid = (u: string) => u.replace(/-/g, '').toUpperCase();
+    const getCharacteristicUuid = (characteristicType: { UUID?: string } | string) =>
+      typeof characteristicType === 'string' ? characteristicType : (characteristicType.UUID ?? '');
 
     const infoService = this.platformAccessory.getService(
       this.platform.Service.AccessoryInformation,
@@ -81,6 +83,9 @@ export class ControllerAccessory {
     let didRepairCache = false;
     if (existingAccessory && context.cacheRepairVersion !== CONTROLLER_CACHE_REPAIR_VERSION) {
       // --- One-time cache repair for stale controller services/characteristics ---
+      const canonicalManagerService =
+        this.findServiceByUuidAndSubtype(MANAGER_SERVICE_UUID, 'Status') ||
+        this.findServiceByUuidAndSubtype(MANAGER_SERVICE_UUID);
       this.platformAccessory.services.slice().forEach((service) => {
         const serviceUuidNorm = normalizeUuid(service.UUID);
 
@@ -89,7 +94,7 @@ export class ControllerAccessory {
         );
         const isDuplicateCurrent =
           serviceUuidNorm === normalizeUuid(MANAGER_SERVICE_UUID) &&
-          service !== this.platformAccessory.getService(MANAGER_SERVICE_UUID);
+          service !== canonicalManagerService;
 
         if (isObsoleteManager || isDuplicateCurrent) {
           this.platform.log.info(
@@ -110,10 +115,10 @@ export class ControllerAccessory {
         });
 
         const serviceLabelIndexUuid = normalizeUuid(
-          this.platform.Characteristic.ServiceLabelIndex.UUID,
+          getCharacteristicUuid(this.platform.Characteristic.ServiceLabelIndex),
         );
         const serviceLabelNamespaceUuid = normalizeUuid(
-          this.platform.Characteristic.ServiceLabelNamespace.UUID,
+          getCharacteristicUuid(this.platform.Characteristic.ServiceLabelNamespace),
         );
         service.characteristics.slice().forEach((found) => {
           const charUuidNorm = normalizeUuid(found.UUID);
@@ -173,7 +178,8 @@ export class ControllerAccessory {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const managerServiceType = (this.platform.Service as any).ZWaveManager;
     this.statusService =
-      this.platformAccessory.getService(MANAGER_SERVICE_UUID) ||
+      this.findServiceByUuidAndSubtype(MANAGER_SERVICE_UUID, 'Status') ||
+      this.findServiceByUuidAndSubtype(MANAGER_SERVICE_UUID) ||
       this.platformAccessory.addService(new managerServiceType('System Status', 'Status'));
 
     this.statusService
@@ -305,6 +311,21 @@ export class ControllerAccessory {
 
     // --- Listen for controller events to sync state ---
     this.setupControllerHandlers();
+  }
+
+  private findServiceByUuidAndSubtype(uuid: string, subtype?: string): Service | undefined {
+    return this.platformAccessory.services.find((service) => {
+      if (service.UUID !== uuid) {
+        return false;
+      }
+
+      const serviceSubtype = (service as Service & { subtype?: string }).subtype;
+      if (subtype === undefined) {
+        return true;
+      }
+
+      return serviceSubtype === subtype;
+    });
   }
 
   private setupControllerHandlers() {

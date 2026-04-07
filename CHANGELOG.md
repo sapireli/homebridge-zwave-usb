@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0-beta.6] - 2026-04-07
+
+### Fixed
+- **Controller Startup Recovery:** Reused the existing cached custom Z-Wave manager service by UUID and subtype instead of relying on `getService()` for the custom service lookup. This prevents duplicate `System Status` service creation and fixes the startup failure `Cannot add a Service with the same UUID ... and subtype 'Status'`.
+
 ## [3.6.0-beta.5] - 2026-04-07
 
 ### Fixed
