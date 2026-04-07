@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.0-beta.4] - 2026-04-07
+
+### Fixed
+- **CI Lint Cleanliness:** Replaced the remaining `any` cast in `ZWaveFeature.getService()` with a typed service-constructor alias so `eslint --max-warnings=0` passes on the beta release commit.
+
 ## [3.6.0-beta.3] - 2026-04-07
 
 ### Fixed

@@ -131,6 +131,10 @@ export abstract class BaseFeature implements ZWaveFeature {
     name?: string,
     subType?: string,
   ): Service {
+    const serviceConstructor = serviceType as unknown as new (
+      displayName?: string,
+      subtype?: string,
+    ) => Service;
     const normalizedSubType = subType && subType !== '0' ? subType : undefined;
     const serviceName =
       name ||
@@ -144,9 +148,8 @@ export abstract class BaseFeature implements ZWaveFeature {
       service =
         this.accessory.getServiceById(serviceType, normalizedSubType);
       if (!service) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         service = this.accessory.addService(
-          new (serviceType as any)(serviceName, normalizedSubType),
+          new serviceConstructor(serviceName, normalizedSubType),
         );
         wasCreated = true;
       }
@@ -154,8 +157,7 @@ export abstract class BaseFeature implements ZWaveFeature {
       service =
         this.accessory.getService(serviceType);
       if (!service) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        service = this.accessory.addService(new (serviceType as any)(serviceName));
+        service = this.accessory.addService(new serviceConstructor(serviceName));
         wasCreated = true;
       }
     }
