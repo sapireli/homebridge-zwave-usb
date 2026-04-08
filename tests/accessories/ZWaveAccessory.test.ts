@@ -71,6 +71,7 @@ describe('ZWaveAccessory', () => {
         Name: '00000023-0000-1000-8000-0026BB765291',
         ConfiguredName: '000000E3-0000-1000-8000-0026BB765291',
         FirmwareRevision: '00000052-0000-1000-8000-0026BB765291',
+        HardwareRevision: '00000053-0000-1000-8000-0026BB765291',
         ServiceLabelIndex: 'ServiceLabelIndex',
         StatusTampered: {
           NOT_TAMPERED: 0,
@@ -217,6 +218,82 @@ describe('ZWaveAccessory', () => {
       platform.Characteristic.FirmwareRevision,
       '1.0.0',
     );
+  });
+
+  it('should set HardwareRevision when hardwareVersion is available', () => {
+    const nodeWithHardware = {
+      ...node,
+      hardwareVersion: 3,
+    };
+
+    const hwAccessory = new ZWaveAccessory(
+      platform as unknown as ZWaveUsbPlatform,
+      nodeWithHardware as IZWaveNode,
+      12345,
+    );
+
+    expect(mockService.setCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.HardwareRevision,
+      '3',
+    );
+    expect(hwAccessory).toBeDefined();
+  });
+
+  it('should not set HardwareRevision when hardwareVersion is absent', () => {
+    // Create a fresh accessory from a node with no hardwareVersion
+    const mockServiceFresh = {
+      ...mockService,
+      setCharacteristic: jest.fn().mockReturnThis(),
+      getCharacteristic: mockService.getCharacteristic,
+    };
+    platformAccessoryFactory.mockImplementationOnce(() => ({
+      getService: jest.fn().mockReturnValue(mockServiceFresh),
+      getServiceById: jest.fn().mockReturnValue(mockServiceFresh),
+      addService: jest.fn().mockReturnValue(mockServiceFresh),
+      removeService: jest.fn(),
+      services: [mockServiceFresh],
+      displayName: 'Initial Name',
+      UUID: 'test-uuid',
+      context: {},
+    }));
+
+    new ZWaveAccessory(
+      platform as unknown as ZWaveUsbPlatform,
+      node as IZWaveNode, // node has no hardwareVersion
+      12345,
+    );
+
+    expect(mockServiceFresh.setCharacteristic).not.toHaveBeenCalledWith(
+      platform.Characteristic.HardwareRevision,
+      expect.anything(),
+    );
+  });
+
+  it('should include hardwareVersion in metadata signature to trigger accessory updates', () => {
+    const feature = {
+      init: jest.fn(),
+      update: jest.fn(),
+      getServices: () => [mockService],
+      getEndpointIndex: () => 0,
+      stop: jest.fn(),
+      updateNode: jest.fn(),
+      rename: jest.fn(),
+    };
+    accessory.addFeature(feature);
+    accessory.initialize();
+    platform.api.updatePlatformAccessories.mockClear();
+
+    const updatedNode = {
+      ...node,
+      hardwareVersion: 5,
+      getAllEndpoints: jest.fn().mockReturnValue([{ index: 0 }]),
+    };
+
+    accessory.updateNode(updatedNode as IZWaveNode);
+
+    expect(platform.api.updatePlatformAccessories).toHaveBeenCalledWith([
+      accessory.platformAccessory,
+    ]);
   });
 
   it('should preserve cached names when node metadata changes', () => {

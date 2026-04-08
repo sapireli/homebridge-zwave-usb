@@ -34,3 +34,6 @@ yarn-error.log*
 # Security/Local Config (Safety net)
 zwave-security-keys.json
 config.json
+
+# Runtime-generated Z-Wave cache files
+/persist/

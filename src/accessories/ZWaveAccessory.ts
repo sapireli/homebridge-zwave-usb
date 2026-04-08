@@ -280,11 +280,13 @@ export class ZWaveAccessory {
     const serial = `Node ${this.node.nodeId}`;
     const name = this.getEffectiveName();
     const firmwareRevision = this.node.firmwareVersion || '1.0.0';
+    const hardwareVersion = this.node.hardwareVersion;
     const metadataSignature = JSON.stringify({
       manufacturer,
       model,
       serial,
       firmwareRevision,
+      hardwareVersion,
     });
 
     const infoService = this.platformAccessory.getService(
@@ -296,6 +298,13 @@ export class ZWaveAccessory {
       .setCharacteristic(this.platform.Characteristic.Model, model)
       .setCharacteristic(this.platform.Characteristic.SerialNumber, serial)
       .setCharacteristic(this.platform.Characteristic.FirmwareRevision, firmwareRevision);
+
+    if (hardwareVersion !== undefined && this.platform.Characteristic.HardwareRevision) {
+      infoService.setCharacteristic(
+        this.platform.Characteristic.HardwareRevision,
+        String(hardwareVersion),
+      );
+    }
 
     this.ensureAccessoryInformationConfiguredName(infoService, name);
 
