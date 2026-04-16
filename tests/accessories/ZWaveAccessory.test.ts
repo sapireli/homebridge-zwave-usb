@@ -94,6 +94,7 @@ describe('ZWaveAccessory', () => {
       deviceConfig: {
         manufacturer: 'Test Man',
         label: 'Test Model',
+        description: 'Test Model Description',
       },
       status: 4, // Alive
       ready: true,
@@ -224,18 +225,36 @@ describe('ZWaveAccessory', () => {
     );
   });
 
-  it('should prefer node manufacturer and label over raw deviceConfig metadata', () => {
+  it('should prefer node manufacturer and device model metadata over the raw fingerprint', () => {
     expect(mockService.setCharacteristic).toHaveBeenCalledWith(
       platform.Characteristic.Manufacturer,
       'Node Man',
     );
     expect(mockService.setCharacteristic).toHaveBeenCalledWith(
       platform.Characteristic.Model,
-      'Node Label (0x003B:0x1234:0xABCD)',
+      'Test Model Description',
     );
     expect(mockService.setCharacteristic).toHaveBeenCalledWith(
       platform.Characteristic.SerialNumber,
       'zwave-0x003B:0x1234:0xABCD-node-2',
+    );
+  });
+
+  it('should fall back to the Z-Wave fingerprint when no model description or label is available', () => {
+    node.label = undefined;
+    node.deviceConfig = {
+      manufacturer: 'Test Man',
+    };
+
+    accessory = new ZWaveAccessory(
+      platform as unknown as ZWaveUsbPlatform,
+      node as IZWaveNode,
+      12345,
+    );
+
+    expect(mockService.setCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.Model,
+      '0x003B:0x1234:0xABCD',
     );
   });
 

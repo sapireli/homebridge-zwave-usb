@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.4] - 2026-04-15
+
+### Fixed
+- **HomeKit Model Metadata:** `Model` now prefers the real `zwave-js` device product metadata (`deviceConfig.description`, then label) instead of exposing the raw Z-Wave fingerprint string when a proper product model name is available.
+- **Regression Coverage:** Added coverage for the new model-metadata priority and the fallback-to-fingerprint path.
+
 ## [3.6.3] - 2026-04-15
 
 ### Changed

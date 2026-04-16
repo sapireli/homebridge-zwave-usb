@@ -296,13 +296,9 @@ export class ZWaveAccessory {
 
   private getModel(): string {
     const fingerprint = this.getFingerprint();
-    const label = this.node.label || this.node.deviceConfig?.label;
+    const model = this.node.deviceConfig?.description || this.node.label || this.node.deviceConfig?.label;
 
-    if (label && fingerprint) {
-      return `${label} (${fingerprint})`;
-    }
-
-    return fingerprint || label || `Node ${this.node.nodeId}`;
+    return model || fingerprint || `Node ${this.node.nodeId}`;
   }
 
   private getSerialNumber(): string {
