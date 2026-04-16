@@ -166,6 +166,33 @@ describe('ZWaveController (Direct Mode)', () => {
     expect(mockNode.refreshInfo).toHaveBeenCalled();
   });
 
+  it('should return immediately when a sleepy node refresh is still waiting for wake-up', async () => {
+    controller = new ZWaveController(log, '/dev/ttyACM0');
+    await controller.start();
+
+    let resolveRefresh: (() => void) | undefined;
+    const refreshPromise = new Promise<void>((resolve) => {
+      resolveRefresh = resolve;
+    });
+
+    const mockNode = new EventEmitter() as any;
+    mockNode.nodeId = 3;
+    mockNode.status = 1;
+    mockNode.isListening = false;
+    mockNode.isFrequentListening = false;
+    mockNode.refreshInfo = jest.fn().mockReturnValue(refreshPromise);
+    mockDriver.controller.emit('node added', mockNode);
+
+    await expect(controller.refreshNodeInfo(3)).resolves.toEqual({
+      nodeId: 3,
+      requiresWakeUp: true,
+    });
+    expect(mockNode.refreshInfo).toHaveBeenCalled();
+
+    resolveRefresh?.();
+    await refreshPromise;
+  });
+
   it('should emit node updated during interview lifecycle changes', async () => {
     controller = new ZWaveController(log, '/dev/ttyACM0');
     await controller.start();

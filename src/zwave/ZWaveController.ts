@@ -853,13 +853,14 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       `Refreshing interview information for Node ${nodeId}${requiresWakeUp ? ' (manual wake-up likely required)' : ''}...`,
     );
 
-    try {
-      await node.refreshInfo();
-      return { nodeId, requiresWakeUp };
-    } catch (err) {
+    // Do not await refreshInfo() here. For sleepy nodes zwave-js may wait until
+    // the next wake-up before it begins the fresh interview, and the UI should be
+    // able to show "queued" state immediately instead of blocking on that wake-up.
+    void node.refreshInfo().catch((err) => {
       this.log.error(`Failed to refresh node info for Node ${nodeId}:`, err);
-      throw err;
-    }
+    });
+
+    return { nodeId, requiresWakeUp };
   }
 
   public async beginFirmwareUpdate(nodeId: number, update: unknown): Promise<void> {

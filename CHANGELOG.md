@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.2] - 2026-04-15
+
+### Fixed
+- **Refresh Queue Feedback:** The Maintenance `Refresh Info` action now returns immediately after scheduling a sleepy-node re-interview instead of waiting on the node's next wake-up, so `Refresh queued, waiting for wake-up` appears on the first button press.
+- **Regression Coverage:** Added controller coverage for the non-blocking sleepy-node refresh path so queued refresh state stays visible without requiring repeated UI actions.
+
 ## [3.6.1] - 2026-04-15
 
 ### Changed
