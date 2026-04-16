@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.5] - 2026-04-16
+
+### Fixed
+- **Firmware Metadata Republish:** HomeKit `Accessory Information` metadata now republishes when `zwave-js` reports `Version` or `Manufacturer Specific` value updates, so firmware and identity fields do not stay stuck on stale values after the node later reports better metadata.
+- **Regression Coverage:** Added platform coverage for metadata republish on `Version` value updates.
+
 ## [3.6.4] - 2026-04-15
 
 ### Fixed

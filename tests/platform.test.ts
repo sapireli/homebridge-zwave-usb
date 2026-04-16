@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import http from 'http';
 import { EventEmitter } from 'events';
+import { CommandClasses } from '@zwave-js/core';
 
 // Mock ZWaveController to avoid starting the actual driver
 jest.mock('../src/zwave/ZWaveController', () => {
@@ -430,6 +431,50 @@ describe('ZWaveUsbPlatform', () => {
 
     expect((platform as any).zwaveAccessories.has(2)).toBe(true);
     expect(api.registerPlatformAccessories).not.toHaveBeenCalled();
+  });
+
+  it('should republish accessory metadata when firmware version values update', () => {
+    const log = {
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    } as any;
+    const config: PlatformConfig = {
+      platform: PLATFORM_NAME,
+      name: 'Z-Wave USB',
+      serialPort: '/dev/null',
+    };
+
+    const platform = new ZWaveUsbPlatform(log, config, api);
+    const syncNodeAccessorySpy = jest.spyOn(platform as any, 'syncNodeAccessory');
+    const refresh = jest.fn();
+    const updateNode = jest.fn();
+    const stop = jest.fn();
+    (platform as any).zwaveAccessories.set(2, {
+      refresh,
+      updateNode,
+      stop,
+    });
+
+    const node = {
+      nodeId: 2,
+      firmwareVersion: '2.134.0',
+    };
+
+    (platform as any).handleValueUpdated(node, {
+      commandClass: CommandClasses.Version,
+      property: 'firmwareVersions',
+      newValue: ['2.134.0'],
+    });
+
+    expect(syncNodeAccessorySpy).toHaveBeenCalledWith(node);
+    expect(updateNode).toHaveBeenCalledWith(node);
+    expect(refresh).toHaveBeenCalledWith({
+      commandClass: CommandClasses.Version,
+      property: 'firmwareVersions',
+      newValue: ['2.134.0'],
+    });
   });
 
   it('should prune stale accessories only when explicitly requested', async () => {

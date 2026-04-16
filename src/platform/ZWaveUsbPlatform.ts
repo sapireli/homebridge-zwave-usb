@@ -7,6 +7,7 @@ import {
   Service,
   Characteristic,
 } from 'homebridge';
+import { CommandClasses } from '@zwave-js/core';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
@@ -596,6 +597,12 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   private handleValueUpdated(node: IZWaveNode, args: ZWaveValueEvent) {
     this.log.debug(`Node ${node.nodeId} value updated`);
     this.logValueEventDetails(node, 'value updated', args);
+    if (
+      args.commandClass === CommandClasses.Version ||
+      args.commandClass === CommandClasses['Manufacturer Specific']
+    ) {
+      this.syncNodeAccessory(node);
+    }
     const accessory = this.zwaveAccessories.get(node.nodeId);
     if (accessory) {
       accessory.refresh(args);
