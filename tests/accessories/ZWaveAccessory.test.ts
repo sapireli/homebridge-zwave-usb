@@ -86,6 +86,8 @@ describe('ZWaveAccessory', () => {
 
     node = {
       nodeId: 2,
+      manufacturer: 'Node Man',
+      label: 'Node Label',
       deviceConfig: {
         manufacturer: 'Test Man',
         label: 'Test Model',
@@ -216,6 +218,17 @@ describe('ZWaveAccessory', () => {
     expect(mockService.setCharacteristic).toHaveBeenCalledWith(
       platform.Characteristic.FirmwareRevision,
       '1.0.0',
+    );
+  });
+
+  it('should prefer node manufacturer and label over raw deviceConfig metadata', () => {
+    expect(mockService.setCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.Manufacturer,
+      'Node Man',
+    );
+    expect(mockService.setCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.Model,
+      'Node Label',
     );
   });
 

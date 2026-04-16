@@ -191,6 +191,8 @@ describe('ZWaveUsbPlatform', () => {
     controller.nodes.set(2, {
       nodeId: 2,
       name: 'New Node Name',
+      manufacturer: 'Resolved Maker',
+      label: 'Resolved Label',
       deviceConfig: {
         label: 'Node Label',
         manufacturer: 'Maker',
@@ -262,6 +264,63 @@ describe('ZWaveUsbPlatform', () => {
     }
   });
 
+  it('should forward refresh-info IPC requests to the controller', async () => {
+    const log = {
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    } as any;
+    const config: PlatformConfig = {
+      platform: PLATFORM_NAME,
+      name: 'Z-Wave USB',
+      serialPort: '/dev/null',
+    };
+
+    const platform = new ZWaveUsbPlatform(log, config, api);
+    const controller = (platform as any).zwaveController;
+    controller.refreshNodeInfo = jest.fn().mockResolvedValue({ nodeId: 2, requiresWakeUp: true });
+
+    const fakeServer = new EventEmitter() as EventEmitter & {
+      listen: jest.Mock;
+      close: jest.Mock;
+      address: jest.Mock;
+    };
+    fakeServer.listen = jest.fn().mockImplementation((_port, _host, cb) => cb());
+    fakeServer.close = jest.fn();
+    fakeServer.address = jest.fn().mockReturnValue({ port: 12345, address: '127.0.0.1' });
+    const createServerSpy = jest.spyOn(http, 'createServer').mockReturnValue(fakeServer as never);
+
+    const req = new EventEmitter() as EventEmitter & { url?: string; method?: string };
+    const res = {
+      writeHead: jest.fn(),
+      end: jest.fn(),
+    };
+    req.url = '/nodes/2/refresh-info';
+    req.method = 'POST';
+
+    try {
+      (platform as any).startIpcServer();
+      const handler = createServerSpy.mock.calls.at(-1)?.[0];
+      await new Promise<void>((resolve) => {
+        res.end = jest.fn().mockImplementation(() => resolve());
+        handler(req, res);
+      });
+
+      expect(controller.refreshNodeInfo).toHaveBeenCalledWith(2);
+      expect(res.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
+      expect(JSON.parse((res.end as jest.Mock).mock.calls[0][0])).toEqual({
+        success: true,
+        nodeId: 2,
+        requiresWakeUp: true,
+        refreshState: 'waiting-wakeup',
+      });
+      expect((platform as any).refreshStates.get(2)).toBe('waiting-wakeup');
+    } finally {
+      createServerSpy.mockRestore();
+    }
+  });
+
   it('should include HomeKit publication state in the node list payload', async () => {
     const log = {
       debug: jest.fn(),
@@ -320,6 +379,7 @@ describe('ZWaveUsbPlatform', () => {
       expect(payload.find((node: any) => node.nodeId === 2).homekitState).toBe('published');
       expect(payload.find((node: any) => node.nodeId === 3).homekitState).toBe('pending-interview');
       expect(payload.find((node: any) => node.nodeId === 4).homekitState).toBe('cached-pending');
+      expect(payload.find((node: any) => node.nodeId === 2).refreshState).toBeUndefined();
     } finally {
       createServerSpy.mockRestore();
     }

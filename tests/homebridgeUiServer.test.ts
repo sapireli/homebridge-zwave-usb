@@ -70,20 +70,22 @@ describe('homebridge-ui server request wiring', () => {
 
     await requests.get('get-nodes')!();
     await requests.get('rename-node')!({ nodeId: 9, name: 'Office' });
+    await requests.get('refresh-node-info')!(9);
     await requests.get('check-firmware')!(9);
     await requests.get('start-update')!({ nodeId: 9, update: { version: '1.2.3' } });
     await requests.get('abort-update')!(9);
 
     expect(ipcRequest).toHaveBeenNthCalledWith(1, '/nodes', 'GET');
     expect(ipcRequest).toHaveBeenNthCalledWith(2, '/nodes/9/name', 'POST', { name: 'Office' });
-    expect(ipcRequest).toHaveBeenNthCalledWith(3, '/firmware/updates/9', 'GET');
+    expect(ipcRequest).toHaveBeenNthCalledWith(3, '/nodes/9/refresh-info', 'POST');
+    expect(ipcRequest).toHaveBeenNthCalledWith(4, '/firmware/updates/9', 'GET');
     expect(ipcRequest).toHaveBeenNthCalledWith(
-      4,
+      5,
       '/firmware/update/9',
       'POST',
       { version: '1.2.3' },
     );
-    expect(ipcRequest).toHaveBeenNthCalledWith(5, '/firmware/abort/9', 'POST');
+    expect(ipcRequest).toHaveBeenNthCalledWith(6, '/firmware/abort/9', 'POST');
   });
 
   it('should reject IPC responses with error status codes', async () => {

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.1] - 2026-04-15
+
+### Changed
+- **Node Metadata Source:** HomeKit `Manufacturer` and `Model` metadata now prefer `zwave-js` node-level identity fields (`manufacturer`, `label`) instead of reading raw config data directly, with the older config path retained as a compatibility fallback.
+- **Maintenance Refresh Action:** Added a per-node `Refresh Info` action in the Homebridge Maintenance tab that triggers `zwave-js` `refreshInfo()` through the plugin IPC/controller path.
+- **Refresh Status UX:** Sleeping nodes now surface `Refresh queued, waiting for wake-up` and `Refresh in progress` state in the Maintenance table so re-interviews are visible while they are pending or running.
+
+### Fixed
+- **Metadata Repair Workflow:** Locks and other sleepy devices that complete inclusion with partial metadata can now be refreshed from the plugin UI without relying on exclude/re-include, and refreshed identity changes flow back into the HomeKit accessory metadata path.
+- **Regression Coverage:** Expanded tests for node metadata selection, refresh-info IPC wiring, controller refresh dispatch, and Maintenance-tab refresh state handling.
+
 ## [3.6.0] - 2026-04-07
 
 ### Changed

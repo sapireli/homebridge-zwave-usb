@@ -205,7 +205,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
      */
     const statusMap = ['Unknown', 'Asleep', 'Awake', 'Dead', 'Alive'];
     const status = statusMap[node.status] || node.status.toString();
-    const nodeName = node.name || node.deviceConfig?.label || `Node ${node.nodeId}`;
+    const nodeName = node.name || node.label || node.deviceConfig?.label || `Node ${node.nodeId}`;
     this.log.info(
       `Node ${node.nodeId} (${nodeName}) added to controller (Status: ${status}, Interview Stage: ${node.interviewStage})`,
     );
@@ -837,6 +837,28 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     } catch (err) {
       this.log.error(`Failed to check for updates for Node ${nodeId}:`, err);
       return [];
+    }
+  }
+
+  public async refreshNodeInfo(
+    nodeId: number,
+  ): Promise<{ nodeId: number; requiresWakeUp: boolean }> {
+    const node = this.nodes.get(nodeId);
+    if (!node) {
+      throw new Error(`Node ${nodeId} not found`);
+    }
+
+    const requiresWakeUp = !node.isListening && !node.isFrequentListening;
+    this.log.info(
+      `Refreshing interview information for Node ${nodeId}${requiresWakeUp ? ' (manual wake-up likely required)' : ''}...`,
+    );
+
+    try {
+      await node.refreshInfo();
+      return { nodeId, requiresWakeUp };
+    } catch (err) {
+      this.log.error(`Failed to refresh node info for Node ${nodeId}:`, err);
+      throw err;
     }
   }
 

@@ -187,7 +187,7 @@
           </div>
           <div class="d-flex justify-content-between align-items-center mb-2">
             <div class="text-muted small">
-              Nodes that have not completed interview yet are intentionally held back from HomeKit until their service metadata is stable.
+              Nodes that have not completed interview yet are intentionally held back from HomeKit until their service metadata is stable. Use Refresh Info to force a fresh interview when metadata looks incomplete.
             </div>
             <button class="btn btn-sm btn-outline-danger" id="cleanupStaleAccessories">
               Clean Up Stale Accessories
@@ -245,6 +245,7 @@
       let isPromptOpen = false;
       let activeNodeId = null;
       let activeUpdateData = null;
+      let activeMaintenanceAction = null;
       const uiHelpers = window.ZWaveUsbUiHelpers;
 
       const getInt = (id, def) => {
@@ -315,6 +316,10 @@
 	        'cached-pending': 'Cached in HomeKit, waiting for interview wake-up',
 	        'pending-interview': 'Not in HomeKit yet, waiting for interview metadata',
 	      };
+	      const refreshStateMap = {
+	        'waiting-wakeup': 'Refresh queued, waiting for wake-up',
+	        refreshing: 'Refresh in progress',
+	      };
 
       const loadNodes = async () => {
         if (isPromptOpen) return;
@@ -336,6 +341,7 @@
 	            const progress = node.firmwareProgress;
 	            const nodeName = node.name || node.label || 'Node ' + node.nodeId;
 	            const homeKitState = homeKitStateMap[node.homekitState] || '';
+	            const refreshState = refreshStateMap[node.refreshState] || '';
 
 	            let actionHtml = '';
             if (progress) {
@@ -351,6 +357,7 @@
               actionHtml = `
                 <div class="btn-group">
                   <button class="btn btn-sm btn-outline-secondary rename-node" data-nodeid="${node.nodeId}">Rename</button>
+                  <button class="btn btn-sm btn-outline-secondary refresh-node-info" data-nodeid="${node.nodeId}" data-requires-wakeup="${!node.isListening && !node.isFrequentListening}">Refresh Info</button>
                   <button class="btn btn-sm btn-outline-primary check-update" data-nodeid="${node.nodeId}">Check Update</button>
                 </div>
               `;
@@ -361,6 +368,7 @@
 	              <td id="node-name-${node.nodeId}">${nodeName}</td>
 	              <td>
 	                <span class="badge badge-${status === 'Alive' || status === 'Awake' ? 'success' : 'secondary'}">${status}</span>
+	                ${refreshState ? `<div class="small text-muted mt-1">${refreshState}</div>` : ''}
 	                ${homeKitState ? `<div class="small text-muted mt-1">${homeKitState}</div>` : ''}
 	              </td>
 	              <td>${node.firmwareVersion || 'Unknown'}</td>
@@ -390,6 +398,7 @@
         isPromptOpen = false;
         activeNodeId = null;
         activeUpdateData = null;
+        activeMaintenanceAction = null;
       };
 
       // Event Delegation for Table Actions (Rename & Firmware)
@@ -406,6 +415,17 @@
           activeNodeId = nodeId;
           document.getElementById('newLabelInput').value = nameCell ? nameCell.textContent : '';
           showModal('renameModal');
+          return;
+        }
+
+        if (target.classList.contains('refresh-node-info')) {
+          activeNodeId = nodeId;
+          activeMaintenanceAction = 'refresh-node-info';
+          const requiresWakeUp = target.getAttribute('data-requires-wakeup') === 'true';
+          document.getElementById('confirmMessage').textContent = requiresWakeUp
+            ? 'This resets the node interview state and requests fresh metadata. Keep the device awake while the refresh runs so it can answer interview commands.'
+            : 'This resets the node interview state and requests fresh metadata from the node. Continue?';
+          showModal('confirmModal');
           return;
         }
 
@@ -469,11 +489,21 @@
 	      document.getElementById('executeConfirm').addEventListener('click', async () => {
         const nodeId = activeNodeId;
         const updateData = activeUpdateData;
+        const maintenanceAction = activeMaintenanceAction;
         hideModals();
 
         try {
-          await window.homebridge.request('start-update', { nodeId, update: updateData });
-          window.homebridge.toast.success('Firmware update started!');
+          if (maintenanceAction === 'refresh-node-info') {
+            const result = await window.homebridge.request('refresh-node-info', nodeId);
+            window.homebridge.toast.success(
+              result?.refreshState === 'waiting-wakeup'
+                ? `Refresh queued for Node ${nodeId}. Wake the device until the interview finishes.`
+                : `Refresh started for Node ${nodeId}.`,
+            );
+          } else {
+            await window.homebridge.request('start-update', { nodeId, update: updateData });
+            window.homebridge.toast.success('Firmware update started!');
+          }
           loadNodes();
         } catch (err) {
           window.homebridge.toast.error(err.message);

@@ -267,7 +267,7 @@ export class ZWaveAccessory {
   }
 
   private getDesiredName(): string {
-    return this.node.name || this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
+    return this.node.name || this.node.label || this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
   }
 
   private getEffectiveName(): string {
@@ -275,8 +275,8 @@ export class ZWaveAccessory {
   }
 
   private applyAccessoryMetadata(options: { syncName?: boolean } = {}): string {
-    const manufacturer = this.node.deviceConfig?.manufacturer || 'Unknown';
-    const model = this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
+    const manufacturer = this.node.manufacturer || this.node.deviceConfig?.manufacturer || 'Unknown';
+    const model = this.node.label || this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
     const serial = `Node ${this.node.nodeId}`;
     const name = this.getEffectiveName();
     const firmwareRevision = this.node.firmwareVersion || '1.0.0';

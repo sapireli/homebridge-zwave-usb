@@ -31,6 +31,7 @@ export interface IZWaveController extends EventEmitter {
   stopHealing(): Promise<boolean>;
   removeFailedNode(nodeId: number): Promise<void>;
   setNodeName(nodeId: number, name: string): Promise<void>;
+  refreshNodeInfo(nodeId: number): Promise<{ nodeId: number; requiresWakeUp: boolean }>;
   setS2Pin(pin: string): void;
 
   // Firmware Update Methods
@@ -70,6 +71,8 @@ export interface IZWaveController extends EventEmitter {
 export interface IZWaveNode {
   nodeId: number;
   name?: string;
+  manufacturer?: string;
+  label?: string;
   deviceConfig?: {
     label?: string;
     manufacturer?: string;
@@ -78,6 +81,8 @@ export interface IZWaveNode {
   interviewStage: InterviewStage;
   status: number;
   firmwareVersion?: string;
+  isListening?: boolean | string;
+  isFrequentListening?: boolean | string;
 
   // Methods
   getValue(valueId: ValueID): unknown;

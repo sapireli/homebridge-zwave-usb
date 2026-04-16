@@ -41,6 +41,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
    */
   private discoveryInFlight = new Set<number>();
   private firmwareProgress = new Map<number, { sent: number; total: number; status?: number }>();
+  private refreshStates = new Map<number, 'waiting-wakeup' | 'refreshing'>();
 
   constructor(
     public readonly log: Logger,
@@ -138,14 +139,15 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           const nodes = Array.from(this.zwaveController?.nodes.values() || []).map((node) => ({
             nodeId: node.nodeId,
             name: node.name,
-            label: node.deviceConfig?.label,
-            manufacturer: node.deviceConfig?.manufacturer,
+            label: node.label || node.deviceConfig?.label,
+            manufacturer: node.manufacturer || node.deviceConfig?.manufacturer,
             status: node.status,
             ready: node.ready,
             firmwareVersion: node.firmwareVersion,
             isListening: node.isListening,
             isFrequentListening: node.isFrequentListening,
             firmwareProgress: this.firmwareProgress.get(node.nodeId),
+            refreshState: this.refreshStates.get(node.nodeId),
             homekitState: this.getHomeKitPublicationState(node),
           }));
           return sendJson(nodes);
@@ -184,6 +186,30 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
               return sendJson({ error: err instanceof Error ? err.message : String(err) }, 500);
             }
           });
+          return;
+        }
+
+        if (
+          normalizedUrl.startsWith('/nodes/') &&
+          normalizedUrl.endsWith('/refresh-info') &&
+          method === 'POST'
+        ) {
+          const parts = normalizedUrl.split('/');
+          const nodeId = parseInt(parts[2], 10);
+          this.zwaveController
+            ?.refreshNodeInfo(nodeId)
+            .then((result) => {
+              this.refreshStates.set(
+                nodeId,
+                result.requiresWakeUp ? 'waiting-wakeup' : 'refreshing',
+              );
+              sendJson({
+                success: true,
+                refreshState: this.refreshStates.get(nodeId),
+                ...result,
+              });
+            })
+            .catch((err) => sendJson({ error: err.message }, 500));
           return;
         }
 
@@ -358,12 +384,21 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   }
 
   private handleNodeReady(node: IZWaveNode) {
-    const nodeName = node.name || node.deviceConfig?.label || `Node ${node.nodeId}`;
+    this.refreshStates.delete(node.nodeId);
+    const nodeName = node.name || node.label || node.deviceConfig?.label || `Node ${node.nodeId}`;
     this.log.info(`Node ${node.nodeId} (${nodeName}) ready`);
     this.syncNodeAccessory(node);
   }
 
   private handleNodeUpdated(node: IZWaveNode) {
+    const refreshState = this.refreshStates.get(node.nodeId);
+    if (refreshState) {
+      if (node.ready) {
+        this.refreshStates.delete(node.nodeId);
+      } else if (node.status !== 1) {
+        this.refreshStates.set(node.nodeId, 'refreshing');
+      }
+    }
     this.syncNodeAccessory(node);
   }
 
@@ -518,6 +553,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   }
 
   private handleNodeRemoved(node: IZWaveNode) {
+    this.refreshStates.delete(node.nodeId);
     this.log.info(`Node ${node.nodeId} removed`);
 
     const homeId = this.zwaveController?.homeId;

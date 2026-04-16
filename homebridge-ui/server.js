@@ -15,6 +15,10 @@ class UiServer extends HomebridgePluginUiServer {
       return await this.ipcRequest(`/nodes/${nodeId}/name`, 'POST', { name });
     });
 
+    this.onRequest('refresh-node-info', async (nodeId) => {
+      return await this.ipcRequest(`/nodes/${nodeId}/refresh-info`, 'POST');
+    });
+
     this.onRequest('cleanup-stale-accessories', async () => {
       return await this.ipcRequest('/accessories/prune-stale', 'POST');
     });
