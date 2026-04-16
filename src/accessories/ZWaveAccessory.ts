@@ -274,10 +274,74 @@ export class ZWaveAccessory {
     return this.platformAccessory.displayName || this.getDesiredName();
   }
 
+  private formatFingerprintPart(value: number | undefined): string | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    return `0x${value.toString(16).padStart(4, '0').toUpperCase()}`;
+  }
+
+  private getFingerprint(): string | undefined {
+    const manufacturerId = this.formatFingerprintPart(this.node.manufacturerId);
+    const productType = this.formatFingerprintPart(this.node.productType);
+    const productId = this.formatFingerprintPart(this.node.productId);
+
+    if (!manufacturerId || !productType || !productId) {
+      return undefined;
+    }
+
+    return `${manufacturerId}:${productType}:${productId}`;
+  }
+
+  private getModel(): string {
+    const fingerprint = this.getFingerprint();
+    const label = this.node.label || this.node.deviceConfig?.label;
+
+    if (label && fingerprint) {
+      return `${label} (${fingerprint})`;
+    }
+
+    return fingerprint || label || `Node ${this.node.nodeId}`;
+  }
+
+  private getSerialNumber(): string {
+    const cachedSerialNumber = this.getCachedDeviceSerialNumber();
+    if (cachedSerialNumber) {
+      return cachedSerialNumber;
+    }
+
+    const fingerprint = this.getFingerprint();
+    if (fingerprint) {
+      return `zwave-${fingerprint}-node-${this.node.nodeId}`;
+    }
+
+    return `node-${this.node.nodeId}`;
+  }
+
+  private getCachedDeviceSerialNumber(): string | undefined {
+    if (this.node.deviceSerialNumber) {
+      return this.node.deviceSerialNumber;
+    }
+
+    if (typeof this.node.getValue !== 'function') {
+      return undefined;
+    }
+
+    const cachedValue = this.node.getValue({
+      commandClass: CommandClasses['Manufacturer Specific'],
+      endpoint: 0,
+      property: 'deviceId',
+      propertyKey: 'SerialNumber',
+    });
+
+    return typeof cachedValue === 'string' && cachedValue.length > 0 ? cachedValue : undefined;
+  }
+
   private applyAccessoryMetadata(options: { syncName?: boolean } = {}): string {
     const manufacturer = this.node.manufacturer || this.node.deviceConfig?.manufacturer || 'Unknown';
-    const model = this.node.label || this.node.deviceConfig?.label || `Node ${this.node.nodeId}`;
-    const serial = `Node ${this.node.nodeId}`;
+    const model = this.getModel();
+    const serial = this.getSerialNumber();
     const name = this.getEffectiveName();
     const firmwareRevision = this.node.firmwareVersion || '1.0.0';
     const metadataSignature = JSON.stringify({

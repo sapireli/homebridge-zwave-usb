@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.3] - 2026-04-15
+
+### Changed
+- **Hardware Identity Metadata:** HomeKit `Model` now includes the stable Z-Wave manufacturer/product fingerprint when available, so devices keep a more hardware-specific identity than a mutable node label alone.
+
+### Fixed
+- **Device Serial Number Publishing:** The plugin now queries Manufacturer Specific CC device-specific IDs after nodes become ready and republishes HomeKit `SerialNumber` with the actual device serial when `zwave-js` exposes one, while retaining the fingerprint/node fallback path for devices that do not.
+- **Regression Coverage:** Added coverage for device-specific serial discovery and HomeKit metadata preference so identity fields continue to republish correctly after interviews and wake-ups.
+
 ## [3.6.2] - 2026-04-15
 
 ### Fixed

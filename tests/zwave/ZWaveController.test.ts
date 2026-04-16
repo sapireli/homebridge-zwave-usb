@@ -216,6 +216,36 @@ describe('ZWaveController (Direct Mode)', () => {
     expect(onNodeUpdated).toHaveBeenCalledTimes(6);
   });
 
+  it('should fetch and cache a device-specific serial number when a node becomes ready', async () => {
+    controller = new ZWaveController(log, '/dev/ttyACM0');
+    await controller.start();
+
+    const mockNode = new EventEmitter() as any;
+    mockNode.nodeId = 4;
+    mockNode.status = 4;
+    mockNode.ready = false;
+    mockNode.supportsCC = jest
+      .fn()
+      .mockImplementation((cc) => cc === 114);
+    mockNode.commandClasses = {
+      'Manufacturer Specific': {
+        deviceSpecificGet: jest.fn().mockResolvedValue('lock-serial-0001'),
+      },
+    };
+
+    const onNodeUpdated = jest.fn();
+    controller.on('node updated', onNodeUpdated);
+
+    mockDriver.controller.emit('node added', mockNode);
+    mockNode.emit('ready');
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(mockNode.commandClasses['Manufacturer Specific'].deviceSpecificGet).toHaveBeenCalledWith(1);
+    expect(mockNode.deviceSerialNumber).toBe('lock-serial-0001');
+    expect(onNodeUpdated).toHaveBeenCalledWith(mockNode);
+  });
+
   it('should resolve S2 PIN entry from the controller callback path', async () => {
     controller = new ZWaveController(log, '/dev/ttyACM0', { storagePath: '/tmp' });
     const onStatusUpdated = jest.fn();

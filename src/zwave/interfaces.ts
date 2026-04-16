@@ -73,6 +73,10 @@ export interface IZWaveNode {
   name?: string;
   manufacturer?: string;
   label?: string;
+  deviceSerialNumber?: string;
+  manufacturerId?: number;
+  productType?: number;
+  productId?: number;
   deviceConfig?: {
     label?: string;
     manufacturer?: string;

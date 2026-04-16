@@ -6,6 +6,8 @@ import { IZWaveController, ZWaveValueEvent } from './interfaces';
 import path from 'path';
 import fs from 'fs';
 
+const MANUFACTURER_SPECIFIC_SERIAL_NUMBER_TYPE = 1;
+
 export interface ZWaveControllerOptions {
   debug?: boolean;
   storagePath?: string;
@@ -214,6 +216,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       this.log.info(`Node ${node.nodeId} is ready (Interview Stage: ${node.interviewStage})`);
       this.emit('status updated', `Node ${node.nodeId} Ready`);
       this.emit('node ready', node);
+      void this.refreshNodeDeviceSerialNumber(node);
     };
 
     const onValueUpdated = (n: ZWaveNode, args: ZWaveValueEvent) => {
@@ -246,6 +249,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       this.log.info(`Node ${node.nodeId} has woken up. Interview will resume.`);
       this.emit('status updated', `Node ${node.nodeId} Awake`);
       this.emit('node updated', node);
+      void this.refreshNodeDeviceSerialNumber(node);
     };
 
     const onSleep = () => {
@@ -307,6 +311,54 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     if (node.ready) {
       this.log.info(`Node ${node.nodeId} is already ready, emitting node ready immediately`);
       this.emit('node ready', node);
+      void this.refreshNodeDeviceSerialNumber(node);
+    }
+  }
+
+  private async refreshNodeDeviceSerialNumber(node: ZWaveNode): Promise<void> {
+    if ((node as ZWaveNode & { deviceSerialNumber?: string }).deviceSerialNumber) {
+      return;
+    }
+
+    if (
+      typeof node.supportsCC !== 'function' ||
+      !node.supportsCC(CommandClasses['Manufacturer Specific'])
+    ) {
+      return;
+    }
+
+    const manufacturerSpecificApi = (
+      node as ZWaveNode & {
+        commandClasses?: {
+          [key: string]: {
+            deviceSpecificGet?: (deviceIdType: number) => Promise<unknown>;
+          };
+        };
+      }
+    ).commandClasses?.['Manufacturer Specific'];
+
+    if (typeof manufacturerSpecificApi?.deviceSpecificGet !== 'function') {
+      return;
+    }
+
+    try {
+      const deviceSerialNumber = await manufacturerSpecificApi.deviceSpecificGet(
+        MANUFACTURER_SPECIFIC_SERIAL_NUMBER_TYPE,
+      );
+
+      if (typeof deviceSerialNumber !== 'string' || deviceSerialNumber.length === 0) {
+        return;
+      }
+
+      if ((node as ZWaveNode & { deviceSerialNumber?: string }).deviceSerialNumber === deviceSerialNumber) {
+        return;
+      }
+
+      (node as ZWaveNode & { deviceSerialNumber?: string }).deviceSerialNumber = deviceSerialNumber;
+      this.log.info(`Node ${node.nodeId} reported device serial number: ${deviceSerialNumber}`);
+      this.emit('node updated', node);
+    } catch (err) {
+      this.log.debug(`Node ${node.nodeId} did not provide a device serial number yet: ${err}`);
     }
   }
 

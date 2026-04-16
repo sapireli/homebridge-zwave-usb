@@ -88,6 +88,9 @@ describe('ZWaveAccessory', () => {
       nodeId: 2,
       manufacturer: 'Node Man',
       label: 'Node Label',
+      manufacturerId: 0x003b,
+      productType: 0x1234,
+      productId: 0xabcd,
       deviceConfig: {
         manufacturer: 'Test Man',
         label: 'Test Model',
@@ -228,7 +231,26 @@ describe('ZWaveAccessory', () => {
     );
     expect(mockService.setCharacteristic).toHaveBeenCalledWith(
       platform.Characteristic.Model,
-      'Node Label',
+      'Node Label (0x003B:0x1234:0xABCD)',
+    );
+    expect(mockService.setCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.SerialNumber,
+      'zwave-0x003B:0x1234:0xABCD-node-2',
+    );
+  });
+
+  it('should prefer a device-specific serial number when zwave-js has one cached', () => {
+    node.deviceSerialNumber = 'BE469ZP-serial-1234';
+
+    accessory = new ZWaveAccessory(
+      platform as unknown as ZWaveUsbPlatform,
+      node as IZWaveNode,
+      12345,
+    );
+
+    expect(mockService.setCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.SerialNumber,
+      'BE469ZP-serial-1234',
     );
   });
 
