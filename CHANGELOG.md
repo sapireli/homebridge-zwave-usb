@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.6] - 2026-04-16
+
+### Fixed
+- **HomeKit Firmware Display Compatibility:** `Accessory Information` now publishes `SoftwareRevision` alongside `FirmwareRevision` using the node firmware version, which improves compatibility with HomeKit surfaces that read the software revision field instead of the firmware revision field.
+- **Regression Coverage:** Added accessory metadata coverage for the mirrored `SoftwareRevision` value.
+
 ## [3.6.5] - 2026-04-16
 
 ### Fixed

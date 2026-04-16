@@ -71,6 +71,7 @@ describe('ZWaveAccessory', () => {
         Name: '00000023-0000-1000-8000-0026BB765291',
         ConfiguredName: '000000E3-0000-1000-8000-0026BB765291',
         FirmwareRevision: '00000052-0000-1000-8000-0026BB765291',
+        SoftwareRevision: '00000054-0000-1000-8000-0026BB765291',
         ServiceLabelIndex: 'ServiceLabelIndex',
         StatusTampered: {
           NOT_TAMPERED: 0,
@@ -221,6 +222,10 @@ describe('ZWaveAccessory', () => {
   it('should advertise the node firmware revision without synthetic metadata suffixes', () => {
     expect(mockService.setCharacteristic).toHaveBeenCalledWith(
       platform.Characteristic.FirmwareRevision,
+      '1.0.0',
+    );
+    expect(mockService.setCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.SoftwareRevision,
       '1.0.0',
     );
   });

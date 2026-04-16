@@ -357,6 +357,13 @@ export class ZWaveAccessory {
       .setCharacteristic(this.platform.Characteristic.SerialNumber, serial)
       .setCharacteristic(this.platform.Characteristic.FirmwareRevision, firmwareRevision);
 
+    if (this.platform.Characteristic.SoftwareRevision) {
+      infoService.setCharacteristic(
+        this.platform.Characteristic.SoftwareRevision,
+        firmwareRevision,
+      );
+    }
+
     this.ensureAccessoryInformationConfiguredName(infoService, name);
 
     if (options.syncName) {
