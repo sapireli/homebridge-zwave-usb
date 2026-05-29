@@ -6,6 +6,7 @@ export const PLATFORM_NAME = 'ZWaveUSB';
 export const MANAGER_SERVICE_UUID = '9b0f7a10-6b3d-4fe8-8f6c-7e99b2d4a101';
 export const STATUS_CHAR_UUID = '9b0f7a10-6b3d-4fe8-8f6c-7e99b2d4a102';
 export const PIN_CHAR_UUID = '9b0f7a10-6b3d-4fe8-8f6c-7e99b2d4a104';
+export const UV_INDEX_CHAR_UUID = 'E863F129-079E-48FF-8F27-9C2605A29F52';
 
 // HAP Constants (Enums for cleaner code)
 export enum HAPFormat {

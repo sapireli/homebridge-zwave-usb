@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.7] - 2026-05-29
+
+### Added
+- **UV Sensor Support:** Added support for Ultraviolet (UV Index) sensors. UV Index is now exposed as a custom characteristic within the Light Sensor service, compatible with Eve and other 3rd party HomeKit apps. Resolves issue #5.
+
+### Notes
+- Apple Home does not provide a native UV Index tile. The value is published as a custom HomeKit characteristic, so it is expected to be visible in apps that show custom characteristics, such as Eve and Controller for HomeKit.
+
 ## [3.6.6] - 2026-04-16
 
 ### Fixed

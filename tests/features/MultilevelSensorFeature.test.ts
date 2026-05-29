@@ -53,6 +53,7 @@ describe('MultilevelSensorFeature', () => {
         },
         VOCDensity: 'VOCDensity',
         PM2_5Density: 'PM2_5Density',
+        UVIndex: 'UVIndex',
         Name: 'Name',
         ConfiguredName: 'ConfiguredName',
         ServiceLabelIndex: 'ServiceLabelIndex',
@@ -196,6 +197,38 @@ describe('MultilevelSensorFeature', () => {
     expect(service.updateCharacteristic).toHaveBeenCalledWith(
       platform.Characteristic.CurrentRelativeHumidity,
       45,
+    );
+  });
+
+  it('should initialize UV Sensor', () => {
+    node.getDefinedValueIDs.mockReturnValue([
+      {
+        commandClass: CommandClasses['Multilevel Sensor'],
+        property: 'Ultraviolet',
+        endpoint: 0,
+      },
+    ]);
+    feature.init();
+    expect(accessory.getService).toHaveBeenCalledWith(platform.Service.LightSensor);
+    expect(service.getCharacteristic).toHaveBeenCalledWith(platform.Characteristic.UVIndex);
+  });
+
+  it('should update UV Sensor', () => {
+    node.getDefinedValueIDs.mockReturnValue([
+      {
+        commandClass: CommandClasses['Multilevel Sensor'],
+        property: 'Ultraviolet',
+        endpoint: 0,
+      },
+    ]);
+    node.getValue.mockReturnValue(5.5);
+
+    feature.init();
+    feature.update();
+
+    expect(service.updateCharacteristic).toHaveBeenCalledWith(
+      platform.Characteristic.UVIndex,
+      5.5,
     );
   });
 

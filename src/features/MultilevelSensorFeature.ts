@@ -38,6 +38,19 @@ export class MultilevelSensorFeature extends BaseFeature {
         .onGet(() => Math.max(this.getSensorValue('Illuminance') ?? 0.0001, 0.0001));
     }
 
+    if (this.hasSensorType('Ultraviolet')) {
+      if (!this.lightService) {
+        this.lightService = this.getService(this.platform.Service.LightSensor, undefined, subType);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const uvChar = (this.platform.Characteristic as any).UVIndex;
+      if (uvChar) {
+        this.lightService
+          .getCharacteristic(uvChar)
+          .onGet(() => this.getSensorValue('Ultraviolet') ?? 0);
+      }
+    }
+
     if (this.hasSensorType('Carbon dioxide (CO2) level')) {
       this.carbonDioxideService = this.getService(
         this.platform.Service.CarbonDioxideSensor,
@@ -108,6 +121,13 @@ export class MultilevelSensorFeature extends BaseFeature {
           this.platform.Characteristic.CurrentAmbientLightLevel,
           Math.max(val, 0.0001),
         );
+      }
+
+      const uvVal = this.getSensorValue('Ultraviolet');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const uvChar = (this.platform.Characteristic as any).UVIndex;
+      if (uvVal !== undefined && uvChar) {
+        this.lightService.updateCharacteristic(uvChar, uvVal);
       }
     }
     if (this.airQualityService) {

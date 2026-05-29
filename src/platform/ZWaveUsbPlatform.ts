@@ -19,6 +19,7 @@ import { ControllerAccessory } from '../accessories/ControllerAccessory';
 import {
   STATUS_CHAR_UUID,
   PIN_CHAR_UUID,
+  UV_INDEX_CHAR_UUID,
   MANAGER_SERVICE_UUID,
   HAPFormat,
   HAPPerm,
@@ -333,7 +334,25 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       }
     };
 
-    // 3. Z-Wave Manager Service
+    // 3. UV Index Characteristic
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Characteristic as any).UVIndex = class extends Characteristic {
+      static readonly UUID = UV_INDEX_CHAR_UUID;
+      constructor() {
+        super('UV Index', UV_INDEX_CHAR_UUID, {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          format: HAPFormat.FLOAT as any,
+          minValue: 0,
+          maxValue: 100,
+          minStep: 0.1,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          perms: [HAPPerm.PAIRED_READ as any, HAPPerm.NOTIFY as any],
+        });
+        this.value = 0;
+      }
+    };
+
+    // 4. Z-Wave Manager Service
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (Service as any).ZWaveManager = class extends Service {
       static readonly UUID = MANAGER_SERVICE_UUID;
