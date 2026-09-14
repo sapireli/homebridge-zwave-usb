@@ -1,7 +1,26 @@
-import { PlatformAccessory, Service, WithUUID } from 'homebridge';
-import { Endpoint } from 'zwave-js';
+import { CharacteristicValue, PlatformAccessory, Service, WithUUID } from 'homebridge';
+import { Endpoint, SetValueResult } from 'zwave-js';
+import { CommandClasses } from '@zwave-js/core';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
+import { describeSetValueResult } from '../zwave/setValueResult';
+
+/** HAP SERVICE_COMMUNICATION_FAILURE. */
+const HAP_COMMUNICATION_FAILURE = -70402;
+
+export interface ActuatorWrite {
+  /** HomeKit characteristic being written, used for log correlation. */
+  characteristic: string;
+  commandClass: CommandClasses;
+  property: string | number;
+  propertyKey?: string | number;
+  /** Defaults to the feature's own endpoint. */
+  endpoint?: number;
+  /** The value HomeKit asked for. */
+  requestedValue: CharacteristicValue;
+  /** The value sent to Z-Wave, which may be scaled or clamped. */
+  zwaveValue: unknown;
+}
 
 export const CONFIGURED_NAME_COMPAT_SERVICE_UUIDS = new Set([
   '0000008D-0000-1000-8000-0026BB765291', // AirQualitySensor
@@ -94,6 +113,49 @@ export abstract class BaseFeature implements ZWaveFeature {
 
   public getEndpointIndex(): number {
     return this.endpoint.index;
+  }
+
+  /**
+   * Single entry point for every actuator write. It records what HomeKit asked for and what was
+   * actually sent, inspects the driver's SetValueResult, and turns a refused write into a
+   * HomeKit error instead of letting it resolve silently.
+   */
+  protected async writeZWaveValue(write: ActuatorWrite): Promise<void> {
+    const endpoint = write.endpoint ?? this.endpoint.index;
+    const commandClassName = CommandClasses[write.commandClass] ?? `CC ${write.commandClass}`;
+    const label = `Node ${this.node.nodeId} endpoint ${endpoint} ${write.characteristic}`;
+    const target =
+      `${commandClassName}.${String(write.property)}` +
+      (write.propertyKey === undefined ? '' : `[${String(write.propertyKey)}]`);
+
+    this.platform.log.debug(
+      `Set begin: ${label} requested=${JSON.stringify(write.requestedValue)} -> ` +
+        `${target}=${JSON.stringify(write.zwaveValue)}`,
+    );
+
+    let result: SetValueResult | undefined;
+    try {
+      result = await this.node.setValue(
+        {
+          commandClass: write.commandClass,
+          endpoint,
+          property: write.property,
+          propertyKey: write.propertyKey,
+        },
+        write.zwaveValue,
+      );
+    } catch (err) {
+      this.platform.log.error(`Set failed: ${label} -> ${target}:`, err);
+      throw new this.platform.api.hap.HapStatusError(HAP_COMMUNICATION_FAILURE);
+    }
+
+    const outcome = describeSetValueResult(result);
+    if (!outcome.accepted) {
+      this.platform.log.error(`Set rejected: ${label} -> ${target}: ${outcome.description}`);
+      throw new this.platform.api.hap.HapStatusError(HAP_COMMUNICATION_FAILURE);
+    }
+
+    this.platform.log.debug(`Set end: ${label} -> ${target}: ${outcome.description}`);
   }
 
   protected supportsCC(commandClass: number): boolean {

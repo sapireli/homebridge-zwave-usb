@@ -73,22 +73,13 @@ export class MultilevelSwitchFeature extends BaseFeature {
 
   private async handleSetOn(value: CharacteristicValue) {
     const targetValue = value ? 255 : 0;
-    try {
-      await this.node.setValue(
-        {
-          commandClass: CommandClasses['Multilevel Switch'],
-          property: 'targetValue',
-          endpoint: this.endpoint.index,
-        },
-        targetValue,
-      );
-    } catch (err) {
-      this.platform.log.error(
-        `Failed to set ON/OFF for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`,
-        err,
-      );
-      throw new this.platform.api.hap.HapStatusError(-70402); // SERVICE_COMMUNICATION_FAILURE
-    }
+    await this.writeZWaveValue({
+      characteristic: 'On',
+      commandClass: CommandClasses['Multilevel Switch'],
+      property: 'targetValue',
+      requestedValue: value,
+      zwaveValue: targetValue,
+    });
   }
 
   private handleGetBrightness(): number {
@@ -111,21 +102,12 @@ export class MultilevelSwitchFeature extends BaseFeature {
 
   private async handleSetBrightness(value: CharacteristicValue) {
     const targetValue = Math.min(Math.max(value as number, 0), 99);
-    try {
-      await this.node.setValue(
-        {
-          commandClass: CommandClasses['Multilevel Switch'],
-          property: 'targetValue',
-          endpoint: this.endpoint.index,
-        },
-        targetValue,
-      );
-    } catch (err) {
-      this.platform.log.error(
-        `Failed to set Brightness for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`,
-        err,
-      );
-      throw new this.platform.api.hap.HapStatusError(-70402); // SERVICE_COMMUNICATION_FAILURE
-    }
+    await this.writeZWaveValue({
+      characteristic: 'Brightness',
+      commandClass: CommandClasses['Multilevel Switch'],
+      property: 'targetValue',
+      requestedValue: value,
+      zwaveValue: targetValue,
+    });
   }
 }

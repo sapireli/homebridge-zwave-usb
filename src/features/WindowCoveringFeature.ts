@@ -159,24 +159,24 @@ export class WindowCoveringFeature extends BaseFeature {
       : CommandClasses['Multilevel Switch'];
 
     try {
-      await this.node.setValue(
-        {
-          commandClass: cc,
-          property: 'targetValue',
-          endpoint: this.endpoint.index,
-        },
-        zwaveVal,
-      );
+      await this.writeZWaveValue({
+        characteristic: 'TargetPosition',
+        commandClass: cc,
+        property: 'targetValue',
+        requestedValue: target,
+        zwaveValue: zwaveVal,
+      });
     } catch (err) {
+      /**
+       * The lockout exists to ignore the driver's echo of this write for a few seconds. If the
+       * write never happened there is no echo to ignore, and leaving it armed would suppress a
+       * genuine report from the device.
+       */
       if (this.lockoutTimer) {
         clearTimeout(this.lockoutTimer);
         this.lockoutTimer = undefined;
       }
-      this.platform.log.error('Failed to set window covering position:', err);
-      /**
-       * SILENT FAILURE FIX: Inform HomeKit that the command failed.
-       */
-      throw new this.platform.api.hap.HapStatusError(-70402);
+      throw err;
     }
   }
 

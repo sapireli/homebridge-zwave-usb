@@ -70,19 +70,14 @@ export class SirenFeature extends BaseFeature {
   private async handleSetVolume(value: CharacteristicValue) {
     const volume = value as number;
     const targetEndpoint = this.endpoint.supportsCC(CommandClasses['Sound Switch']) ? this.endpoint.index : 0;
-    try {
-      await this.node.setValue(
-        {
-          commandClass: CommandClasses['Sound Switch'],
-          property: 'defaultVolume',
-          endpoint: targetEndpoint,
-        },
-        volume,
-      );
-    } catch (err) {
-      this.platform.log.error('Failed to set siren volume:', err);
-      throw new this.platform.api.hap.HapStatusError(-70402);
-    }
+    await this.writeZWaveValue({
+      characteristic: 'Volume',
+      commandClass: CommandClasses['Sound Switch'],
+      property: 'defaultVolume',
+      endpoint: targetEndpoint,
+      requestedValue: value,
+      zwaveValue: volume,
+    });
   }
 
   private handleGetState(): boolean {
@@ -124,58 +119,46 @@ export class SirenFeature extends BaseFeature {
 
     // Use Sound Switch if supported on this endpoint
     if (this.endpoint.supportsCC(CommandClasses['Sound Switch'])) {
-      try {
-        /**
-         * TONE SELECTION FIX: We use Tone 1 as primary default,
-         * but we check for value metadata to see if 255 (default) is valid.
-         */
-        const toneMetadata = this.node.getValueMetadata({
-          commandClass: CommandClasses['Sound Switch'],
-          property: 'toneId',
-          endpoint: this.endpoint.index,
-        });
+      /**
+       * TONE SELECTION FIX: We use Tone 1 as primary default,
+       * but we check for value metadata to see if 255 (default) is valid.
+       */
+      const toneMetadata = this.node.getValueMetadata({
+        commandClass: CommandClasses['Sound Switch'],
+        property: 'toneId',
+        endpoint: this.endpoint.index,
+      });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const targetTone =
+        on &&
+        toneMetadata &&
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const targetTone =
-          on &&
-          toneMetadata &&
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          typeof (toneMetadata as any).max === 'number' &&
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (toneMetadata as any).max === 255
-            ? 255
-            : on
-              ? 1
-              : 0;
+        typeof (toneMetadata as any).max === 'number' &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (toneMetadata as any).max === 255
+          ? 255
+          : on
+            ? 1
+            : 0;
 
-        await this.node.setValue(
-          {
-            commandClass: CommandClasses['Sound Switch'],
-            property: 'toneId',
-            endpoint: this.endpoint.index,
-          },
-          targetTone,
-        );
-        return;
-      } catch (err) {
-        this.platform.log.error('Failed to set siren state (Sound Switch):', err);
-        throw new this.platform.api.hap.HapStatusError(-70402);
-      }
+      await this.writeZWaveValue({
+        characteristic: 'On',
+        commandClass: CommandClasses['Sound Switch'],
+        property: 'toneId',
+        requestedValue: value,
+        zwaveValue: targetTone,
+      });
+      return;
     }
 
     // Fallback to Binary Switch
-    try {
-      await this.node.setValue(
-        {
-          commandClass: CommandClasses['Binary Switch'],
-          property: 'targetValue',
-          endpoint: this.endpoint.index,
-        },
-        on,
-      );
-    } catch (err) {
-      this.platform.log.error('Failed to set siren state (Binary Switch):', err);
-      throw new this.platform.api.hap.HapStatusError(-70402);
-    }
+    await this.writeZWaveValue({
+      characteristic: 'On',
+      commandClass: CommandClasses['Binary Switch'],
+      property: 'targetValue',
+      requestedValue: value,
+      zwaveValue: on,
+    });
   }
 }

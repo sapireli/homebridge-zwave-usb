@@ -163,6 +163,25 @@ describe('SirenFeature', () => {
     );
   });
 
+  it('should write the volume to the root endpoint when its own endpoint lacks Sound Switch', async () => {
+    /**
+     * A multi-channel siren can expose Sound Switch only at the root. Writing the volume to the
+     * feature's own endpoint would then address a channel that cannot answer.
+     */
+    (endpoint as any).index = 2;
+    endpoint.supportsCC.mockImplementation((cc: number) => cc !== 121);
+
+    const volChar = service.getCharacteristic('RotationSpeed');
+    expect(volChar.onSet.mock.calls).toHaveLength(1);
+    const handler = volChar.onSet.mock.calls[0][0];
+    await handler(40);
+
+    expect(node.setValue).toHaveBeenLastCalledWith(
+      expect.objectContaining({ property: 'defaultVolume', endpoint: 0 }),
+      40,
+    );
+  });
+
   it('should use endpoint-specific Sound Switch support when the node root does not advertise it', () => {
     node.supportsCC.mockReturnValue(false);
     endpoint.supportsCC.mockImplementation((cc: number) => cc === 121);
