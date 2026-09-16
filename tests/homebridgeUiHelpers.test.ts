@@ -1,4 +1,5 @@
 const {
+  escapeHtml,
   normalizeSecurityKey,
   getInvalidSecurityKeyFields,
   buildPluginConfig,
@@ -64,5 +65,39 @@ describe('homebridge-ui security key helpers', () => {
       S2_Authenticated_LR: '',
       S2_AccessControl_LR: '',
     });
+  });
+});
+
+describe('homebridge-ui HTML escaping', () => {
+  it('escapes the characters that can end an element or an attribute', () => {
+    expect(escapeHtml(`&<>"'`)).toBe('&amp;&lt;&gt;&quot;&#39;');
+  });
+
+  it('renders a device name containing markup as text', () => {
+    expect(escapeHtml('<img src=x onerror=alert(1)>')).toBe('&lt;img src=x onerror=alert(1)&gt;');
+  });
+
+  it('escapes single quotes, which close the single-quoted attributes this page uses', () => {
+    expect(escapeHtml("x' onmouseover='evil()")).not.toContain("'");
+  });
+
+  it('leaves a JSON payload parseable once the browser decodes the attribute', () => {
+    const update = { version: "1.2'3", url: 'https://example.test/f?a=1&b=2' };
+    const attribute = escapeHtml(JSON.stringify(update));
+
+    expect(attribute).not.toContain("'");
+    // A browser decodes entities when the attribute is read back with getAttribute.
+    const decoded = attribute
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
+    expect(JSON.parse(decoded)).toEqual(update);
+  });
+
+  it('renders a missing value as an empty string rather than "undefined"', () => {
+    expect(escapeHtml(undefined)).toBe('');
+    expect(escapeHtml(null)).toBe('');
   });
 });

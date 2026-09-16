@@ -33,6 +33,27 @@
     });
   }
 
+  const HTML_ESCAPES = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+
+  /**
+   * Escapes a value for interpolation into HTML, as element text or inside a quoted attribute.
+   * Single quotes are escaped as well as double, because attributes in this page are written
+   * with either. A browser decodes the entities again when the attribute is read back, so a
+   * value that goes through JSON.parse still parses.
+   */
+  function escapeHtml(value) {
+    return String(value === undefined || value === null ? '' : value).replace(
+      /[&<>"']/g,
+      (character) => HTML_ESCAPES[character],
+    );
+  }
+
   function buildPluginConfig(currentConfig, formValues) {
     const securityKeys = normalizeSecurityKeys(formValues.securityKeys || {});
     const invalidSecurityKeyFields = getInvalidSecurityKeyFields(securityKeys);
@@ -69,6 +90,7 @@
     normalizeSecurityKey,
     normalizeSecurityKeys,
     getInvalidSecurityKeyFields,
+    escapeHtml,
     buildPluginConfig,
   };
 });

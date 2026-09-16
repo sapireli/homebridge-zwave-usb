@@ -365,13 +365,13 @@
 
 	            tr.innerHTML = `
 	              <td>${node.nodeId}</td>
-	              <td id="node-name-${node.nodeId}">${nodeName}</td>
+	              <td id="node-name-${node.nodeId}">${uiHelpers.escapeHtml(nodeName)}</td>
 	              <td>
 	                <span class="badge badge-${status === 'Alive' || status === 'Awake' ? 'success' : 'secondary'}">${status}</span>
 	                ${refreshState ? `<div class="small text-muted mt-1">${refreshState}</div>` : ''}
 	                ${homeKitState ? `<div class="small text-muted mt-1">${homeKitState}</div>` : ''}
 	              </td>
-	              <td>${node.firmwareVersion || 'Unknown'}</td>
+	              <td>${uiHelpers.escapeHtml(node.firmwareVersion || 'Unknown')}</td>
 	              <td id="node-action-${node.nodeId}">${actionHtml}</td>
 	            `;
             tbody.appendChild(tr);
@@ -379,7 +379,7 @@
         } catch (err) {
           const tbody = document.getElementById('nodeTableBody');
           if (tbody) {
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">${err.message}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">${uiHelpers.escapeHtml(err.message)}</td></tr>`;
           }
         }
       };
@@ -440,8 +440,8 @@
               const update = updates[0];
               const actionCell = document.getElementById(`node-action-${nodeId}`);
               actionCell.innerHTML = `
-                <button class="btn btn-sm btn-success start-update" data-nodeid="${nodeId}" data-update='${JSON.stringify(update)}'>
-                  Update to v${update.version}
+                <button class="btn btn-sm btn-success start-update" data-nodeid="${nodeId}" data-update='${uiHelpers.escapeHtml(JSON.stringify(update))}'>
+                  Update to v${uiHelpers.escapeHtml(update.version)}
                 </button>
                 <div class="small text-muted mt-1">Found update!</div>
               `;
