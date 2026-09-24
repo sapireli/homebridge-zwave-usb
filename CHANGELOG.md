@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6.8] - 2026-09-24
+
+### Fixed
+- Escaped device and firmware update values shown in the management UI to prevent injected markup or attributes from being interpreted as HTML (#8).
+- Reported Z-Wave writes refused by the driver as HomeKit communication failures instead of successful changes (#9).
+
+Thanks to Bruno Courbage (@bcourbage) for both fixes.
+
 ## [3.6.7] - 2026-05-29
 
 ### Added
