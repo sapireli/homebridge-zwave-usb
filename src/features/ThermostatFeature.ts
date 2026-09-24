@@ -170,32 +170,26 @@ export class ThermostatFeature extends BaseFeature {
         break;
     }
 
-    try {
-      await this.node.setValue(
-        {
-          commandClass: CommandClasses['Thermostat Mode'],
-          property: 'mode',
-          endpoint: this.endpoint.index,
-        },
-        zwaveMode,
+    await this.writeZWaveValue({
+      characteristic: 'TargetHeatingCoolingState',
+      commandClass: CommandClasses['Thermostat Mode'],
+      property: 'mode',
+      requestedValue: value,
+      zwaveValue: zwaveMode,
+    });
+
+    if (value !== this.platform.Characteristic.TargetHeatingCoolingState.AUTO) {
+      const currentState =
+        value === this.platform.Characteristic.TargetHeatingCoolingState.OFF
+          ? this.platform.Characteristic.CurrentHeatingCoolingState.OFF
+          : value === this.platform.Characteristic.TargetHeatingCoolingState.COOL
+            ? this.platform.Characteristic.CurrentHeatingCoolingState.COOL
+            : this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
+
+      this.service.updateCharacteristic(
+        this.platform.Characteristic.CurrentHeatingCoolingState,
+        currentState,
       );
-
-      if (value !== this.platform.Characteristic.TargetHeatingCoolingState.AUTO) {
-        const currentState =
-          value === this.platform.Characteristic.TargetHeatingCoolingState.OFF
-            ? this.platform.Characteristic.CurrentHeatingCoolingState.OFF
-            : value === this.platform.Characteristic.TargetHeatingCoolingState.COOL
-              ? this.platform.Characteristic.CurrentHeatingCoolingState.COOL
-              : this.platform.Characteristic.CurrentHeatingCoolingState.HEAT;
-
-        this.service.updateCharacteristic(
-          this.platform.Characteristic.CurrentHeatingCoolingState,
-          currentState,
-        );
-      }
-    } catch (err) {
-      this.platform.log.error('Failed to set thermostat mode:', err);
-      throw new this.platform.api.hap.HapStatusError(-70402);
     }
   }
 
@@ -381,12 +375,14 @@ export class ThermostatFeature extends BaseFeature {
         ? Math.round(((tempC * 9) / 5 + 32) * 2) / 2
         : Math.round(tempC * 2) / 2;
 
-    try {
-      await this.node.setValue(valueId, targetVal);
-    } catch (err) {
-      this.platform.log.error(`Failed to set thermostat setpoint ${setpointType}:`, err);
-      throw new this.platform.api.hap.HapStatusError(-70402);
-    }
+    await this.writeZWaveValue({
+      characteristic: `TargetTemperature (${setpointType})`,
+      commandClass: CommandClasses['Thermostat Setpoint'],
+      property: 'setpoint',
+      propertyKey: setpointType,
+      requestedValue: tempC,
+      zwaveValue: targetVal,
+    });
   }
 
   private handleGetDisplayUnits(): number {

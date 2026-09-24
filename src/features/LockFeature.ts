@@ -137,21 +137,12 @@ export class LockFeature extends BaseFeature {
     const cc = useDoorLock ? CommandClasses['Door Lock'] : CommandClasses.Lock;
     const property = useDoorLock ? 'targetMode' : 'locked';
 
-    try {
-      await this.node.setValue(
-        {
-          commandClass: cc,
-          property: property,
-          endpoint: this.endpoint.index,
-        },
-        useDoorLock ? targetValue : !!isSecure,
-      );
-    } catch (err) {
-      this.platform.log.error(
-        `Failed to set Lock Target for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`,
-        err,
-      );
-      throw new this.platform.api.hap.HapStatusError(-70402);
-    }
+    await this.writeZWaveValue({
+      characteristic: 'LockTargetState',
+      commandClass: cc,
+      property,
+      requestedValue: value,
+      zwaveValue: useDoorLock ? targetValue : !!isSecure,
+    });
   }
 }

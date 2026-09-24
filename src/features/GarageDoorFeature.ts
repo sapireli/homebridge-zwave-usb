@@ -123,21 +123,12 @@ export class GarageDoorFeature extends BaseFeature {
 
   private async handleSetTargetState(value: CharacteristicValue) {
     const target = value === this.platform.Characteristic.TargetDoorState.OPEN ? 255 : 0;
-    try {
-      await this.node.setValue(
-        {
-          commandClass: CommandClasses['Barrier Operator'],
-          property: 'targetState',
-          endpoint: this.endpoint.index,
-        },
-        target,
-      );
-    } catch (err) {
-      this.platform.log.error('Failed to set garage door state:', err);
-      /**
-       * SILENT FAILURE FIX: Inform HomeKit that the command failed.
-       */
-      throw new this.platform.api.hap.HapStatusError(-70402);
-    }
+    await this.writeZWaveValue({
+      characteristic: 'TargetDoorState',
+      commandClass: CommandClasses['Barrier Operator'],
+      property: 'targetState',
+      requestedValue: value,
+      zwaveValue: target,
+    });
   }
 }

@@ -43,6 +43,11 @@ describe('MultilevelSwitchFeature', () => {
       uuid: {
         generate: jest.fn().mockReturnValue('test-uuid'),
       },
+      HapStatusError: class HapStatusError extends Error {
+        constructor(public readonly hapStatus: number) {
+          super(`HAP status ${hapStatus}`);
+        }
+      },
     } as any;
 
     accessory = {
@@ -146,5 +151,26 @@ describe('MultilevelSwitchFeature', () => {
       },
       0,
     );
+  });
+
+  it('should report a refused write to HomeKit instead of resolving', async () => {
+    feature.init();
+    (node.setValue as jest.Mock).mockResolvedValue({ status: 2, message: 'no ack' });
+
+    await expect((feature as any).handleSetOn(true)).rejects.toThrow('HAP status -70402');
+  });
+
+  it('should keep reporting a write the driver could not send at all', async () => {
+    feature.init();
+    (node.setValue as jest.Mock).mockRejectedValue(new Error('serial port closed'));
+
+    await expect((feature as any).handleSetOn(true)).rejects.toThrow('HAP status -70402');
+  });
+
+  it('should accept a command the driver is still working on', async () => {
+    feature.init();
+    (node.setValue as jest.Mock).mockResolvedValue({ status: 1 });
+
+    await expect((feature as any).handleSetOn(true)).resolves.toBeUndefined();
   });
 });

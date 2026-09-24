@@ -38,22 +38,12 @@ export class BinarySwitchFeature extends BaseFeature {
   }
 
   private async handleSetOn(value: CharacteristicValue) {
-    try {
-      await this.node.setValue(
-        {
-          commandClass: CommandClasses['Binary Switch'],
-          property: 'targetValue',
-          endpoint: this.endpoint.index,
-        },
-        value,
-      );
-    } catch (err) {
-      this.platform.log.error(
-        `Failed to set switch value for node ${this.node.nodeId} endpoint ${this.endpoint.index}:`,
-        err,
-      );
-      // SERVICE_COMMUNICATION_FAILURE = -70402
-      throw new this.platform.api.hap.HapStatusError(-70402);
-    }
+    await this.writeZWaveValue({
+      characteristic: 'On',
+      commandClass: CommandClasses['Binary Switch'],
+      property: 'targetValue',
+      requestedValue: value,
+      zwaveValue: value,
+    });
   }
 }

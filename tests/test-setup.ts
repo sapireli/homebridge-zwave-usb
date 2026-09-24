@@ -39,5 +39,29 @@ jest.mock('zwave-js', () => {
     InclusionStrategy: {
       Default: 0,
     },
+    /**
+     * Mirrors zwave-js's SetValueStatus and setValueFailed. The real module is deliberately not
+     * loaded here: it requires Node 20 and this suite still runs on 18, so pulling it in would
+     * couple the tests to a runtime the plugin's own engines field still claims to support.
+     */
+    SetValueStatus: {
+      0: 'NoDeviceSupport',
+      1: 'Working',
+      2: 'Fail',
+      3: 'EndpointNotFound',
+      4: 'NotImplemented',
+      5: 'InvalidValue',
+      254: 'SuccessUnsupervised',
+      255: 'Success',
+      NoDeviceSupport: 0,
+      Working: 1,
+      Fail: 2,
+      EndpointNotFound: 3,
+      NotImplemented: 4,
+      InvalidValue: 5,
+      SuccessUnsupervised: 254,
+      Success: 255,
+    },
+    setValueFailed: (result: { status?: number }) => [0, 2, 3, 4, 5].includes(result?.status ?? -1),
   };
 });

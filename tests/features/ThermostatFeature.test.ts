@@ -152,6 +152,28 @@ describe('ThermostatFeature', () => {
     expect(value).toBe(21);
   });
 
+  it('should address the heating setpoint by its setpoint type', async () => {
+    const targetChar = service.getCharacteristic();
+    // init registers TargetHeatingCoolingState, TargetTemperature, then the two setpoints.
+    const setHeatingSetpoint = targetChar.onSet.mock.calls[2][0];
+
+    await setHeatingSetpoint(21);
+
+    /**
+     * Thermostat Setpoint values are keyed by propertyKey. Losing it would write to whichever
+     * setpoint the device happens to return first, so it is pinned here.
+     */
+    expect(node.setValue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commandClass: 67,
+        property: 'setpoint',
+        propertyKey: 1,
+        endpoint: 0,
+      }),
+      expect.anything(),
+    );
+  });
+
   it('should not optimistically report HEAT when switching to AUTO mode', async () => {
     const targetChar = service.getCharacteristic();
     const setTargetHandler = targetChar.onSet.mock.calls[0][0];
