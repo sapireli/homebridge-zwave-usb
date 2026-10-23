@@ -186,25 +186,26 @@
    * the answer.
    */
   function describeCoveringStopResult(result) {
-    const where = `Ended at ${positionText(result.after)}, from ${positionText(result.before)}`;
+    const ended = `Ended at ${positionText(result.after)}`;
+    const sent = `It was at ${positionText(result.before)} when the stop was sent`;
 
     if (result.timedOut) {
-      return `${where}. The covering was still reporting movement when the test gave up, so the stop cannot be credited.`;
+      return `${ended}. ${sent}, and the covering was still reporting movement when the test gave up, so the stop cannot be credited.`;
     }
 
     if (result.shortOfTarget) {
-      return `${where}, which is short of its target of ${positionText(result.target)}. It came to rest there after the stop was sent, consistent with the stop taking effect.`;
+      return `${ended}, short of its target of ${positionText(result.target)}. ${sent}, and it came to rest after the stop, consistent with the stop taking effect.`;
     }
 
     if (!result.moved) {
-      return `${where}. The covering never reported moving after the stop was sent, so nothing was established. Start a move first, then stop it part way.`;
+      return `${ended}. ${sent}, and the covering never reported moving afterwards, so nothing was established. Start a move first, then stop it part way.`;
     }
 
     if (typeof result.target !== 'number') {
-      return `${where}. No target was recorded, so there is nothing to compare against.`;
+      return `${ended}. ${sent}, but no target was recorded, so there is nothing to compare against.`;
     }
 
-    return `${where}, which is its target of ${positionText(result.target)}. The covering may have finished traveling on its own, so the stop proved nothing.`;
+    return `${ended}, which is its target of ${positionText(result.target)}. ${sent}. The covering may have finished traveling on its own, so the stop proved nothing.`;
   }
 
   /**

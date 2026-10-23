@@ -855,7 +855,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
     const before = readPosition();
     const target = readTarget();
-    this.log.info(`Stop test: Node ${nodeId} asked to stop (was ${before}%, target ${target}%)`);
+    this.log.info(`Stop test: Node ${nodeId} asked to stop (at ${before}%, target ${target}%)`);
 
     await service.getCharacteristic(this.Characteristic.HoldPosition).handleSetRequest(true);
     const travel = await this.waitForCoveringToStop(

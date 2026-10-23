@@ -428,6 +428,23 @@ describe('covering test result wording', () => {
     ).toContain('consistent with the stop taking effect');
   });
 
+  it('says when the earlier position was read, so it is not taken for where the move began', () => {
+    // The covering was opening from well below 60% when the stop was sent; 60% is where it had
+    // got to by then, not where it started. Naming only the two numbers invites the reader to
+    // treat the first as the starting position and conclude the covering barely moved.
+    const text = describeCoveringStopResult({
+      before: 60,
+      after: 76,
+      target: 100,
+      shortOfTarget: true,
+      moved: true,
+      timedOut: false,
+    });
+
+    expect(text).toContain('It was at 60% when the stop was sent');
+    expect(text).toMatch(/^Ended at 76%, short of its target of 100%\./);
+  });
+
   it('refuses to credit a stop when the covering never moved', () => {
     // A covering sitting at 76% with a stale target of 100% rests short of it without ever
     // receiving the stop. Crediting that would invent evidence out of a stale number.
