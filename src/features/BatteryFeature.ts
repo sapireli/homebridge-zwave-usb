@@ -1,7 +1,7 @@
 import { Endpoint } from 'zwave-js';
 import { PlatformAccessory, Service } from 'homebridge';
 import { CommandClasses } from '@zwave-js/core';
-import { BaseFeature, HAP_COMMUNICATION_FAILURE } from './ZWaveFeature';
+import { BaseFeature, BatterySnapshot, HAP_COMMUNICATION_FAILURE } from './ZWaveFeature';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { BatteryReport, getBatteryApi } from '../zwave/nodeApi';
@@ -410,6 +410,30 @@ export class BatteryFeature extends BaseFeature {
 
     levels[key] = level;
     this.platform.api.updatePlatformAccessories?.([this.accessory]);
+  }
+
+  /**
+   * The same battery this endpoint publishes to HomeKit, for the management page.
+   *
+   * It goes through the two accessors the Battery service itself uses rather than reading the
+   * driver's values again, because the low-battery warning cannot be recovered from those
+   * values: Battery CC replaces the 0xFF sentinel with nothing before the report is persisted,
+   * so the cache still shows the last percentage. Only this feature remembers that the warning
+   * arrived, along with the Power Management notification that can settle it.
+   *
+   * Unlike the HomeKit getters this does not poll the device and raises no HapStatusError of
+   * its own, because the page asks for every node every few seconds. It can still fail the way
+   * any read of the driver can, so the caller contains that per node rather than per page.
+   */
+  public batterySnapshot(): BatterySnapshot {
+    const level = this.getBatteryLevel();
+
+    return {
+      level,
+      low:
+        this.resolveStatusLowBattery(level) ===
+        this.platform.Characteristic.StatusLowBattery.BATTERY_LEVEL_LOW,
+    };
   }
 
   private handleGetBatteryLevel(): number {

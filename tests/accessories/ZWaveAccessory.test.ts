@@ -5,6 +5,124 @@ import {
 import { ZWaveUsbPlatform } from '../../src/platform/ZWaveUsbPlatform';
 import { IZWaveNode } from '../../src/zwave/interfaces';
 
+describe('ZWaveAccessory battery aggregation', () => {
+  /**
+   * Battery features are built per endpoint, so which one the management page shows has to be
+   * decided rather than assumed. A device whose battery lives only on a child endpoint still
+   * has a working HomeKit battery, and it has to reach the page too.
+   */
+  const feature = (endpoint: number, snapshot?: { level?: number; low: boolean }) =>
+    ({
+      getEndpointIndex: () => endpoint,
+      ...(snapshot ? { batterySnapshot: jest.fn(() => snapshot) } : {}),
+    }) as any;
+
+  /** A battery whose read fails, to prove the ones before it are not thrown away. */
+  const throwingFeature = (endpoint: number) =>
+    ({
+      getEndpointIndex: () => endpoint,
+      batterySnapshot: jest.fn(() => {
+        throw new Error('the driver is not answering');
+      }),
+    }) as any;
+
+  const withFeatures = (...features: any[]) => {
+    const accessory = Object.create(ZWaveAccessory.prototype) as any;
+    accessory.features = features;
+    return accessory as ZWaveAccessory;
+  };
+
+  it('prefers the root battery when the device has one', () => {
+    const accessory = withFeatures(
+      feature(2, { level: 10, low: true }),
+      feature(0, { level: 80, low: false }),
+    );
+
+    expect(accessory.batteryState()).toEqual({ level: 80, low: false });
+  });
+
+  it('falls back to the lowest endpoint that has a battery', () => {
+    // Without this a device carrying Battery CC only on a child endpoint shows no indicator at
+    // all, while HomeKit shows its battery service quite happily.
+    const accessory = withFeatures(feature(3, { level: 55, low: false }), feature(2, { level: 20, low: true }));
+
+    expect(accessory.batteryState()).toEqual({ level: 20, low: true });
+  });
+
+  it('passes over a root battery that has nothing to say', () => {
+    /**
+     * The contract is that the root wins only when it has usable information. Preferring a
+     * silent root would show the device as having no battery at all while HomeKit shows the
+     * child endpoint's battery service quite happily, which is the case this rule exists for.
+     */
+    const accessory = withFeatures(
+      feature(0, { level: undefined, low: false }),
+      feature(2, { level: 35, low: false }),
+    );
+
+    expect(accessory.batteryState()).toEqual({ level: 35, low: false });
+  });
+
+  it('still prefers a root that is only carrying a warning', () => {
+    // A warning with no percentage is information, so the root keeps precedence.
+    const accessory = withFeatures(
+      feature(0, { level: undefined, low: true }),
+      feature(2, { level: 35, low: false }),
+    );
+
+    expect(accessory.batteryState()).toEqual({ level: undefined, low: true });
+  });
+
+  it('keeps a good root reading when a later endpoint cannot be read', () => {
+    /**
+     * Reading every endpoint before choosing looks equivalent to choosing as you go and is not:
+     * one failing endpoint would discard the root's perfectly good reading, and because the
+     * caller contains the failure per node the page would quietly show no battery at all.
+     */
+    const root = feature(0, { level: 80, low: false });
+    const broken = throwingFeature(3);
+    const accessory = withFeatures(broken, root);
+
+    expect(accessory.batteryState()).toEqual({ level: 80, low: false });
+    expect(broken.batterySnapshot).not.toHaveBeenCalled();
+  });
+
+  it('falls through a silent root to a good child without reaching a broken one', () => {
+    const root = feature(0, { level: undefined, low: false });
+    const child = feature(2, { level: 35, low: false });
+    const broken = throwingFeature(3);
+    const accessory = withFeatures(broken, child, root);
+
+    expect(accessory.batteryState()).toEqual({ level: 35, low: false });
+    expect(root.batterySnapshot).toHaveBeenCalled();
+    expect(child.batterySnapshot).toHaveBeenCalled();
+    expect(broken.batterySnapshot).not.toHaveBeenCalled();
+  });
+
+  it('lets a failure reached before any answer surface to the caller', () => {
+    // The caller logs it per node; swallowing it here would hide a broken accessory entirely.
+    const accessory = withFeatures(throwingFeature(0), feature(2, { level: 35, low: false }));
+
+    expect(() => accessory.batteryState()).toThrow('the driver is not answering');
+  });
+
+  it('reports nothing for a device with no battery feature', () => {
+    expect(withFeatures(feature(0), feature(1)).batteryState()).toBeUndefined();
+  });
+
+  it('reports nothing when the battery has never been heard from', () => {
+    // An empty shell would read as a flat battery rather than as silence.
+    expect(withFeatures(feature(0, { level: undefined, low: false })).batteryState()).toBeUndefined();
+  });
+
+  it('reports a warning that arrived before any percentage', () => {
+    expect(withFeatures(feature(0, { level: undefined, low: true })).batteryState()).toEqual({
+      level: undefined,
+      low: true,
+    });
+  });
+});
+
 describe('ZWaveAccessory', () => {
   let platform: any;
   let node: any;

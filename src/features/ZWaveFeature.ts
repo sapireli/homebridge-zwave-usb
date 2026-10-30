@@ -48,6 +48,18 @@ const SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS = new Set([
   '000000D0-0000-1000-8000-0026BB765291', // Valve
 ]);
 
+/**
+ * What a feature can say about a battery it manages, for a reader that is not HomeKit.
+ *
+ * `low` is the warning as the Battery service reports it, which is the only place it survives:
+ * Battery CC drops the 0xFF sentinel before the driver caches the report, so the value database
+ * holds the previous percentage and records the warning nowhere at all.
+ */
+export interface BatterySnapshot {
+  level?: number;
+  low: boolean;
+}
+
 export interface ZWaveFeature {
   init(): void;
   update(args?: ZWaveValueEvent): void;
@@ -56,6 +68,8 @@ export interface ZWaveFeature {
   stop(): void;
   updateNode(node: IZWaveNode, endpoint: Endpoint): void;
   rename(newName: string): void;
+  /** Implemented only by the features that manage a battery. */
+  batterySnapshot?(): BatterySnapshot;
 }
 
 export abstract class BaseFeature implements ZWaveFeature {

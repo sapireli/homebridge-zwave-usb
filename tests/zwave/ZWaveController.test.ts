@@ -117,11 +117,107 @@ describe('ZWaveController (Direct Mode)', () => {
     const mockNode = new EventEmitter() as any;
     mockNode.nodeId = 2;
     mockNode.status = 4; // Alive
-    mockNode.updateFirmware = jest.fn().mockResolvedValue(undefined);
+    mockNode.updateFirmware = jest.fn().mockResolvedValue({ success: true, status: 254 });
     mockDriver.controller.emit('node added', mockNode);
 
     await controller.beginFirmwareUpdate(2, { version: '1.1' });
     expect(mockNode.updateFirmware).toHaveBeenCalledWith([{ version: '1.1' }]);
+  });
+
+  it('reports firmware progress as the percentage the driver computed', async () => {
+    // zwave-js 15 passes one progress object. Reading it as (sent, total) left the stored
+    // numbers undefined and the bar showing NaN%.
+    controller = new ZWaveController(log, '/dev/ttyACM0');
+    await controller.start();
+
+    const mockNode = new EventEmitter() as any;
+    mockNode.nodeId = 2;
+    mockNode.status = 4;
+    mockDriver.controller.emit('node added', mockNode);
+
+    const seen: number[] = [];
+    controller.on('firmware update progress', (_nodeId, percent) => seen.push(percent));
+    mockNode.emit('firmware update progress', mockNode, {
+      currentFile: 1,
+      totalFiles: 1,
+      sentFragments: 37,
+      totalFragments: 100,
+      progress: 37.5,
+    });
+
+    expect(seen).toEqual([37.5]);
+  });
+
+  it('reads the outcome from the result rather than from the status number', async () => {
+    /**
+     * The status cannot be judged by truthiness. A transmission failure is 1 and a timeout is
+     * -1, both truthy, so a truth test calls a failed update successful; a checksum error is 0
+     * and only happens to read correctly. The three success values are 253 to 255, and only
+     * `success` says which case a given status is.
+     */
+    controller = new ZWaveController(log, '/dev/ttyACM0');
+    await controller.start();
+
+    const mockNode = new EventEmitter() as any;
+    mockNode.nodeId = 2;
+    mockNode.status = 4;
+    mockDriver.controller.emit('node added', mockNode);
+
+    const outcomes: boolean[] = [];
+    controller.on('firmware update finished', (_nodeId, success) => outcomes.push(success));
+
+    mockNode.emit('firmware update finished', mockNode, { status: 255, success: true });
+    mockNode.emit('firmware update finished', mockNode, { status: 0, success: false });
+    mockNode.emit('firmware update finished', mockNode, { status: 1, success: false });
+
+    expect(outcomes).toEqual([true, false, false]);
+  });
+
+  it('treats an update that resolves without success as a failure', async () => {
+    // The driver reports a refused transfer in the result instead of throwing, so a caller
+    // watching only for an exception would call a failed update done.
+    controller = new ZWaveController(log, '/dev/ttyACM0');
+    await controller.start();
+
+    const mockNode = new EventEmitter() as any;
+    mockNode.nodeId = 2;
+    mockNode.status = 4;
+    mockNode.updateFirmware = jest.fn().mockResolvedValue({ status: 2, success: false });
+    mockDriver.controller.emit('node added', mockNode);
+
+    await expect(controller.beginFirmwareUpdate(2, { version: '1.1' })).rejects.toThrow(
+      /did not succeed/,
+    );
+
+    // A result carrying no `success` field is a failure as well, and so is an empty resolve.
+    mockNode.updateFirmware = jest.fn().mockResolvedValue({});
+    await expect(controller.beginFirmwareUpdate(2, { version: '1.1' })).rejects.toThrow(
+      /did not succeed/,
+    );
+
+    mockNode.updateFirmware = jest.fn().mockResolvedValue(undefined);
+    await expect(controller.beginFirmwareUpdate(2, { version: '1.1' })).rejects.toThrow(
+      /did not succeed/,
+    );
+  });
+
+  it('reports a failed update check as an error rather than as no update', async () => {
+    // An empty list means the service has nothing for this device. A failed check means it
+    // does not know, and someone deciding whether to wait needs to tell those apart.
+    controller = new ZWaveController(log, '/dev/ttyACM0');
+    await controller.start();
+
+    const mockNode = new EventEmitter() as any;
+    mockNode.nodeId = 2;
+    mockNode.status = 4;
+    mockNode.getAvailableFirmwareUpdates = jest
+      .fn()
+      .mockRejectedValue(new Error('update service unreachable'));
+    mockDriver.controller.emit('node added', mockNode);
+
+    await expect(controller.getAvailableFirmwareUpdates(2)).rejects.toThrow(
+      'update service unreachable',
+    );
   });
 
   it('should abort firmware update', async () => {

@@ -257,6 +257,60 @@ describe('BatteryFeature unknown and last-known levels', () => {
     await Promise.resolve();
   };
 
+  it('reports the low-battery warning to the management page, keeping the last percentage', async () => {
+    /**
+     * The exact case the page could not see when it read the driver's values itself. Battery CC
+     * replaces the 0xFF sentinel before the report is persisted, so the value database still
+     * holds 42 and nothing in it records that the warning arrived. Only this feature remembers.
+     */
+    const batteryGet = jest
+      .fn()
+      .mockResolvedValueOnce({ level: 42 })
+      .mockResolvedValue({ level: 0xff });
+    const feature = createFeature(RSZ1, batteryGet);
+
+    feature.init();
+    await flush();
+    expect(feature.batterySnapshot()).toEqual({ level: 42, low: false });
+
+    // Past the guard that keeps the refresh from turning into a poll, as the sibling tests do.
+    (feature as any).lastRefreshAt = 0;
+    await (feature as any).refreshBatteryLevel('test');
+    await flush();
+
+    expect(feature.batterySnapshot()).toEqual({ level: 42, low: true });
+  });
+
+  it('reports nothing for a battery that has never been heard from', async () => {
+    // The page needs this to tell a device with no battery from a battery reading empty.
+    const feature = createFeature(UNKNOWN_DEVICE);
+
+    feature.init();
+    await flush();
+
+    expect(feature.batterySnapshot()).toEqual({ level: undefined, low: false });
+  });
+
+  it('never polls the device to answer the management page', async () => {
+    /**
+     * The page lists every node every few seconds, so this must not turn into a poll the way
+     * the HomeKit getter can, and it raises no HAP error of its own. An ordinary failure
+     * reading the driver is still possible, and the caller contains that per node.
+     */
+    const batteryGet = jest.fn().mockResolvedValue({ level: 55 });
+    const feature = createFeature(RSZ1, batteryGet);
+
+    feature.init();
+    await flush();
+    const callsAfterInit = batteryGet.mock.calls.length;
+
+    for (let i = 0; i < 5; i += 1) {
+      expect(() => feature.batterySnapshot()).not.toThrow();
+    }
+
+    expect(batteryGet.mock.calls.length).toBe(callsAfterInit);
+  });
+
   it('never reports an unknown battery as 0%', async () => {
     const feature = createFeature(UNKNOWN_DEVICE);
     feature.init();

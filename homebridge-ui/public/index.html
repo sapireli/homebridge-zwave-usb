@@ -69,6 +69,105 @@
     
     .btn-group .btn { margin-right: 2px; }
 
+    /*
+     * Contrast repair for the Maintenance surface, and only for it.
+     *
+     * The plugin already declares what a table cell should be. config-ui-x ships a bare
+     * `td { color: #999 !important }`, which a more specific rule cannot beat without an
+     * !important of its own, so every body cell renders at #999 and measures 2.85:1 on the
+     * light card. The headings and the muted paragraphs have the opposite problem: the
+     * plugin's light values are never replaced under the dark themes, leaving them at 1.09:1
+     * and 3.02:1 on the #2b2b2b card.
+     *
+     * The card is the same color under all thirteen themes of each mode, #fff and #2b2b2b,
+     * so one value per mode covers every theme. !important appears only where it answers an
+     * existing !important. Nothing outside #maintenance is touched, and the card background
+     * is left alone.
+     *
+     * Measured: cells 2.85 to 15.43 light and 4.97 to 10.87 dark; headings 15.43 light kept
+     * and 1.09 to 11.94 dark; muted 4.69 light kept and 3.02 to 6.82 dark.
+     */
+    #nodeTable > tbody > tr > td { color: var(--hb-text-color, #212529) !important; }
+    body.dark-mode #nodeTable > tbody > tr > td { color: #dee2e6 !important; }
+    body.dark-mode #nodeTable > thead > tr > th { color: #e9ecef; }
+    body.dark-mode #maintenance .text-muted { color: #adb5bd !important; }
+
+    /* Icon-only node actions. Five words of button labels overflowed the table. */
+    .btn-icon { width: 31px; padding-left: 0; padding-right: 0; }
+    .ico { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5;
+           stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.125em; }
+
+    /*
+     * The tooltip is drawn from data-tip by CSS alone, because the page loads Bootstrap's
+     * stylesheet without its JavaScript, so data-toggle="tooltip" would do nothing. It is
+     * absolutely positioned, so it adds nothing to the width the table can scroll.
+     *
+     * Every tooltip centers on the button it belongs to, the same rule for all of them, so none
+     * is singled out by sitting somewhere else. The action column is the last one and the card
+     * around the table does not clip, so a tooltip wider than its button overhangs the column
+     * without being cut off or adding to the width the table can scroll.
+     */
+    .tip { position: relative; }
+    .tip::after {
+      content: attr(data-tip); position: absolute; bottom: calc(100% + 6px);
+      left: 50%; transform: translateX(-50%);
+      padding: 4px 7px; border-radius: 3px; white-space: nowrap;
+      font-size: 12px; line-height: 1.3; pointer-events: none; opacity: 0; z-index: 5;
+      background: var(--hb-text-color, #212529); color: var(--hb-background-color, #fff);
+      /* A tooltip is a sentence, not a button label. The host stylesheet sets
+         text-transform and letter-spacing on .btn, which a pseudo-element inherits. */
+      text-transform: none; letter-spacing: normal; font-weight: 400;
+    }
+    .tip:hover::after, .tip:focus-visible::after { opacity: 1; }
+
+    @media (min-width: 576px) {
+      #maintenance .table-responsive { overflow: visible; }
+    }
+    /* Below 576 px the visual tooltip is hidden; the aria-label still carries the name. */
+    @media (max-width: 575.98px) {
+      .tip::after { display: none; }
+    }
+
+    #nodeTable th.col-actions, #nodeTable td.node-actions { text-align: right; }
+
+    /* The gap the paired buttons in this page's dialogs already sit at. */
+    .maintenance-actions { gap: 0.5rem; }
+    .modal-actions { margin-top: 1rem; display: flex; justify-content: flex-end; gap: 0.5rem; }
+
+    /*
+     * The battery sits with the name because it describes the device rather than the row's
+     * state. Red means either that the device reported a low-battery warning or that the
+     * reported level is 20% or less.
+     *
+     * It is held a step back from the name it follows, so the name still leads the row and the
+     * icon reads as something about the device rather than as part of its title. That means it
+     * states its own color instead of taking the cell's, so both are measured: 4.69:1 and
+     * 7.36:1 on the light card, 6.82:1 and 5.60:1 on the dark one.
+     */
+    .battery-indicator { margin-left: 6px; color: #6c757d; }
+    .battery-fill { fill: currentColor; stroke: none; }
+    .battery-low { color: #a71d2a; }
+    body.dark-mode .battery-indicator { color: #adb5bd; }
+    body.dark-mode .battery-low { color: #ea868f; }
+
+    .node-notices td { border-top: 0; padding-top: 0; }
+    .node-notice { display: flex; align-items: center; gap: 6px; font-size: 80%; }
+    /*
+     * Notice colors, measured against the card the table sits on in each theme. config-ui-x
+     * replays its own stylesheet into this page and puts `dark-mode` on the body, so the card
+     * is #fff under the light themes and #2b2b2b under the dark ones, and one set of colors
+     * cannot serve both: the light set measures between 1.92:1 and 3.02:1 on the dark card.
+     * Light 4.69:1, 6.80:1, 7.36:1. Dark 6.82:1, 6.57:1, 5.60:1. Re-measure if the host
+     * changes the card background.
+     */
+    .node-notice.info { color: #6c757d; }
+    .node-notice.pending { color: #8a4b00; }
+    .node-notice.warning, .node-notice.error { color: #a71d2a; }
+
+    body.dark-mode .node-notice.info { color: #adb5bd; }
+    body.dark-mode .node-notice.pending { color: #e8a33d; }
+    body.dark-mode .node-notice.warning, body.dark-mode .node-notice.error { color: #ea868f; }
+
     /* Custom Modal styles to replace native prompt/confirm */
     .custom-modal-backdrop {
       display: none;
@@ -94,7 +193,7 @@
   </style>
 </head>
 <body>
-  <div class="container-fluid p-3">
+  <div class="container-fluid p-3" title="">
     <ul class="nav nav-tabs mb-3" id="mainTabs" role="tablist">
       <li class="nav-item">
         <a class="nav-link active" id="config-tab" href="#config" role="tab">Configuration</a>
@@ -198,18 +297,21 @@
           <div class="alert alert-warning py-2 small" role="alert">
             <strong>Beta Feature:</strong> Z-Wave Firmware Updates are provided as-is. Use at your own risk. Feedback is welcome!
           </div>
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <div class="text-muted small">
-              Nodes that have not completed interview yet are intentionally held back from HomeKit until their service metadata is stable. Use Refresh Info to force a fresh interview when metadata looks incomplete.
-            </div>
-            <div class="btn-group btn-group-sm">
-              <button class="btn btn-outline-secondary" id="healNetwork">
-                Rebuild Routes
-              </button>
-              <button class="btn btn-outline-danger" id="cleanupStaleAccessories">
-                Clean Up Stale Accessories
-              </button>
-            </div>
+          <div class="text-muted small mb-2">
+            Nodes that have not completed interview yet are intentionally held back from HomeKit until their service metadata is stable. Use Refresh Info to force a fresh interview when metadata looks incomplete.
+          </div>
+          <!--
+            The two buttons take a row of their own rather than sharing one with the paragraph.
+            The host stylesheet sets buttons in capitals, which makes them wide enough that
+            sharing a row squeezed them into three wrapped lines.
+          -->
+          <div class="d-flex justify-content-end flex-wrap maintenance-actions mb-3">
+            <button class="btn btn-outline-secondary" id="healNetwork">
+              Rebuild Routes
+            </button>
+            <button class="btn btn-outline-danger" id="cleanupStaleAccessories">
+              Clean Up Stale Accessories
+            </button>
           </div>
           <div class="small text-muted mb-2" id="healStatus" aria-live="polite"></div>
           <div class="table-responsive">
@@ -220,7 +322,7 @@
                   <th>Name</th>
                   <th>Status</th>
                   <th>Firmware</th>
-                  <th>Action</th>
+                  <th class="col-actions">Actions</th>
                 </tr>
               </thead>
               <tbody id="nodeTableBody">
@@ -236,41 +338,41 @@
   </div>
 
   <!-- Custom Modals -->
-  <div id="modalBackdrop" class="custom-modal-backdrop"></div>
+  <div id="modalBackdrop" class="custom-modal-backdrop" title=""></div>
   
-  <div id="renameModal" class="custom-modal">
+  <div id="renameModal" class="custom-modal" title="">
     <h6>Rename Node</h6>
     <div class="form-group">
       <input type="text" class="form-control" id="newLabelInput" />
     </div>
-    <div class="text-right">
+    <div class="modal-actions">
       <button class="btn btn-sm btn-secondary" id="cancelRename">Cancel</button>
       <button class="btn btn-sm btn-primary" id="confirmRename">Save</button>
     </div>
   </div>
 
-  <div id="confirmModal" class="custom-modal">
+  <div id="confirmModal" class="custom-modal" title="">
     <h6>Confirm Action</h6>
     <p id="confirmMessage" class="small"></p>
-    <div class="text-right">
+    <div class="modal-actions">
       <button class="btn btn-sm btn-secondary" id="cancelConfirm">Cancel</button>
       <button class="btn btn-sm btn-primary" id="executeConfirm">OK</button>
     </div>
   </div>
 
-  <div id="diagnosticsModal" class="custom-modal">
+  <div id="diagnosticsModal" class="custom-modal" title="">
     <h6 id="diagnosticsTitle">Radio and Route Diagnostics</h6>
     <div id="diagnosticsBody" class="small"></div>
-    <div class="text-right mt-2">
+    <div class="modal-actions">
       <button class="btn btn-sm btn-secondary" id="closeDiagnostics">Close</button>
     </div>
   </div>
 
-  <div id="removeNodeModal" class="custom-modal">
+  <div id="removeNodeModal" class="custom-modal" title="">
     <h6>Remove Node</h6>
     <p id="removeNodeSummary" class="small"></p>
     <p id="removeNodeReason" class="small text-muted"></p>
-    <div class="text-right">
+    <div class="modal-actions">
       <button class="btn btn-sm btn-secondary" id="cancelRemoveNode">Cancel</button>
       <button class="btn btn-sm btn-danger" id="confirmRemoveNode">Remove</button>
     </div>
@@ -281,7 +383,6 @@
       let currentConfig = {};
       let isPromptOpen = false;
       let activeNodeId = null;
-      let activeUpdateData = null;
       let activeMaintenanceAction = null;
       const uiHelpers = window.ZWaveUsbUiHelpers;
 
@@ -348,17 +449,145 @@
         }
       };
 
-	      const statusMap = ['Unknown', 'Asleep', 'Awake', 'Dead', 'Alive'];
-	      const homeKitStateMap = {
-	        controller: '',
-	        published: '',
-	        'cached-pending': 'Cached in HomeKit, waiting for interview wake-up',
-	        'pending-interview': 'Not in HomeKit yet, waiting for interview metadata',
-	      };
-	      const refreshStateMap = {
-	        'waiting-wakeup': 'Refresh queued, waiting for wake-up',
-	        refreshing: 'Refresh in progress',
-	      };
+      const statusMap = ['Unknown', 'Asleep', 'Awake', 'Dead', 'Alive'];
+
+      /**
+       * What this page remembers about a firmware update per node, keyed by node id as a
+       * string. It holds a phase and at most a version, never an update payload. The plugin's
+       * own progress outranks it, so a refresh re-renders from both without resetting a check
+       * that is still running or an update that has been found.
+       */
+      const firmwareRecords = new Map();
+      let lastNodes = [];
+
+      const applyFirmwareEvent = (nodeId, event) => {
+        const key = String(nodeId);
+        const outcome = uiHelpers.nextFirmwareRecord(firmwareRecords.get(key) || null, event);
+        if (outcome.record) {
+          firmwareRecords.set(key, outcome.record);
+        } else {
+          firmwareRecords.delete(key);
+        }
+        if (outcome.toast) {
+          window.homebridge.toast[outcome.toast.type](outcome.toast.text);
+        }
+        return outcome;
+      };
+
+      const iconSvg = (name) =>
+        `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false">${
+          uiHelpers.NODE_ICONS[name] || ''
+        }</svg>`;
+
+      const actionButtonHtml = (nodeId, button) => {
+        const label = uiHelpers.escapeHtml(button.label);
+        const wakeUp =
+          button.action === 'refresh-node-info'
+            ? ` data-requires-wakeup="${button.requiresWakeup}"`
+            : '';
+        const body = button.spinner
+          ? '<span class="spinner-border spinner-border-sm" role="status"></span>'
+          : iconSvg(button.icon);
+
+        /**
+         * `title=""` rather than no title at all. The settings modal around this page carries
+         * its own title attribute, and a browser walks up to the nearest ancestor that has one,
+         * so a button without it shows the modal's native tooltip next to this one. An empty
+         * title ends that walk without drawing anything.
+         */
+        return `<button type="button" class="btn btn-sm btn-${button.variant} btn-icon tip ${
+          button.action
+        }" data-nodeid="${nodeId}"${wakeUp}${
+          button.disabled ? ' disabled' : ''
+        } title="" data-tip="${label}" aria-label="${label}">${body}</button>`;
+      };
+
+      const actionCellHtml = (nodeId, actions) => {
+        if (actions.kind === 'controller') {
+          return '<span class="badge badge-light">Controller</span>';
+        }
+
+        if (actions.kind === 'progress') {
+          return `
+                <div class="progress" style="height: 20px;">
+                  <div class="progress-bar progress-bar-striped progress-bar-animated${
+                    actions.failed ? ' bg-danger' : ''
+                  }" role="progressbar" style="width: ${actions.percent}%">${actions.percent}%</div>
+                </div>
+              `;
+        }
+
+        return `<div class="btn-group">${actions.buttons
+          .map((button) => actionButtonHtml(nodeId, button))
+          .join('')}</div>`;
+      };
+
+      const batteryHtml = (battery) => {
+        if (!battery) return '';
+        const label = uiHelpers.escapeHtml(battery.text);
+        // The shell's inner run is 9.4 wide in the icon's own coordinates.
+        const filled = ((9.4 * battery.fifths) / 5).toFixed(2);
+
+        // tabindex so the exact figure in the tooltip can be reached from the keyboard, since
+        // `.tip` only reveals it on hover or focus and a span takes no focus of its own.
+        return `<span class="tip battery-indicator${
+          battery.low ? ' battery-low' : ''
+        }" tabindex="0" data-tip="${label}" role="img" aria-label="${label}"><svg class="ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false">${
+          uiHelpers.NODE_ICONS.battery
+        }<rect class="battery-fill" x="2.3" y="5.3" width="${filled}" height="5.4" rx="0.6"/></svg></span>`;
+      };
+
+      const noticeLineHtml = (notice) => {
+        const link = notice.link
+          ? ` <a href="${uiHelpers.escapeHtml(notice.link.href)}">${uiHelpers.escapeHtml(
+              notice.link.text,
+            )}</a>`
+          : '';
+        return `<div class="node-notice ${notice.severity}">${iconSvg(
+          notice.severity,
+        )}<span>${uiHelpers.escapeHtml(notice.text)}</span>${link}</div>`;
+      };
+
+      const renderNodes = (nodes) => {
+        const tbody = document.getElementById('nodeTableBody');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+
+        nodes.forEach((node) => {
+          const firmwareState = uiHelpers.firmwareStateOf(
+            node,
+            firmwareRecords.get(String(node.nodeId)),
+          );
+          const actions = uiHelpers.describeNodeActions(node, firmwareState);
+          const notices = uiHelpers.describeNodeNotices(node, firmwareState);
+          const status = statusMap[node.status] || 'Unknown';
+          const nodeName = node.name || node.label || 'Node ' + node.nodeId;
+
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+	              <td>${node.nodeId}</td>
+	              <td id="node-name-${node.nodeId}">${uiHelpers.escapeHtml(nodeName)}${batteryHtml(uiHelpers.describeBattery(node))}</td>
+	              <td>
+	                <span class="badge badge-${status === 'Alive' || status === 'Awake' ? 'success' : 'secondary'}">${status}</span>
+	              </td>
+	              <td>${uiHelpers.escapeHtml(node.firmwareVersion || 'Unknown')}</td>
+	              <td class="node-actions" id="node-action-${node.nodeId}">${actionCellHtml(node.nodeId, actions)}</td>
+	            `;
+          tbody.appendChild(tr);
+
+          if (notices.length > 0) {
+            const noticeRow = document.createElement('tr');
+            noticeRow.className = 'node-notices';
+            noticeRow.innerHTML = `<td></td><td colspan="4">${notices
+              .map(noticeLineHtml)
+              .join('')}</td>`;
+            tbody.appendChild(noticeRow);
+          }
+        });
+      };
+
+      const rerenderNodes = () => renderNodes(lastNodes);
 
       const loadNodes = async () => {
         if (isPromptOpen) return;
@@ -366,57 +595,24 @@
           const nodes = await window.homebridge.request('get-nodes');
           const tbody = document.getElementById('nodeTableBody');
           if (!tbody) return;
-          
-          tbody.innerHTML = '';
 
           if (!Array.isArray(nodes)) {
             tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Plugin not responding. Is it running?</td></tr>';
             return;
           }
 
-          nodes.forEach((node) => {
-            const tr = document.createElement('tr');
-            const status = statusMap[node.status] || 'Unknown';
-	            const progress = node.firmwareProgress;
-	            const nodeName = node.name || node.label || 'Node ' + node.nodeId;
-	            const homeKitState = homeKitStateMap[node.homekitState] || '';
-	            const refreshState = refreshStateMap[node.refreshState] || '';
-
-	            let actionHtml = '';
-            if (progress) {
-              const pct = Math.round((progress.sent / progress.total) * 100);
-              actionHtml = `
-                <div class="progress" style="height: 20px;">
-                  <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: ${pct}%">${pct}%</div>
-                </div>
-              `;
-            } else if (node.nodeId === 1) {
-              actionHtml = `<span class="badge badge-light">Controller</span>`;
-            } else {
-              actionHtml = `
-                <div class="btn-group">
-                  <button class="btn btn-sm btn-outline-secondary rename-node" data-nodeid="${node.nodeId}">Rename</button>
-                  <button class="btn btn-sm btn-outline-secondary refresh-node-info" data-nodeid="${node.nodeId}" data-requires-wakeup="${!node.isListening && !node.isFrequentListening}">Refresh Info</button>
-                  <button class="btn btn-sm btn-outline-secondary node-diagnostics" data-nodeid="${node.nodeId}">Diagnostics</button>
-                  <button class="btn btn-sm btn-outline-primary check-update" data-nodeid="${node.nodeId}">Check Update</button>
-                  <button class="btn btn-sm btn-outline-danger remove-node" data-nodeid="${node.nodeId}">Remove</button>
-                </div>
-              `;
-            }
-
-	            tr.innerHTML = `
-	              <td>${node.nodeId}</td>
-	              <td id="node-name-${node.nodeId}">${uiHelpers.escapeHtml(nodeName)}</td>
-	              <td>
-	                <span class="badge badge-${status === 'Alive' || status === 'Awake' ? 'success' : 'secondary'}">${status}</span>
-	                ${refreshState ? `<div class="small text-muted mt-1">${refreshState}</div>` : ''}
-	                ${homeKitState ? `<div class="small text-muted mt-1">${homeKitState}</div>` : ''}
-	              </td>
-	              <td>${uiHelpers.escapeHtml(node.firmwareVersion || 'Unknown')}</td>
-	              <td id="node-action-${node.nodeId}">${actionHtml}</td>
-	            `;
-            tbody.appendChild(tr);
+          // A node the plugin no longer lists, or one it reports progress for, has nothing
+          // left for this page to remember.
+          const present = new Set(nodes.map((node) => String(node.nodeId)));
+          firmwareRecords.forEach((record, key) => {
+            if (!present.has(key)) firmwareRecords.delete(key);
           });
+          nodes.forEach((node) => {
+            if (node.firmwareProgress) firmwareRecords.delete(String(node.nodeId));
+          });
+
+          lastNodes = nodes;
+          renderNodes(nodes);
         } catch (err) {
           const tbody = document.getElementById('nodeTableBody');
           if (tbody) {
@@ -441,7 +637,6 @@
         document.getElementById('removeNodeModal').style.display = 'none';
         isPromptOpen = false;
         activeNodeId = null;
-        activeUpdateData = null;
         activeMaintenanceAction = null;
       };
 
@@ -528,41 +723,91 @@
 
         // 2. Check Update Logic
         if (target.classList.contains('check-update')) {
-          target.disabled = true;
-          target.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+          applyFirmwareEvent(nodeId, { type: 'check-clicked' });
+          rerenderNodes();
 
           try {
             const updates = await window.homebridge.request('check-firmware', nodeId);
-            if (updates && updates.length > 0) {
-              const update = updates[0];
-              const actionCell = document.getElementById(`node-action-${nodeId}`);
-              actionCell.innerHTML = `
-                <button class="btn btn-sm btn-success start-update" data-nodeid="${nodeId}" data-update='${uiHelpers.escapeHtml(JSON.stringify(update))}'>
-                  Update to v${uiHelpers.escapeHtml(update.version)}
-                </button>
-                <div class="small text-muted mt-1">Found update!</div>
-              `;
-            } else {
-              window.homebridge.toast.info('No updates available for this device.');
-              target.disabled = false;
-              target.innerHTML = 'Check Update';
-            }
+            applyFirmwareEvent(nodeId, { type: 'check-result', updates });
           } catch (err) {
+            applyFirmwareEvent(nodeId, { type: 'check-failed' });
             window.homebridge.toast.error(err.message);
-            target.disabled = false;
-            target.innerHTML = 'Check Update';
           }
+
+          rerenderNodes();
           return;
         }
 
         // 3. Start Update Logic
         if (target.classList.contains('start-update')) {
-          activeUpdateData = JSON.parse(target.getAttribute('data-update'));
           activeNodeId = nodeId;
-          document.getElementById('confirmMessage').textContent = 'WARNING: Firmware updates carry risk. Do not unplug the bridge or device during the process. Proceed?';
+          activeMaintenanceAction = 'start-update';
+          // The dialog names the version it is about to install, so the decision is not taken
+          // against a warning alone. The version is checked again before anything is sent.
+          const offered = firmwareRecords.get(String(nodeId));
+          const warning =
+            'Firmware updates carry risk. Do not unplug the bridge or device during the process.';
+          document.getElementById('confirmMessage').textContent =
+            offered && offered.version
+              ? `Install firmware update v${offered.version}? ${warning}`
+              : `${warning} Proceed?`;
           showModal('confirmModal');
         }
       });
+
+      /**
+       * Everything that happens once the firmware warning is accepted.
+       *
+       * The update is looked up again here rather than carried from the earlier check, because
+       * minutes can pass while the dialog is open and the device may by then be offered a
+       * different version or none at all. The payload lives in this function between the
+       * check and the request that follows it, and is kept nowhere else.
+       */
+      const runFirmwareUpdate = async (nodeId) => {
+        applyFirmwareEvent(nodeId, { type: 'dialog-confirmed' });
+        rerenderNodes();
+
+        let updates;
+        try {
+          updates = await window.homebridge.request('check-firmware', nodeId);
+        } catch (err) {
+          applyFirmwareEvent(nodeId, { type: 'recheck-failed' });
+          window.homebridge.toast.error(err.message);
+          rerenderNodes();
+          return;
+        }
+
+        const outcome = applyFirmwareEvent(nodeId, { type: 'recheck-result', updates });
+
+        if (outcome.start) {
+          try {
+            /**
+             * The request resolves only once the transfer is over: zwave-js resolves
+             * updateFirmware() after the process has completed, the IPC route answers in its
+             * `then`, and nothing in between imposes a timeout. Reaching this line therefore
+             * means the update finished, and finished successfully, because the controller
+             * rejects a result whose `success` is not true.
+             */
+            await window.homebridge.request('start-update', { nodeId, update: updates[0] });
+            /**
+             * The transfer is over and it succeeded, so everything this page still holds about
+             * it is stale: the record would keep a disabled spinner in the row, and a progress
+             * snapshot taken while the update ran would keep the bar animating. Neither is
+             * safe to leave to the refresh below, which can fail, after which the plugin drops
+             * its own progress thirty seconds later and nothing would correct the row at all.
+             */
+            applyFirmwareEvent(nodeId, { type: 'update-finished' });
+            lastNodes = uiHelpers.withoutFirmwareProgress(lastNodes, nodeId);
+            window.homebridge.toast.success('Firmware update completed.');
+          } catch (err) {
+            applyFirmwareEvent(nodeId, { type: 'start-rejected' });
+            window.homebridge.toast.error(err.message);
+          }
+        }
+
+        rerenderNodes();
+        loadNodes();
+      };
 
       // Modal Button Handlers
 	      document.getElementById('cancelRename').addEventListener('click', hideModals);
@@ -585,22 +830,21 @@
 	      document.getElementById('cancelConfirm').addEventListener('click', hideModals);
 	      document.getElementById('executeConfirm').addEventListener('click', async () => {
         const nodeId = activeNodeId;
-        const updateData = activeUpdateData;
         const maintenanceAction = activeMaintenanceAction;
         hideModals();
 
+        if (maintenanceAction === 'start-update') {
+          await runFirmwareUpdate(nodeId);
+          return;
+        }
+
         try {
-          if (maintenanceAction === 'refresh-node-info') {
-            const result = await window.homebridge.request('refresh-node-info', nodeId);
-            window.homebridge.toast.success(
-              result?.refreshState === 'waiting-wakeup'
-                ? `Refresh queued for Node ${nodeId}. Wake the device until the interview finishes.`
-                : `Refresh started for Node ${nodeId}.`,
-            );
-          } else {
-            await window.homebridge.request('start-update', { nodeId, update: updateData });
-            window.homebridge.toast.success('Firmware update started!');
-          }
+          const result = await window.homebridge.request('refresh-node-info', nodeId);
+          window.homebridge.toast.success(
+            result?.refreshState === 'waiting-wakeup'
+              ? `Refresh queued for Node ${nodeId}. Wake the device until the interview finishes.`
+              : `Refresh started for Node ${nodeId}.`,
+          );
           loadNodes();
         } catch (err) {
           window.homebridge.toast.error(err.message);
@@ -684,11 +928,14 @@
 	            nodeId,
 	            confirmNodeId: Number(nodeId),
 	          });
+	          applyFirmwareEvent(nodeId, { type: 'node-gone' });
 	          window.homebridge.toast.success(`Node ${nodeId} removed from the Z-Wave network.`);
 	        } catch (err) {
 	          window.homebridge.toast.error(err.message);
 	        }
 	        loadNodes();
+	      });
+
 	      document.getElementById('healNetwork').addEventListener('click', async (e) => {
 	        const button = e.currentTarget;
 	        const status = document.getElementById('healStatus');
@@ -729,7 +976,6 @@
 	          status.textContent = err.message;
 	          button.disabled = false;
 	        }
-	      });
 	      });
 
 	      document.getElementById('cleanupStaleAccessories').addEventListener('click', async () => {

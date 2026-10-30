@@ -351,8 +351,8 @@ describe('ZWaveUsbPlatform', () => {
       [3, { nodeId: 3, name: 'Pending Node', ready: false, status: 1, deviceConfig: { label: 'Pending', manufacturer: 'Maker' } }],
       [4, { nodeId: 4, name: 'Cached Pending Node', ready: false, status: 1, deviceConfig: { label: 'Cached', manufacturer: 'Maker' } }],
     ]);
-    (platform as any).zwaveAccessories.set(2, { platformAccessory: { UUID: 'ready-uuid' }, stop: jest.fn() });
-    (platform as any).zwaveAccessories.set(4, { platformAccessory: { UUID: 'cached-live-uuid' }, stop: jest.fn() });
+    (platform as any).zwaveAccessories.set(2, { platformAccessory: { UUID: 'ready-uuid' }, stop: jest.fn(), batteryState: () => undefined });
+    (platform as any).zwaveAccessories.set(4, { platformAccessory: { UUID: 'cached-live-uuid' }, stop: jest.fn(), batteryState: () => undefined });
     (platform as any).accessories.push({
       UUID: 'cached-uuid',
       displayName: 'Cached Pending Node',
@@ -390,6 +390,188 @@ describe('ZWaveUsbPlatform', () => {
       expect(payload.find((node: any) => node.nodeId === 3).homekitState).toBe('pending-interview');
       expect(payload.find((node: any) => node.nodeId === 4).homekitState).toBe('cached-pending');
       expect(payload.find((node: any) => node.nodeId === 2).refreshState).toBeUndefined();
+    } finally {
+      createServerSpy.mockRestore();
+    }
+  });
+
+  it('reports firmware progress and outcome to the management page', () => {
+    // The page draws the bar from `percent` and tells completed from failed using
+    // `outcome`, so the platform has to store the driver's own total percentage rather
+    // than a fragment count, and take the outcome from `success`.
+    const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() } as any;
+    const config: PlatformConfig = {
+      platform: PLATFORM_NAME,
+      name: 'Z-Wave USB',
+      serialPort: '/dev/null',
+    };
+
+    const platform = new ZWaveUsbPlatform(log, config, api);
+    const controller = (platform as any).zwaveController;
+    controller.homeId = 100;
+    controller.nodes = new Map([
+      [2, { nodeId: 2, name: 'Updating', ready: true, status: 4 }],
+      [3, { nodeId: 3, name: 'Done', ready: true, status: 4 }],
+      [4, { nodeId: 4, name: 'Broken', ready: true, status: 4 }],
+    ]);
+
+    jest.useFakeTimers();
+    try {
+      controller.emit('firmware update progress', 2, 37.5);
+      controller.emit('firmware update finished', 3, true);
+      controller.emit('firmware update finished', 4, false);
+
+      const fakeServer = new EventEmitter() as EventEmitter & {
+        listen: jest.Mock;
+        close: jest.Mock;
+        address: jest.Mock;
+      };
+      fakeServer.listen = jest.fn().mockImplementation((_port, _host, cb) => cb());
+      fakeServer.close = jest.fn();
+      fakeServer.address = jest.fn().mockReturnValue({ port: 12345, address: '127.0.0.1' });
+      const createServerSpy = jest.spyOn(http, 'createServer').mockReturnValue(fakeServer as never);
+
+      const req = { url: '/nodes', method: 'GET' } as EventEmitter & {
+        url?: string;
+        method?: string;
+      };
+      const res = { writeHead: jest.fn(), end: jest.fn() };
+
+      try {
+        (platform as any).startIpcServer();
+        const handler = createServerSpy.mock.calls.at(-1)?.[0];
+        handler(req, res);
+
+        const payload = JSON.parse((res.end as jest.Mock).mock.calls[0][0]);
+        const of = (id: number) => payload.find((node: any) => node.nodeId === id).firmwareProgress;
+        expect(of(2)).toEqual({ percent: 37.5 });
+        expect(of(3)).toEqual({ percent: 100, outcome: 'success' });
+        expect(of(4)).toEqual({ percent: 100, outcome: 'failure' });
+      } finally {
+        createServerSpy.mockRestore();
+      }
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('reports the battery the accessory publishes, not one rebuilt from the value cache', () => {
+    /**
+     * The page used to read Battery CC out of the driver's values itself, which cannot see the
+     * low-battery warning at all: Battery CC replaces the 0xFF sentinel before the report is
+     * persisted, so the cache holds the last percentage and records no warning. The feature
+     * driving the Battery service is the only thing that remembers it, so the page asks that.
+     */
+    const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() } as any;
+    const config: PlatformConfig = {
+      platform: PLATFORM_NAME,
+      name: 'Z-Wave USB',
+      serialPort: '/dev/null',
+    };
+
+    const platform = new ZWaveUsbPlatform(log, config, api);
+    const controller = (platform as any).zwaveController;
+    controller.homeId = 100;
+    controller.nodes = new Map<number, any>([
+      [2, { nodeId: 2, name: 'Warned', ready: true, status: 4 }],
+      [3, { nodeId: 3, name: 'Healthy', ready: true, status: 4 }],
+      [4, { nodeId: 4, name: 'Mains', ready: true, status: 4 }],
+      [5, { nodeId: 5, name: 'Unpublished', ready: true, status: 4 }],
+    ]);
+
+    const accessoryWith = (state: unknown) => ({ batteryState: () => state, stop: jest.fn() });
+    const accessories = (platform as any).zwaveAccessories as Map<number, any>;
+    // The warning with the last percentage intact: what the value cache cannot express.
+    accessories.set(2, accessoryWith({ level: 42, low: true }));
+    accessories.set(3, accessoryWith({ level: 80, low: false }));
+    accessories.set(4, accessoryWith(undefined));
+    // Node 5 has no accessory at all, so there is nothing to publish for it.
+
+    const fakeServer = new EventEmitter() as EventEmitter & {
+      listen: jest.Mock;
+      close: jest.Mock;
+      address: jest.Mock;
+    };
+    fakeServer.listen = jest.fn().mockImplementation((_port, _host, cb) => cb());
+    fakeServer.close = jest.fn();
+    fakeServer.address = jest.fn().mockReturnValue({ port: 12345, address: '127.0.0.1' });
+    const createServerSpy = jest.spyOn(http, 'createServer').mockReturnValue(fakeServer as never);
+
+    try {
+      (platform as any).startIpcServer();
+      const handler = createServerSpy.mock.calls.at(-1)?.[0];
+      const res = { writeHead: jest.fn(), end: jest.fn() };
+      handler({ url: '/nodes', method: 'GET' }, res);
+
+      const payload = JSON.parse((res.end as jest.Mock).mock.calls[0][0]);
+      const of = (id: number) => payload.find((n: any) => n.nodeId === id).battery;
+
+      expect(of(2)).toEqual({ level: 42, low: true });
+      expect(of(3)).toEqual({ level: 80, low: false });
+      expect(of(4)).toBeUndefined();
+      expect(of(5)).toBeUndefined();
+    } finally {
+      createServerSpy.mockRestore();
+    }
+  });
+
+  it('keeps listing nodes when one accessory cannot report its battery', () => {
+    /**
+     * Reading a battery reaches into the driver's values and can write the accessory cache, so
+     * it can throw. The read happens per node while the list is built, and without a boundary
+     * one bad accessory answered the whole page with a 500 and the table showed nothing.
+     */
+    const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() } as any;
+    const config: PlatformConfig = {
+      platform: PLATFORM_NAME,
+      name: 'Z-Wave USB',
+      serialPort: '/dev/null',
+    };
+
+    const platform = new ZWaveUsbPlatform(log, config, api);
+    const controller = (platform as any).zwaveController;
+    controller.homeId = 100;
+    controller.nodes = new Map<number, any>([
+      [2, { nodeId: 2, name: 'Broken', ready: true, status: 4 }],
+      [3, { nodeId: 3, name: 'Fine', ready: true, status: 4 }],
+    ]);
+
+    const accessories = (platform as any).zwaveAccessories as Map<number, any>;
+    accessories.set(2, {
+      stop: jest.fn(),
+      batteryState: () => {
+        throw new Error('the driver is not answering');
+      },
+    });
+    accessories.set(3, { stop: jest.fn(), batteryState: () => ({ level: 70, low: false }) });
+
+    const fakeServer = new EventEmitter() as EventEmitter & {
+      listen: jest.Mock;
+      close: jest.Mock;
+      address: jest.Mock;
+    };
+    fakeServer.listen = jest.fn().mockImplementation((_port, _host, cb) => cb());
+    fakeServer.close = jest.fn();
+    fakeServer.address = jest.fn().mockReturnValue({ port: 12345, address: '127.0.0.1' });
+    const createServerSpy = jest.spyOn(http, 'createServer').mockReturnValue(fakeServer as never);
+
+    try {
+      (platform as any).startIpcServer();
+      const handler = createServerSpy.mock.calls.at(-1)?.[0];
+      const res = { writeHead: jest.fn(), end: jest.fn() };
+      handler({ url: '/nodes', method: 'GET' }, res);
+
+      const payload = JSON.parse((res.end as jest.Mock).mock.calls[0][0]);
+      expect(Array.isArray(payload)).toBe(true);
+      expect(payload).toHaveLength(2);
+
+      // The broken node loses only its battery; every other column still arrives.
+      const broken = payload.find((n: any) => n.nodeId === 2);
+      expect(broken.battery).toBeUndefined();
+      expect(broken.name).toBe('Broken');
+      expect(payload.find((n: any) => n.nodeId === 3).battery).toEqual({ level: 70, low: false });
+
+      expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('could not be read'));
     } finally {
       createServerSpy.mockRestore();
     }

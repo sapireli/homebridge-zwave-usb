@@ -127,13 +127,16 @@ export interface IZWaveController extends EventEmitter {
   on(event: 'node removed', listener: (node: ZWaveNode) => void): this;
   on(event: 'value notification', listener: (node: ZWaveNode, args: ZWaveValueEvent) => void): this;
   on(event: 'value updated', listener: (node: ZWaveNode, args: ZWaveValueEvent) => void): this;
-  on(
-    event: 'firmware update progress',
-    listener: (nodeId: number, sent: number, total: number) => void,
-  ): this;
+  /** `percent` is the driver's own total progress across every file, 0 to 100. */
+  on(event: 'firmware update progress', listener: (nodeId: number, percent: number) => void): this;
+  /**
+   * `success` is the driver's own reading of the final status. The status number cannot stand
+   * in for it: a transmission failure is 1 and a timeout is -1, both of which are truthy, so
+   * testing the number for truth reports a failed update as a successful one.
+   */
   on(
     event: 'firmware update finished',
-    listener: (nodeId: number, status: number, waitTime?: number) => void,
+    listener: (nodeId: number, success: boolean, waitTime?: number) => void,
   ): this;
 }
 

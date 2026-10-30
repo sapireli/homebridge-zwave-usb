@@ -2,7 +2,11 @@ import { PlatformAccessory, Service } from 'homebridge';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
-import { CONFIGURED_NAME_COMPAT_SERVICE_UUIDS, ZWaveFeature } from '../features/ZWaveFeature';
+import {
+  BatterySnapshot,
+  CONFIGURED_NAME_COMPAT_SERVICE_UUIDS,
+  ZWaveFeature,
+} from '../features/ZWaveFeature';
 import { OBSOLETE_CHAR_UUIDS } from '../platform/settings';
 import { findDeviceOverride } from '../devices/deviceOverrides';
 
@@ -176,6 +180,42 @@ export class ZWaveAccessory {
 
   public addFeature(feature: ZWaveFeature) {
     this.features.push(feature);
+  }
+
+  /**
+   * The battery to show for this device, or nothing when it has none to show.
+   *
+   * A device can carry Battery CC on more than one endpoint, and the features are built per
+   * endpoint, so the choice has to be stated rather than assumed: the root battery wins when
+   * there is one, because that is the battery someone means by "this device's battery", and
+   * otherwise the lowest endpoint that has one is used, so a battery living only on a child
+   * endpoint still reaches the page.
+   */
+  public batteryState(): BatterySnapshot | undefined {
+    const batteries = this.features
+      .filter((feature) => typeof feature.batterySnapshot === 'function')
+      .sort((a, b) => a.getEndpointIndex() - b.getEndpointIndex());
+
+    /**
+     * Ascending by endpoint and read one at a time, stopping at the first that has something to
+     * say: the root when the root does, and the lowest child that does otherwise. Preferring a
+     * silent root over a child that is reporting would show the device as having no battery
+     * while HomeKit shows its battery service.
+     *
+     * Reading them all first and choosing afterwards looks equivalent and is not. A read can
+     * throw, so one failing endpoint would discard a perfectly good reading taken from an
+     * earlier one, and the page would quietly show no battery for a device that was reporting.
+     * An endpoint reached before any usable answer is a different matter, and is left to throw
+     * so the caller can log it.
+     */
+    for (const feature of batteries) {
+      const snapshot = feature.batterySnapshot!();
+      if (snapshot.level !== undefined || snapshot.low) {
+        return snapshot;
+      }
+    }
+
+    return undefined;
   }
 
   public setGraphSignature(signature: string): void {

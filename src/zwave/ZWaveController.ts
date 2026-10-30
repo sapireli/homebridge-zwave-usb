@@ -304,12 +304,20 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       this.emit('node updated', node);
     };
 
-    const onFirmwareUpdateProgress = (_n: ZWaveNode, sent: number, total: number) => {
-      this.emit('firmware update progress', node.nodeId, sent, total);
+    const onFirmwareUpdateProgress = (_n: ZWaveNode, progress: { progress?: number }) => {
+      this.emit('firmware update progress', node.nodeId, progress?.progress ?? 0);
     };
 
-    const onFirmwareUpdateFinished = (_n: ZWaveNode, status: unknown, waitTime?: number) => {
-      this.emit('firmware update finished', node.nodeId, status, waitTime);
+    const onFirmwareUpdateFinished = (
+      _n: ZWaveNode,
+      result: { success?: boolean; waitTime?: number },
+    ) => {
+      this.emit(
+        'firmware update finished',
+        node.nodeId,
+        result?.success === true,
+        result?.waitTime,
+      );
     };
 
     this.nodeListeners.set(node.nodeId, {
@@ -337,10 +345,8 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     node.on('sleep', onSleep);
     node.on('dead', onDead);
     node.on('alive', onAlive);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    node.on('firmware update progress', onFirmwareUpdateProgress as any);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    node.on('firmware update finished', onFirmwareUpdateFinished as any);
+    node.on('firmware update progress', onFirmwareUpdateProgress);
+    node.on('firmware update finished', onFirmwareUpdateFinished);
 
     this.log.info(`Node ${node.nodeId} registered with event listeners (ready: ${node.ready})`);
 
@@ -1258,8 +1264,13 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       this.log.info(`Found ${updates.length} available updates for Node ${nodeId}`);
       return updates;
     } catch (err) {
+      /**
+       * Rethrown rather than reported as an empty list. An empty list means the service has
+       * nothing for this device, which the UI says plainly; a failed check means it does not
+       * know, and the two must not look the same to someone deciding whether to wait.
+       */
       this.log.error(`Failed to check for updates for Node ${nodeId}:`, err);
-      return [];
+      throw err;
     }
   }
 
@@ -1292,12 +1303,23 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       throw new Error(`Node ${nodeId} not found`);
     }
     this.log.info(`Starting firmware update for Node ${nodeId}...`);
+    let result: { success?: boolean; status?: number } | undefined;
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (node as any).updateFirmware([update]);
+      result = await (node as any).updateFirmware([update]);
     } catch (err) {
       this.log.error(`Failed to start firmware update for Node ${nodeId}:`, err);
       throw err;
+    }
+
+    /**
+     * Resolving is not succeeding. The driver reports a refused or failed transfer in the
+     * result, so a caller that only watches for a thrown error would call a failed update done.
+     */
+    if (result?.success !== true) {
+      const detail = result?.status === undefined ? '' : ` (status ${result.status})`;
+      this.log.error(`Firmware update for Node ${nodeId} did not succeed${detail}.`);
+      throw new Error(`Firmware update for Node ${nodeId} did not succeed${detail}.`);
     }
   }
 

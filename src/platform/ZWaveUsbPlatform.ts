@@ -14,6 +14,7 @@ import fs from 'fs';
 import { ZWaveController } from '../zwave/ZWaveController';
 import { IZWaveController, IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveAccessory } from '../accessories/ZWaveAccessory';
+import { BatterySnapshot } from '../features/ZWaveFeature';
 import { AccessoryFactory } from '../accessories/AccessoryFactory';
 import { ControllerAccessory } from '../accessories/ControllerAccessory';
 import { readCoveringPosition } from '../zwave/coveringTravel';
@@ -81,7 +82,10 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
    */
   private readonly matterAccessories = new MatterAccessories(this);
   private discoveryInFlight = new Set<number>();
-  private firmwareProgress = new Map<number, { sent: number; total: number; status?: number }>();
+  private firmwareProgress = new Map<
+    number,
+    { percent: number; outcome?: 'success' | 'failure' }
+  >();
   private refreshStates = new Map<number, 'waiting-wakeup' | 'refreshing'>();
 
   constructor(
@@ -126,12 +130,15 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       );
       this.zwaveController.on('value updated', (node, args) => this.handleValueUpdated(node, args));
 
-      this.zwaveController.on('firmware update progress', (nodeId, sent, total) => {
-        this.firmwareProgress.set(nodeId, { sent, total });
+      this.zwaveController.on('firmware update progress', (nodeId, percent) => {
+        this.firmwareProgress.set(nodeId, { percent });
       });
 
-      this.zwaveController.on('firmware update finished', (nodeId, status) => {
-        this.firmwareProgress.set(nodeId, { sent: 100, total: 100, status });
+      this.zwaveController.on('firmware update finished', (nodeId, success) => {
+        this.firmwareProgress.set(nodeId, {
+          percent: 100,
+          outcome: success ? 'success' : 'failure',
+        });
         setTimeout(() => this.firmwareProgress.delete(nodeId), 30000); // Clear after 30s
       });
 
@@ -196,6 +203,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
             firmwareProgress: this.firmwareProgress.get(node.nodeId),
             refreshState: this.refreshStates.get(node.nodeId),
             homekitState: this.getHomeKitPublicationState(node),
+            battery: this.readBatteryState(node),
           }));
           return sendJson(nodes);
         }
@@ -1009,6 +1017,37 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     // Brand-new unready nodes are deferred until feature metadata is complete, which keeps
     // the service graph stable and avoids publishing half-built accessories.
     return Boolean(cachedAccessory);
+  }
+
+  /**
+   * The battery the accessory publishes for this node, or nothing when it publishes none.
+   *
+   * Asked of the accessory rather than read back out of the driver's values, because the
+   * low-battery warning does not survive there. Battery CC replaces the 0xFF sentinel before
+   * the report is persisted, so the value database still holds the last percentage and no flag
+   * records that the warning came; the feature that drives the Battery service is the only
+   * thing that remembers it. A node with no accessory yet reports nothing, which is the
+   * truthful answer rather than an empty battery.
+   */
+  private readBatteryState(node: IZWaveNode): BatterySnapshot | undefined {
+    const accessory = this.zwaveAccessories.get(node.nodeId);
+    if (!accessory) {
+      return undefined;
+    }
+
+    /**
+     * Called per node while the list is built, so a failure here is contained to its own row.
+     * Reading a battery reaches into the driver's values and can write the accessory cache,
+     * and either can throw; without this one bad node would answer the whole page with a 500
+     * and the table would show nothing at all. The call is left direct rather than optional,
+     * so a method that goes missing still surfaces as a logged failure instead of silence.
+     */
+    try {
+      return accessory.batteryState();
+    } catch (err) {
+      this.log.debug(`Battery [Node ${node.nodeId}]: could not be read for the node list: ${err}`);
+      return undefined;
+    }
   }
 
   private getHomeKitPublicationState(
