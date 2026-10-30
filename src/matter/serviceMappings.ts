@@ -359,11 +359,14 @@ export function serviceMappings(
       m.commands.closureControl = {
         moveTo: async (request?: never) => {
           const r = (request ?? {}) as { position?: unknown; latch?: unknown; speed?: unknown };
-          if (
-            (r.position !== 0 && r.position !== 1) ||
-            r.latch !== undefined ||
-            r.speed !== undefined
-          ) {
+          /**
+           * Closure Control requires a server to ignore the optional fields it does not
+           * implement rather than refuse the command, and the specification uses a
+           * position-only server receiving position and speed as its example. Latch and speed
+           * are therefore dropped, not rejected: a controller that sends them is asking for a
+           * position this door can reach, and refusing it leaves the door shut.
+           */
+          if (r.position !== 0 && r.position !== 1) {
             throw new Error('This garage door supports only fully open and fully closed commands');
           }
           await write(C.TargetDoorState, r.position === 1 ? 0 : 1);

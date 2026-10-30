@@ -761,6 +761,27 @@ describe('Matter publication across device types', () => {
     h.bridge.stop();
   });
 
+  it('ignores Closure fields it does not implement rather than refusing the command', async () => {
+    // Closure Control requires a server to ignore the optional fields it does not implement,
+    // and the specification's own example is a position-only server receiving position and
+    // speed. Refusing leaves the door shut for a controller that is asking for a position
+    // this door can reach.
+    const garage = service(S.GarageDoorOpener, [
+      [C.CurrentDoorState, 1],
+      [C.TargetDoorState, 1],
+    ]);
+    const setter = jest.fn();
+    garage.getCharacteristic(C.TargetDoorState).onSet(setter);
+    const h = harness([garage]);
+    const d = await h.publish();
+
+    await d.handlers.closureControl.moveTo({ position: 1, speed: 2 });
+    await d.handlers.closureControl.moveTo({ position: 0, latch: true });
+
+    expect(setter.mock.calls.map((call: unknown[]) => call[0])).toEqual([0, 1]);
+    h.bridge.stop();
+  });
+
   it('does nothing on Homebridge 1 without a Matter API', async () => {
     const h = harness([service(S.Switch, [[C.On, true]])]);
     delete h.platform.api.matter;

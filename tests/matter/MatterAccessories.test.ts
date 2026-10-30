@@ -441,22 +441,36 @@ describe('MatterAccessories', () => {
 
       // Matter reports battery charge in half-percent units, so 84% is 168.
       expect(powerSource()).toMatchObject({
-        batPresent: true,
         batPercentRemaining: 168,
         batChargeLevel: 0,
       });
     });
 
-    it('declares the static battery facts even with no reading yet', async () => {
+    it('registers as battery powered even with no reading yet', async () => {
       // Homebridge composes the Battery feature from the attributes present at registration, so
       // a shade whose battery pack is out must still register as battery powered.
       batteryLevel = null;
       const coverings = new MatterAccessories(platform as ZWaveUsbPlatform);
       await publish(coverings, createCoveringAccessory());
 
-      expect(powerSource()).toMatchObject({ batPresent: true, batReplaceability: 2 });
+      expect(powerSource()).toMatchObject({ batChargeLevel: expect.any(Number) });
       // Unknown is reported as unknown rather than as an invented percentage.
       expect(powerSource().batPercentRemaining).toBeNull();
+    });
+
+    it('does not assert battery facts HomeKit never supplies', async () => {
+      // HAP gives a level, a low-battery flag and a charging state, and says nothing about
+      // whether the source is supplying power, whether a cell is in the device, or whether a
+      // user can replace it. Stating any of them would be invention, and the shade whose pack
+      // is currently out is the case that makes it concrete.
+      const coverings = new MatterAccessories(platform as ZWaveUsbPlatform);
+      await publish(coverings, createCoveringAccessory());
+
+      expect(powerSource()).toMatchObject({
+        status: 0, // Unspecified
+        batReplaceability: 0, // Unspecified
+      });
+      expect(powerSource()).not.toHaveProperty('batPresent');
     });
 
     it('reports a low battery as a charge warning', async () => {
@@ -896,6 +910,291 @@ describe('MatterAccessories', () => {
     });
   });
 
+  describe('state observed while the endpoint is being created', () => {
+    it('sends a change that happened after the descriptor was built', async () => {
+      // The descriptor is a snapshot. A covering that moves between that snapshot and the
+      // endpoint existing would otherwise leave Matter holding the older position with no
+      // event coming to correct it, because the listeners were attached after registration.
+      let releaseRegistration: () => void = () => undefined;
+      matter.registerPlatformAccessories.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseRegistration = resolve;
+          }),
+      );
+
+      const coverings = new MatterAccessories(platform as ZWaveUsbPlatform);
+      coverings.add(createCoveringAccessory());
+      await jest.advanceTimersByTimeAsync(4000);
+
+      // Registration is in flight and the endpoint does not exist yet.
+      expect(matter.updateAccessoryState).not.toHaveBeenCalled();
+      currentPosition = 30;
+      changeListeners.forEach((listener) => listener({ newValue: 30 }));
+
+      matter.registerPlatformAccessories.mockResolvedValue(undefined);
+      releaseRegistration();
+      await jest.advanceTimersByTimeAsync(4000);
+
+      const pushed = matter.updateAccessoryState.mock.calls.map((call: unknown[]) => call[2]);
+      expect(pushed).toContainEqual(
+        expect.objectContaining({ currentPositionLiftPercent100ths: 7000 }),
+      );
+    });
+
+    it('does not let the catch-up read overwrite a newer change', async () => {
+      // The gap fill reads current values to cover what the snapshot could have missed. A
+      // listener event is necessarily newer than that read, so it has to win.
+      let releaseRegistration: () => void = () => undefined;
+      matter.registerPlatformAccessories.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseRegistration = resolve;
+          }),
+      );
+
+      const coverings = new MatterAccessories(platform as ZWaveUsbPlatform);
+      coverings.add(createCoveringAccessory());
+      await jest.advanceTimersByTimeAsync(4000);
+
+      // Two changes while the endpoint is being created: only the last one is the truth.
+      changeListeners.forEach((listener) => listener({ newValue: 30 }));
+      currentPosition = 55;
+      changeListeners.forEach((listener) => listener({ newValue: 55 }));
+
+      matter.registerPlatformAccessories.mockResolvedValue(undefined);
+      releaseRegistration();
+      await jest.advanceTimersByTimeAsync(4000);
+
+      const positions = matter.updateAccessoryState.mock.calls
+        .map((call: unknown[]) => (call[2] as Record<string, unknown>))
+        .filter((attributes) => 'currentPositionLiftPercent100ths' in attributes);
+      expect(positions.at(-1)).toMatchObject({ currentPositionLiftPercent100ths: 4500 });
+    });
+
+    it('sends a change that happened while the descriptor was being built', async () => {
+      // The snapshot reads characteristics one at a time and awaits several of them, so a
+      // covering can move after being read and before the listeners exist. No event will ever
+      // report that move, because nothing was listening when it happened, so the only thing
+      // that can recover it is reading current state once the listeners are in place.
+      const coverings = new MatterAccessories(platform as ZWaveUsbPlatform);
+      const accessory = createCoveringAccessory();
+
+      let releaseDescribe: () => void = () => undefined;
+      const slow = new Promise<void>((resolve) => {
+        releaseDescribe = resolve;
+      });
+      const covering = accessory.platformAccessory.services.find(
+        (service) => service.UUID === WINDOW_COVERING_UUID,
+      ) as unknown as { getCharacteristic: jest.Mock };
+      const realGet = covering.getCharacteristic;
+      let snapshotRead = true;
+      covering.getCharacteristic = jest.fn((type: unknown) => {
+        const characteristic = realGet(type) as { handleGetRequest?: () => Promise<unknown> };
+        if (type !== platform.Characteristic.CurrentPosition) return characteristic;
+        return {
+          ...characteristic,
+          handleGetRequest: async () => {
+            if (snapshotRead) {
+              snapshotRead = false;
+              // The snapshot's own read, held open while the shade moves below.
+              await slow;
+              return 80;
+            }
+            return currentPosition;
+          },
+        };
+      });
+
+      coverings.add(accessory);
+      await jest.advanceTimersByTimeAsync(4000);
+
+      // The shade moves while the snapshot is still being assembled. Nothing is listening.
+      currentPosition = 35;
+      releaseDescribe();
+      await jest.advanceTimersByTimeAsync(4000);
+
+      const registered = matter.registerPlatformAccessories.mock.calls[0][2][0];
+      expect(registered.clusters.windowCovering.currentPositionLiftPercent100ths).toBe(2000);
+
+      const pushed = matter.updateAccessoryState.mock.calls.map((call: unknown[]) => call[2]);
+      expect(pushed).toContainEqual(
+        expect.objectContaining({ currentPositionLiftPercent100ths: 6500 }),
+      );
+    });
+
+    it('never announces an unknown position as closed when catching up', async () => {
+      // The catch-up read must go through the same getter the snapshot uses. HomeKit's cached
+      // value for a covering that has never reported is 0, which inverts to fully closed, so
+      // reading the cache would announce a shut shade to every controller on the network.
+      const coverings = new MatterAccessories(platform as ZWaveUsbPlatform);
+      const accessory = createCoveringAccessory();
+      // Set after building the accessory, which resets the shared position to a known value.
+      currentPosition = undefined;
+      await publish(coverings, accessory);
+
+      const registered = matter.registerPlatformAccessories.mock.calls[0][2][0];
+      expect(registered.clusters.windowCovering.currentPositionLiftPercent100ths).toBeNull();
+
+      const positions = matter.updateAccessoryState.mock.calls
+        .map((call: unknown[]) => call[2] as Record<string, unknown>)
+        .filter((attributes) => 'currentPositionLiftPercent100ths' in attributes);
+      positions.forEach((attributes) =>
+        expect(attributes.currentPositionLiftPercent100ths).toBeNull(),
+      );
+    });
+
+    it('sends a battery change that happened while the descriptor was being built', async () => {
+      // Battery is read by the snapshot like everything else and tracked by listeners attached
+      // afterwards, so it needs the same catch-up. A pack that drains during a slow interview
+      // would otherwise be reported at its pre-interview charge until the next change.
+      const coverings = new MatterAccessories(platform as ZWaveUsbPlatform);
+      const accessory = createCoveringAccessory();
+
+      let releaseDescribe: () => void = () => undefined;
+      const slow = new Promise<void>((resolve) => {
+        releaseDescribe = resolve;
+      });
+      const covering = accessory.platformAccessory.services.find(
+        (service) => service.UUID === WINDOW_COVERING_UUID,
+      ) as unknown as { getCharacteristic: jest.Mock };
+      const realGet = covering.getCharacteristic;
+      covering.getCharacteristic = jest.fn((type: unknown) => {
+        const characteristic = realGet(type) as { handleGetRequest?: () => Promise<unknown> };
+        if (!characteristic?.handleGetRequest) return characteristic;
+        return {
+          ...characteristic,
+          handleGetRequest: async () => {
+            await slow;
+            return currentPosition;
+          },
+        };
+      });
+
+      coverings.add(accessory);
+      await jest.advanceTimersByTimeAsync(4000);
+
+      // The pack drains while the snapshot is still being assembled. 42% is 84 half-percent.
+      batteryLevel = 42;
+      releaseDescribe();
+      await jest.advanceTimersByTimeAsync(4000);
+
+      const pushed = matter.updateAccessoryState.mock.calls.map((call: unknown[]) => call[2]);
+      expect(pushed).toContainEqual(expect.objectContaining({ batPercentRemaining: 84 }));
+    });
+
+    it('stops listening when an accessory is removed while its descriptor is built', async () => {
+      // The listeners are attached after the removal has already run. Leaving them would mirror
+      // a wrapper the plugin has given up, and feed its readings to whatever later takes the
+      // same identifier.
+      const coverings = new MatterAccessories(platform as ZWaveUsbPlatform);
+      const accessory = createCoveringAccessory();
+      const uuid = accessory.platformAccessory.UUID;
+
+      let releaseDescribe: () => void = () => undefined;
+      const slow = new Promise<void>((resolve) => {
+        releaseDescribe = resolve;
+      });
+      const covering = accessory.platformAccessory.services.find(
+        (service) => service.UUID === WINDOW_COVERING_UUID,
+      ) as unknown as { getCharacteristic: jest.Mock };
+      const realGet = covering.getCharacteristic;
+      covering.getCharacteristic = jest.fn((type: unknown) => {
+        const characteristic = realGet(type) as { handleGetRequest?: () => Promise<unknown> };
+        if (!characteristic?.handleGetRequest) return characteristic;
+        return {
+          ...characteristic,
+          handleGetRequest: async () => {
+            await slow;
+            return currentPosition;
+          },
+        };
+      });
+
+      coverings.add(accessory);
+      await jest.advanceTimersByTimeAsync(4000);
+      await coverings.remove(uuid);
+      releaseDescribe();
+      await jest.advanceTimersByTimeAsync(4000);
+
+      expect(matter.registerPlatformAccessories).not.toHaveBeenCalled();
+      /**
+       * Asserted on the listeners themselves rather than on what they send. A leaked listener
+       * writes into the held buffer instead of reaching Matter, because the identifier was
+       * never published, so watching the update call cannot tell a detached listener from an
+       * attached one with nowhere to send.
+       */
+      expect(changeListeners).toHaveLength(0);
+      expect(targetListeners).toHaveLength(0);
+      expect(batteryListeners).toHaveLength(0);
+    });
+
+    it('does not carry a removed wrapper state into the next accessory on that identifier', async () => {
+      // Anything held for an abandoned publication has to go with it. Kept, it would be
+      // released the next time that identifier is published, reporting the old wrapper's
+      // readings as the new one's.
+      const coverings = new MatterAccessories(platform as ZWaveUsbPlatform);
+      const abandoned = createCoveringAccessory();
+      const uuid = abandoned.platformAccessory.UUID;
+
+      let releaseDescribe: () => void = () => undefined;
+      const slow = new Promise<void>((resolve) => {
+        releaseDescribe = resolve;
+      });
+      const covering = abandoned.platformAccessory.services.find(
+        (service) => service.UUID === WINDOW_COVERING_UUID,
+      ) as unknown as { getCharacteristic: jest.Mock };
+      const realGet = covering.getCharacteristic;
+      covering.getCharacteristic = jest.fn((type: unknown) => {
+        const characteristic = realGet(type) as { handleGetRequest?: () => Promise<unknown> };
+        if (!characteristic?.handleGetRequest) return characteristic;
+        return {
+          ...characteristic,
+          handleGetRequest: async () => {
+            await slow;
+            return currentPosition;
+          },
+        };
+      });
+
+      coverings.add(abandoned);
+      await jest.advanceTimersByTimeAsync(4000);
+      await coverings.remove(uuid);
+      // 10% open is 9000 in Matter's inverted hundredths, and belongs to the abandoned wrapper.
+      currentPosition = 10;
+      releaseDescribe();
+      await jest.advanceTimersByTimeAsync(4000);
+
+      // The same identifier comes back, at a different position.
+      matter.updateAccessoryState.mockClear();
+      const replacement = createCoveringAccessory();
+      currentPosition = 90;
+      await publish(coverings, replacement);
+
+      const pushed = matter.updateAccessoryState.mock.calls.map((call: unknown[]) => call[2]);
+      expect(pushed).not.toContainEqual(
+        expect.objectContaining({ currentPositionLiftPercent100ths: 9000 }),
+      );
+    });
+
+    it('stops listening when the publication it was opened for fails', async () => {
+      // Nothing was published, so an accessory that keeps reporting would be mirroring a
+      // device Matter does not have.
+      matter.registerPlatformAccessories.mockRejectedValueOnce(
+        new Error('rejected before dispatch'),
+      );
+
+      const coverings = new MatterAccessories(platform as ZWaveUsbPlatform);
+      await publish(coverings, createCoveringAccessory());
+
+      matter.updateAccessoryState.mockClear();
+      changeListeners.forEach((listener) => listener({ newValue: 30 }));
+      await jest.advanceTimersByTimeAsync(4000);
+
+      expect(matter.updateAccessoryState).not.toHaveBeenCalled();
+    });
+  });
+
   describe('publication races and duplicates', () => {
     it('never registers an accessory removed while its descriptor was built', async () => {
       // The generation has to be read before the first await, not after it: a removal during
@@ -1069,6 +1368,63 @@ describe('MatterAccessories', () => {
     });
   });
 
+
+  describe('a retry offered while publication was running', () => {
+    it('publishes the accessory again when the registration it waited on failed', async () => {
+      // add() promises it is safe to call repeatedly. An offer made while a registration was
+      // running duplicates nothing if that registration then failed, so discarding it on
+      // identity alone leaves the accessory unpublished until a rebuild or a restart.
+      let releaseRegistration: () => void = () => undefined;
+      let failRegistration: (err: Error) => void = () => undefined;
+      matter.registerPlatformAccessories.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            releaseRegistration = resolve;
+            failRegistration = reject;
+          }),
+      );
+
+      const coverings = new MatterAccessories(platform as ZWaveUsbPlatform);
+      const accessory = createCoveringAccessory();
+
+      coverings.add(accessory);
+      await jest.advanceTimersByTimeAsync(4000);
+
+      // The same accessory offered again while the first attempt is still running.
+      coverings.add(accessory);
+      await jest.advanceTimersByTimeAsync(1000);
+
+      matter.registerPlatformAccessories.mockResolvedValue(undefined);
+      failRegistration(new Error('rejected before dispatch'));
+      void releaseRegistration;
+      await jest.advanceTimersByTimeAsync(8000);
+
+      expect(matter.registerPlatformAccessories).toHaveBeenCalledTimes(2);
+    });
+
+    it('still drops the duplicate offer when the first publication succeeded', async () => {
+      let releaseRegistration: () => void = () => undefined;
+      matter.registerPlatformAccessories.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseRegistration = resolve;
+          }),
+      );
+
+      const coverings = new MatterAccessories(platform as ZWaveUsbPlatform);
+      const accessory = createCoveringAccessory();
+
+      coverings.add(accessory);
+      await jest.advanceTimersByTimeAsync(4000);
+      coverings.add(accessory);
+      await jest.advanceTimersByTimeAsync(1000);
+
+      releaseRegistration();
+      await jest.advanceTimersByTimeAsync(8000);
+
+      expect(matter.registerPlatformAccessories).toHaveBeenCalledTimes(1);
+    });
+  });
 
   describe('publication already in flight', () => {
     it('does not register twice when the same covering is added again mid-flight', async () => {

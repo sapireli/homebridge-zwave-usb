@@ -3,7 +3,7 @@ import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
 import { ZWaveAccessory } from '../accessories/ZWaveAccessory';
 import { homeKitBatteryToMatterPercent } from './coveringPosition';
 import { matterLabel, matterSerialNumber } from './matterText';
-import { serviceMappings, ServiceMapping } from './serviceMappings';
+import { serviceMappings, ServiceMapping, StateBinding } from './serviceMappings';
 import { composeBridgedRoot, composeDeviceType } from './deviceComposition';
 
 /** The status errors a cluster handler throws to report a failure to the controller. */
@@ -120,6 +120,12 @@ export class MatterAccessories {
   private readonly deferred = new Map<string, { accessory: ZWaveAccessory; generation: number }>();
   /** Bumped whenever an accessory is removed, so a registration in flight can be discarded. */
   private readonly generations = new Map<string, number>();
+  /**
+   * State observed before the endpoint exists, keyed by UUID then by cluster and part. Listening
+   * begins before the descriptor snapshot, so these updates have nowhere to go yet; the newest
+   * value per attribute is kept and released once the accessory is published.
+   */
+  private readonly held = new Map<string, Map<string, Record<string, unknown>>>();
   /** Per-accessory detach callbacks for the HomeKit listeners that mirror state into Matter. */
   private readonly trackers = new Map<string, Array<() => void>>();
   /** The accessory instance each published UUID is currently mirroring. */
@@ -146,6 +152,9 @@ export class MatterAccessories {
     this.inFlight.clear();
     this.deferred.clear();
     [...this.trackers.keys()].forEach((uuid) => this.untrack(uuid));
+    // Untracking clears what it knows about, but a mapping with no bindings leaves held state
+    // and no tracker, so nothing would collect it.
+    this.held.clear();
   }
 
   /**
@@ -348,11 +357,33 @@ export class MatterAccessories {
         this.platform.log.warn(
           `Could not describe ${accessory.platformAccessory.displayName} for Matter: ${String(err)}`,
         );
+        this.untrack(uuid);
         continue;
       }
       if (!descriptor) {
+        this.untrack(uuid);
         continue;
       }
+
+      /**
+       * Listening starts here rather than after registration. The descriptor is a snapshot, and
+       * a characteristic that changed between the snapshot and the listeners being attached
+       * would appear in neither: Matter would hold the older value with no event coming to
+       * correct it. The listeners need the descriptor to resolve which part each mapping
+       * belongs to, so this is the earliest point they can exist. Until the endpoint is
+       * published their updates are held rather than sent, and `commit` releases them.
+       */
+      this.untrack(uuid);
+      this.tracked.set(uuid, accessory);
+      this.trackState(accessory, descriptor);
+      this.trackBattery(accessory, descriptor);
+      /**
+       * Closes the remaining window, which is the snapshot itself: it reads characteristics one
+       * at a time and awaits several of them, so a value can move after being read. Current
+       * readings fill only the attributes nothing has reported yet, so a listener event, which
+       * is necessarily newer than this read, is never overwritten by it.
+       */
+      await this.fillHeldStateGaps(accessory, descriptor);
 
       /**
        * Held locally until dispatch. Recording it now would let a removal that arrives
@@ -389,11 +420,17 @@ export class MatterAccessories {
          * offered again after a removal is a new request, because the publication it would
          * have duplicated has been undone, and skipping it on identity alone would lose a
          * re-included node that happens to reuse its wrapper.
+         *
+         * The publication also has to have happened. An offer made while a registration was
+         * running duplicates nothing if that registration then failed, and dropping it on
+         * identity alone turns a transient failure into one that needs a restart, against
+         * `add()`'s promise that calling it again is safe.
          */
-        const unchanged =
+        const duplicate =
           replacement.accessory === accessory &&
-          replacement.generation === (generations.get(uuid) ?? 0);
-        if (unchanged) {
+          replacement.generation === (generations.get(uuid) ?? 0) &&
+          this.published.has(uuid);
+        if (duplicate) {
           continue;
         }
 
@@ -425,9 +462,20 @@ export class MatterAccessories {
      * its own, so it can be handled before the registration it is meant to cancel. Not sending
      * the work at all is the only part of this the plugin controls.
      */
-    const live = group.filter(
-      (entry) => (this.generations.get(entry.uuid) ?? 0) === generations.get(entry.uuid),
-    );
+    const live: PendingPublication[] = [];
+
+    for (const entry of group) {
+      if ((this.generations.get(entry.uuid) ?? 0) === generations.get(entry.uuid)) {
+        live.push(entry);
+        continue;
+      }
+      /**
+       * Removed while the descriptor was being built. The listeners opened for it are still
+       * attached, so they have to come down here: leaving them would mirror a wrapper the
+       * plugin has given up, and feed its state to whatever later takes the same identifier.
+       */
+      this.untrack(entry.uuid);
+    }
 
     if (live.length === 0) {
       return;
@@ -446,6 +494,8 @@ export class MatterAccessories {
           err instanceof Error ? err.message : String(err)
         }`,
       );
+      // Nothing was published, so the listeners opened for this group have nowhere to send.
+      live.forEach((entry) => this.untrack(entry.uuid));
       return;
     }
 
@@ -457,6 +507,7 @@ export class MatterAccessories {
         // Removed while the registration was being dispatched. Compensating for it is
         // best-effort, for the ordering reason above, which is why the window is kept small
         // rather than relied on.
+        this.untrack(entry.uuid);
         undo.push(entry.descriptor);
         continue;
       }
@@ -466,8 +517,12 @@ export class MatterAccessories {
       // Claimed, so no longer a restored endpoint awaiting reclamation.
       this.cached.delete(entry.uuid);
       this.tracked.set(entry.uuid, entry.accessory);
-      this.trackState(entry.accessory);
-      this.trackBattery(entry.accessory);
+      /**
+       * Published, so `pushState` sends directly from here on. Releasing what was held in the
+       * same turn leaves no window for a live update to overtake the held one, since nothing
+       * else runs between the flag and the flush.
+       */
+      this.releaseHeldState(entry.uuid);
       committed.push(entry);
     }
 
@@ -645,12 +700,20 @@ export class MatterAccessories {
 
     const level = await this.readBatteryLevel(service);
 
+    /**
+     * HAP describes a battery with a level, a low-battery flag and a charging state, and says
+     * nothing about whether the source is supplying power, whether a cell is physically there,
+     * or whether a user can replace it. Those were being asserted anyway, which is wrong in
+     * ordinary cases: a standby source, an integrated pack, or a shade whose removable battery
+     * is out would all be described as present and active. Matter has Unspecified for exactly
+     * this, and `batPresent` is optional, so it is left out rather than guessed. The level and
+     * the low-battery mapping are real readings and stay.
+     */
     return {
-      status: 1, // Active
+      status: 0, // Unspecified
       order: 0,
       description: 'Battery',
-      batPresent: true,
-      batReplaceability: 2, // User replaceable
+      batReplaceability: 0, // Unspecified
       batChargeLevel: this.readBatteryChargeLevel(service),
       batPercentRemaining: level === undefined ? null : homeKitBatteryToMatterPercent(level),
     };
@@ -829,8 +892,8 @@ export class MatterAccessories {
     return rootKey === mapping.key ? undefined : null;
   }
 
-  private trackState(accessory: ZWaveAccessory): void {
-    const descriptor = this.descriptors.get(accessory.platformAccessory.UUID);
+  private trackState(accessory: ZWaveAccessory, known?: MatterAccessoryDescriptor): void {
+    const descriptor = known ?? this.descriptors.get(accessory.platformAccessory.UUID);
     if (!descriptor) return;
     for (const mapping of this.mappings(accessory)) {
       const partId = this.partId(descriptor, mapping);
@@ -873,8 +936,8 @@ export class MatterAccessories {
   }
 
   /** Mirrors battery readings the same way, so a Matter controller can show the charge level. */
-  private trackBattery(accessory: ZWaveAccessory): void {
-    const descriptor = this.descriptors.get(accessory.platformAccessory.UUID);
+  private trackBattery(accessory: ZWaveAccessory, known?: MatterAccessoryDescriptor): void {
+    const descriptor = known ?? this.descriptors.get(accessory.platformAccessory.UUID);
     if (!descriptor) return;
     for (const mapping of this.mappings(accessory)) {
       const partId = this.partId(descriptor, mapping);
@@ -946,10 +1009,119 @@ export class MatterAccessories {
   }
 
   /** Stops mirroring HomeKit state for an accessory that is being rebuilt or removed. */
+  /**
+   * Covers the snapshot's own blind spot. The descriptor reads characteristics one at a time
+   * and awaits several of them, so a value can move after being read, and no event reports that
+   * move because nothing was listening yet. This re-reads through the same authoritative path
+   * the descriptor uses, so an unknown reading stays unknown instead of becoming the cached HAP
+   * default, which for a covering would announce it as fully closed.
+   *
+   * The read is asynchronous, so listener events can arrive while it runs. Anything already held
+   * when a value is finally written came from a listener and is therefore newer, so it wins.
+   */
+  private async fillHeldStateGaps(
+    accessory: ZWaveAccessory,
+    descriptor: MatterAccessoryDescriptor,
+  ): Promise<void> {
+    const uuid = accessory.platformAccessory.UUID;
+
+    for (const mapping of this.mappings(accessory)) {
+      const partId = this.partId(descriptor, mapping);
+      if (partId === null) continue;
+
+      /**
+       * Only what a listener would have sent. The descriptor also carries static cluster
+       * fields, and those are accepted when the endpoint is built but rejected as a state
+       * update, so sending the whole cluster back fails validation at the host.
+       */
+      for (const binding of mapping.bindings) {
+        if (binding.event) continue;
+        this.holdIfAbsent(
+          uuid,
+          binding.cluster,
+          partId,
+          binding.attributes(await this.currentValue(mapping, binding)),
+        );
+      }
+
+      const battery = this.findBatteryService(accessory.platformAccessory, mapping.service);
+      if (battery) {
+        const level = await this.readBatteryLevel(battery);
+        this.holdIfAbsent(uuid, POWER_SOURCE_CLUSTER, partId, {
+          batChargeLevel: this.readBatteryChargeLevel(battery),
+          ...(level === undefined
+            ? {}
+            : { batPercentRemaining: homeKitBatteryToMatterPercent(level) }),
+        });
+      }
+    }
+  }
+
+  /**
+   * One characteristic, read the way the descriptor reads it: through the getter rather than
+   * the cache, with an unavailable or refused reading becoming undefined so the binding
+   * encodes it as unknown instead of as HomeKit's default.
+   */
+  private async currentValue(mapping: ServiceMapping, binding: StateBinding): Promise<unknown> {
+    try {
+      if (binding.available && !binding.available()) return undefined;
+      return await (binding.service ?? mapping.service)
+        .getCharacteristic(binding.characteristic)
+        .handleGetRequest();
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Keeps a reading only where nothing newer is already held. Read back inside the loop rather
+   * than captured beforehand, because the awaits above give listener events room to land.
+   */
+  private holdIfAbsent(
+    uuid: string,
+    cluster: string,
+    partId: string | undefined,
+    attributes: Record<string, unknown>,
+  ): void {
+    const key = partId ? `${cluster}\u0000${partId}` : cluster;
+    const forAccessory = this.held.get(uuid) ?? new Map<string, Record<string, unknown>>();
+    forAccessory.set(key, { ...attributes, ...(forAccessory.get(key) ?? {}) });
+    this.held.set(uuid, forAccessory);
+  }
+
+  /**
+   * Sends what was observed while the endpoint was being created. Called once the accessory is
+   * published, in the same turn as the flag, so a live update cannot overtake a held one.
+   */
+  private releaseHeldState(uuid: string): void {
+    const forAccessory = this.held.get(uuid);
+    this.held.delete(uuid);
+    if (!forAccessory) {
+      return;
+    }
+
+    const accessory = this.tracked.get(uuid);
+    if (!accessory) {
+      return;
+    }
+
+    for (const [key, attributes] of forAccessory) {
+      const [cluster, partId] = key.split('\u0000');
+      this.pushState(accessory, cluster, attributes, partId);
+    }
+  }
+
+  /**
+   * Stops mirroring an accessory and forgets what was observed for it. The two belong together:
+   * state held for an identifier nothing is listening to will never be released by a
+   * publication, and would otherwise surface later as the readings of whatever next takes that
+   * identifier.
+   */
   private untrack(uuid: string): void {
     this.trackers.get(uuid)?.forEach((detach) => detach());
     this.trackers.delete(uuid);
     this.tracked.delete(uuid);
+    this.held.delete(uuid);
   }
 
   private pushState(
@@ -958,6 +1130,21 @@ export class MatterAccessories {
     attributes: Record<string, unknown>,
     partId?: string,
   ): void {
+    const uuid = accessory.platformAccessory.UUID;
+
+    if (!this.published.has(uuid)) {
+      /**
+       * The endpoint does not exist yet. Sending now would be dropped by the host, and the
+       * event will not come again, so the value is kept and released at publication. Merging
+       * by attribute leaves the newest reading of each one in place.
+       */
+      const key = partId ? `${cluster}\u0000${partId}` : cluster;
+      const forAccessory = this.held.get(uuid) ?? new Map<string, Record<string, unknown>>();
+      forAccessory.set(key, { ...(forAccessory.get(key) ?? {}), ...attributes });
+      this.held.set(uuid, forAccessory);
+      return;
+    }
+
     void this.matter
       ?.updateAccessoryState(
         accessory.platformAccessory.UUID,
