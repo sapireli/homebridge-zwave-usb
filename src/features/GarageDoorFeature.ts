@@ -1,12 +1,24 @@
+import { Endpoint } from 'zwave-js';
+import { IZWaveNode } from '../zwave/interfaces';
 import { Service, CharacteristicValue } from 'homebridge';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
-import { BaseFeature } from './ZWaveFeature';
+import { BaseFeature, definedValues, hasValue } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
 /**
  * GarageDoorFeature implements support for Garage Door Openers (Barrier Operator CC).
  */
 export class GarageDoorFeature extends BaseFeature {
+  /** Obstruction is optional: a device that never reports one simply reports no obstruction. */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    return (
+      hasValue(values, CommandClasses['Barrier Operator'], 'currentState') &&
+      hasValue(values, CommandClasses['Barrier Operator'], 'targetState')
+    );
+  }
+
   private service!: Service;
 
   init(): void {

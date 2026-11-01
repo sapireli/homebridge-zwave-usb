@@ -1,12 +1,30 @@
+import { Endpoint } from 'zwave-js';
+import { IZWaveNode } from '../zwave/interfaces';
 import { Service } from 'homebridge';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
-import { BaseFeature } from './ZWaveFeature';
+import { BaseFeature, definedValues, hasBinarySensor, hasNotification } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
 /**
  * ContactSensorFeature maps Z-Wave Access Control/Home Security notifications to HomeKit.
  */
 export class ContactSensorFeature extends BaseFeature {
+  /** Door state is reported under Access Control by most devices and Home Security by some. */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    return (
+      hasNotification(
+        values,
+        'Access Control',
+        ['Door status', 'Door state', 'Window/door state', 'Sensor status'],
+        false,
+      ) ||
+      hasNotification(values, 'Home Security', ['Sensor status'], false) ||
+      hasBinarySensor(values, 'Door/Window', 'Any')
+    );
+  }
+
   private service!: Service;
 
   init(): void {

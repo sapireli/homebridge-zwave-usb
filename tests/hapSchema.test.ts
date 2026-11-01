@@ -116,7 +116,12 @@ function buildAccessory(scenario: Scenario) {
     setValue: async () => undefined,
   };
 
-  const accessory = AccessoryFactory.create(platform as never, node as never, 12345);
+  const accessory = AccessoryFactory.create(
+      platform as never,
+      node as never,
+      12345,
+      AccessoryFactory.planFeatures(node as never),
+    );
   accessory.initialize();
 
   return accessory.platformAccessory;

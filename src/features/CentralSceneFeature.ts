@@ -1,6 +1,8 @@
+import { Endpoint } from 'zwave-js';
+import { IZWaveNode } from '../zwave/interfaces';
 import { Service } from 'homebridge';
 import { CommandClasses } from '@zwave-js/core';
-import { BaseFeature } from './ZWaveFeature';
+import { BaseFeature, definedValues, hasValue } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
 const RELEASE_DEDUPE_WINDOW_MS = 750;
@@ -10,6 +12,30 @@ const RELEASE_DEDUPE_WINDOW_MS = 750;
  * It maps each 'scene' (button) to a separate StatelessProgrammableSwitch service.
  */
 export class CentralSceneFeature extends BaseFeature {
+  /**
+   * The buttons are built from the scene metadata's states, so without them the accessory would
+   * expose no button at all until the first press, and both values are needed to translate an
+   * event into one.
+   */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    if (
+      !hasValue(values, CommandClasses['Central Scene'], 'scene') ||
+      !hasValue(values, CommandClasses['Central Scene'], 'keyAttribute')
+    ) {
+      return false;
+    }
+
+    const metadata = node.getValueMetadata({
+      commandClass: CommandClasses['Central Scene'],
+      property: 'scene',
+      endpoint: endpoint.index,
+    }) as { states?: Record<string, unknown> } | undefined;
+
+    return Object.keys(metadata?.states ?? {}).some((scene) => Number.isFinite(Number(scene)));
+  }
+
   private services = new Map<number, Service>();
   private lastEmittedAction = new Map<number, { keyAttribute: number; emittedAt: number }>();
 

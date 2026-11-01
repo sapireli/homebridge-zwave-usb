@@ -2,7 +2,7 @@ import { IZWaveNode } from '../zwave/interfaces';
 
 /**
  * Some devices cannot be classified from their Command Classes alone, either because they
- * implement a generic CC for a specialised purpose or because they report status information
+ * implement a generic CC for a specialized purpose or because they report status information
  * that does not match reality. Overrides are keyed on the Manufacturer Specific fingerprint so
  * the exception stays confined to the exact hardware it was verified against.
  */
