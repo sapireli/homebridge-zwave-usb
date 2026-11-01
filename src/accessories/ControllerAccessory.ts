@@ -441,12 +441,11 @@ export class ControllerAccessory {
     this.pinChar.onSet((value: CharacteristicValue) => {
       const raw = Number(value);
       if (!Number.isInteger(raw) || raw < 0 || raw > 99999) {
-        this.platform.log.warn(`[S2] Ignoring invalid PIN value from HomeKit: ${value}`);
+        this.platform.log.warn('[S2] Ignoring an invalid PIN value from HomeKit.');
         return;
       }
 
       const pin = raw.toString().padStart(5, '0');
-      this.platform.log.info(`HomeKit S2 PIN Received: ${pin}`);
       this.controller.setS2Pin(pin);
       setTimeout(() => this.pinChar.updateValue(0), 2000);
     });
