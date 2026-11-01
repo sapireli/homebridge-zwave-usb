@@ -64,6 +64,7 @@
   "files": [
     "dist",
     "homebridge-ui",
+    "docs/node-management.md",
     "config.schema.json",
     "README.md",
     "LICENSE"

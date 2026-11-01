@@ -1,7 +1,7 @@
 import { Service, CharacteristicValue } from 'homebridge';
 import { SetValueResult, SetValueStatus, ValueID, setValueFailed } from 'zwave-js';
 import { CommandClasses } from '@zwave-js/core';
-import { BaseFeature, HAP_COMMUNICATION_FAILURE } from './ZWaveFeature';
+import { BaseFeature, HAP_COMMUNICATION_FAILURE, definedValues, hasValue } from './ZWaveFeature';
 import { Endpoint } from 'zwave-js';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { canPollNodeValues, pollNodeValue } from '../zwave/nodeApi';
@@ -50,6 +50,46 @@ type PollOutcome =
  * not issued.
  */
 export class WindowCoveringFeature extends BaseFeature {
+  /**
+   * Which command class drives the position is decided by `supportsCC`, not by which values the
+   * device happens to define, so the two branches are checked separately and neither falls back
+   * to the other.
+   *
+   * A device that advertises Window Covering CC without a keyed position can still be read
+   * through the Multilevel Switch fallback that `resolvePositionValueId` provides, which makes
+   * it look serviceable. It is not: `transmit` builds a Window Covering `targetValue` because
+   * the command class is chosen from `supportsCC`, then refuses the write outright when the
+   * position it resolves is not a keyed Window Covering value. Such a covering would report a
+   * position and decline every command to move, so it is not compatible.
+   */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    if (endpoint.supportsCC(CommandClasses['Window Covering'])) {
+      const position = values.find(
+        (valueId) =>
+          valueId.commandClass === CommandClasses['Window Covering'] &&
+          valueId.property === 'currentValue' &&
+          typeof valueId.propertyKey === 'number',
+      );
+
+      return (
+        position !== undefined &&
+        hasValue(
+          values,
+          CommandClasses['Window Covering'],
+          'targetValue',
+          position.propertyKey as number,
+        )
+      );
+    }
+
+    return (
+      hasValue(values, CommandClasses['Multilevel Switch'], 'currentValue') &&
+      hasValue(values, CommandClasses['Multilevel Switch'], 'targetValue')
+    );
+  }
+
   private service!: Service;
   private state: CoveringState = initialState();
   private requestSequence = 0;

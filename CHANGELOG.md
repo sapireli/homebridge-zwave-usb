@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- A node detail page with maintenance actions, Device type, Parameters, and Diagnostics sections.
+- Fingerprint-scoped HomeKit device-type overrides, constrained to types the reported hardware can
+  operate. The built-in verified registry remains the default.
+- A read-only Configuration parameter viewer with search, advanced and partial parameters, report
+  times, and a re-read lifecycle that waits for device reports rather than request completion.
+- Guarded one-setting-at-a-time Configuration editing with live metadata validation, destructive
+  and re-inclusion acknowledgments, partial-field preservation, sleeping-device status, and
+  explicit readback confirmation.
+
+### Changed
+- The Maintenance node list keeps one Details action per node. Rename, Refresh Info, Check Update,
+  Remove, Diagnostics, and firmware progress move to the node detail workflow.
+- Matter adopts a user-selected device type after Homebridge restarts; HomeKit replaces the
+  compatible service in the running session.
+
+### Fixed
+- Standardize user-visible copy and code comments on American English (#26).
+
+### Upgrade and safety notes
+- Existing device classification is unchanged unless a user saves an override. Replacing a
+  HomeKit service can require affected scenes and automations to be configured again.
+- Opening Parameters reads the cache. Re-read sends Configuration Gets only and may remain pending
+  until a sleeping device wakes.
+- Configuration writes are always revalidated against the live device definition. An accepted Set
+  is not called confirmed until an explicit Configuration Get reports the requested value.
+
+Thanks to @richards-markjames for requesting Configuration parameter support in #6.
+
 ## [5.0.2] - 2026-10-31
 
 ### Fixed

@@ -1,6 +1,8 @@
+import { Endpoint } from 'zwave-js';
+import { IZWaveNode } from '../zwave/interfaces';
 import { Service, CharacteristicValue } from 'homebridge';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
-import { BaseFeature } from './ZWaveFeature';
+import { BaseFeature, definedValues, hasValue } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
 /**
@@ -8,6 +10,22 @@ import { ZWaveValueEvent } from '../zwave/interfaces';
  * It maps Z-Wave Thermostat Mode, Setpoint, and Operating State to HomeKit.
  */
 export class ThermostatFeature extends BaseFeature {
+  /**
+   * Both setpoints are required because the feature always exposes a heating and a cooling
+   * threshold, and Auto reads and writes both. The operating state is not: the feature infers
+   * the current state from the target mode when a device does not report one.
+   */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    return (
+      hasValue(values, CommandClasses['Thermostat Mode'], 'mode') &&
+      hasValue(values, CommandClasses['Thermostat Setpoint'], 'setpoint', 1) &&
+      hasValue(values, CommandClasses['Thermostat Setpoint'], 'setpoint', 2) &&
+      hasValue(values, CommandClasses['Multilevel Sensor'], 'Air temperature')
+    );
+  }
+
   private service!: Service;
   private lastKnownTemp?: number;
 

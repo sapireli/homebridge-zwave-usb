@@ -280,6 +280,17 @@ export class MatterAccessories {
     this.publishTimer.unref();
   }
 
+  /**
+   * Whether a live Matter endpoint is publishing this accessory.
+   *
+   * A published endpoint keeps the device type it was registered with, because registering a
+   * live endpoint a second time is rejected, so a type change reaches Matter only after a
+   * restart. The panels disclose that, and only for the devices it is true of.
+   */
+  public publishes(uuid: string): boolean {
+    return this.tracked.has(uuid);
+  }
+
   public supports(accessory: ZWaveAccessory): boolean {
     return (
       serviceMappings(this.platform, accessory, {
@@ -457,7 +468,7 @@ export class MatterAccessories {
 
     /**
      * Checked here rather than only after the call, because a removal that arrives while the
-     * descriptors are being built would otherwise be dispatched anyway and undone afterwards.
+     * descriptors are being built would otherwise be dispatched anyway and undone afterward.
      * The undo is not a reliable answer: bridged unregistration is dispatched as an event of
      * its own, so it can be handled before the registration it is meant to cancel. Not sending
      * the work at all is the only part of this the plugin controls.

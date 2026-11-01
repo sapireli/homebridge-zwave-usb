@@ -443,7 +443,7 @@ class Run {
     // A supervised stop confirms only that the stop ran, not where the covering came to rest.
     const token = this.allocate();
     // The known starting position is the first distance to beat, so a covering that moves away
-    // from its target, or back towards where it started, earns no extension.
+    // from its target, or back toward where it started, earns no extension.
     const reported = this.state.reported;
     const closest =
       intent.kind === 'move' && reported.kind === 'verified'

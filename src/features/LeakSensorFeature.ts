@@ -1,12 +1,24 @@
+import { Endpoint } from 'zwave-js';
+import { IZWaveNode } from '../zwave/interfaces';
 import { Service } from 'homebridge';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
-import { BaseFeature } from './ZWaveFeature';
+import { BaseFeature, definedValues, hasBinarySensor, hasNotification } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
 /**
  * LeakSensorFeature handles Water leak detection.
  */
 export class LeakSensorFeature extends BaseFeature {
+  /** Reads whichever source reports, so either one is enough to drive the service. */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    return (
+      hasNotification(values, 'Water Alarm', ['Water leak status', 'Sensor status'], true) ||
+      hasBinarySensor(values, 'Water', 'Any')
+    );
+  }
+
   private service!: Service;
 
   init(): void {

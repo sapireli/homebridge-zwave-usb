@@ -168,6 +168,34 @@ export interface IZWaveNode {
   getDefinedValueIDs(): ValueID[];
   getAllEndpoints(): Endpoint[];
   getValueMetadata(valueId: ValueID): ValueMetadata;
+  /**
+   * When the node last updated this value, which is the only honest answer to how fresh a reading
+   * is. The time the plugin read its own cache says nothing about the device.
+   */
+  getValueTimestamp(valueId: ValueID): number | undefined;
+  /**
+   * Asks the device for current values of one command class.
+   *
+   * zwave-js's own documentation says not to await this, and it resolves even where every
+   * endpoint failed, because it catches and logs each one. Its settling therefore reports that
+   * the attempt finished, never that any value was confirmed.
+   */
+  refreshCCValues(cc: number): Promise<void>;
+  /**
+   * Asks the device for one value and answers with what it reported.
+   *
+   * This is the only thing that can confirm a write. The driver puts its own optimistic answer
+   * into the cache after an accepted write and strips the mark that says so, which leaves the
+   * cache and its timestamps unable to tell the device's word from the driver's. A Get cannot be
+   * confused that way: `undefined` means the device said nothing usable.
+   *
+   * Its defaults are built for background polling, so a caller the reader is waiting on passes
+   * its own priority and attempts.
+   */
+  pollValue(
+    valueId: ValueID,
+    options?: { priority?: number; maxSendAttempts?: number },
+  ): Promise<unknown>;
 
   // Events
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

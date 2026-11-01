@@ -10,8 +10,8 @@ This project and everyone participating in it is governed by the [CODE_OF_CONDUC
 
 ### Reporting Bugs
 
-- Ensure the bug was not already reported by searching on GitHub under [Issues](https://github.com/eliransapir/homebridge-zwave-usb/issues).
-- If you're unable to find an open issue addressing the problem, [open a new one](https://github.com/eliransapir/homebridge-zwave-usb/issues/new). Be sure to include a **title and clear description**, as much relevant information as possible, and a **code sample** or an **executable test case** demonstrating the expected behavior that is not occurring.
+- Ensure the bug was not already reported by searching the [issue tracker](https://github.com/sapireli/homebridge-zwave-usb/issues).
+- If you cannot find an existing report, [open a new issue](https://github.com/sapireli/homebridge-zwave-usb/issues/new). Include a clear title, reproduction steps, relevant Homebridge and plugin versions, and sanitized logs or a focused test case where possible. Never post Z-Wave security keys, private hostnames, household device names, or other identifying installation details.
 
 ### Suggesting Enhancements
 
@@ -22,9 +22,12 @@ This project and everyone participating in it is governed by the [CODE_OF_CONDUC
 
 - Fork the repo and create your branch from `main`.
 - If you've added code that should be tested, add tests.
-- Ensure the test suite passes (`npm test`).
-- Make sure your code lints (`npm run lint`).
-- Issue that pull request!
+- Run the complete local gate (`npm run verify`).
+- If your change affects Matter publication, also run the applicable host verification script
+  described in [ARCHITECTURE.md](ARCHITECTURE.md).
+- If your change adds or changes user-visible text, use American English and review the rendered
+  Homebridge UI in both themes.
+- Open the pull request.
 
 ## Styleguides
 
@@ -46,9 +49,14 @@ The project is structured as a Homebridge dynamic platform plugin.
 
 - `src/index.ts`: Main entry point, registers the platform with Homebridge.
 - `src/platform/ZWaveUsbPlatform.ts`: The core platform implementation.
+- `src/platform/`: Platform-owned persistence, payload, refresh, and write lifecycles.
 - `src/zwave/ZWaveController.ts`: Wrapper for the `zwave-js` driver.
 - `src/accessories/`: Accessory-related classes.
-- `src/mappers/`: Maps Z-Wave device capabilities to HomeKit characteristics.
-- `src/util/`: Utility functions.
+- `src/features/`: HomeKit services and Z-Wave value handling for each supported feature.
+- `src/matter/`: Matter descriptors, service mappings, lifecycle, and state mirroring.
+- `homebridge-ui/`: Config UI server, page, and pure presentation helpers.
 - `config.schema.json`: Defines the configuration schema for the Homebridge UI.
+- `scripts/`: Full verification and Homebridge Matter-host checks.
 - `tests/`: Contains all the tests.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the ownership boundaries behind these directories.

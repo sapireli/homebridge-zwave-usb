@@ -1,5 +1,5 @@
 import { CharacteristicValue, PlatformAccessory, Service, WithUUID } from 'homebridge';
-import { Endpoint, SetValueResult } from 'zwave-js';
+import { Endpoint, SetValueResult, ValueID } from 'zwave-js';
 import { CommandClasses } from '@zwave-js/core';
 import { IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveUsbPlatform } from '../platform/ZWaveUsbPlatform';
@@ -58,6 +58,62 @@ const SERVICE_LABEL_INDEX_SUPPORTED_SERVICE_UUIDS = new Set([
 export interface BatterySnapshot {
   level?: number;
   low: boolean;
+}
+
+/**
+ * Whether an endpoint defines a value a feature needs.
+ *
+ * Compatibility is judged on the values a device actually reports, not on the command classes
+ * it claims. A device can advertise a command class and define none of the values a feature
+ * reads from it, and publishing that as a working service produces controls that do nothing.
+ */
+export function definedValues(node: IZWaveNode, endpointIndex: number): ValueID[] {
+  if (typeof node.getDefinedValueIDs !== 'function') {
+    return [];
+  }
+
+  return node
+    .getDefinedValueIDs()
+    .filter((valueId) => (valueId.endpoint ?? 0) === endpointIndex);
+}
+
+export function hasValue(
+  values: readonly ValueID[],
+  commandClass: CommandClasses,
+  property: string,
+  propertyKey?: string | number,
+): boolean {
+  return values.some(
+    (valueId) =>
+      valueId.commandClass === commandClass &&
+      valueId.property === property &&
+      (propertyKey === undefined || valueId.propertyKey === propertyKey),
+  );
+}
+
+/**
+ * A notification value a sensor reads, by property and the keys it accepts. `allowUnkeyed`
+ * covers the devices that report the alarm without naming a sub-status.
+ */
+export function hasNotification(
+  values: readonly ValueID[],
+  property: string,
+  keys: readonly string[],
+  allowUnkeyed: boolean,
+): boolean {
+  return values.some(
+    (valueId) =>
+      valueId.commandClass === CommandClasses.Notification &&
+      valueId.property === property &&
+      (keys.includes(valueId.propertyKey as string) ||
+        (allowUnkeyed && valueId.propertyKey === undefined)),
+  );
+}
+
+export function hasBinarySensor(values: readonly ValueID[], ...properties: string[]): boolean {
+  return properties.some((property) =>
+    hasValue(values, CommandClasses['Binary Sensor'], property),
+  );
 }
 
 export interface ZWaveFeature {

@@ -17,6 +17,10 @@ A high-performance, production-grade [Homebridge](https://homebridge.io) integra
 - **Advanced Metadata Repair**: Automatically cleans up obsolete HomeKit services/characteristics during network updates.
 - **Log Piping**: Internal Z-Wave JS driver logs are piped directly into the Homebridge terminal for seamless debugging.
 - **OTA Firmware Updates**: Check for and install official manufacturer firmware updates directly from the Homebridge UI.
+- **Matter Publication**: Publish supported services through a Matter-enabled Homebridge 2 bridge.
+- **Node Maintenance**: Inspect node status, radio diagnostics, routes, firmware, and publication details from one node page.
+- **Device Type Overrides**: Correct a misclassified HomeKit service when the hardware reports the values that service needs.
+- **Configuration Parameters**: Inspect, re-read, and carefully edit the settings reported by Configuration CC.
 
 ---
 
@@ -83,7 +87,7 @@ Air quality still uses the host's core Good/Poor/Unknown categories: Excellent/G
 and Fair/Inferior/Poor map to Poor. Optional finer enum grades fail Homebridge 2.4's pre-plugin
 cache restoration; the raw readings preserve the quantitative data.
 
-Homebridge dispatches bridged Matter registration and removal without a downstream acknowledgement.
+Homebridge dispatches bridged Matter registration and removal without a downstream acknowledgment.
 The plugin prevents duplicate offers and reclaims cached endpoints at startup, but cannot detect
 all server-side refusals. A live endpoint's service structure is retained until the next restart
 if a device's capabilities change. Automated tests cover the plugin lifecycle and endpoint
@@ -93,7 +97,7 @@ construction against Homebridge 2.4; physical-device testing of the expanded map
 
 ## 📦 Prerequisites & Linux Setup
 
-Version 4 requires Node.js **22.12 or later in the Node 22 line**, Node **24**, or Node **26**. Node 18 and 20 are no longer supported because the installed dependencies require newer runtimes. Upgrade Node before installing v4.
+Current releases require Node.js **22.12 or later in the Node 22 line**, Node **24**, or Node **26**. Node 18 and 20 are not supported because the installed dependencies require newer runtimes. Upgrade Node before installing the plugin.
 
 ### 1. Hardware
 - A compatible Z-Wave USB Stick (e.g., **Aeotec Z-Stick Gen5/Gen7**, **Zooz 800 Series**, **Silicon Labs UZB**).
@@ -192,9 +196,10 @@ When pairing a Security 2 (S2) device, you must enter a 5-digit PIN found on the
 
 ## 🎮 The Z-Wave Controller Accessory
 
-This plugin adds a management accessory to your Home app to handle network operations without an external UI:
+This plugin adds a management accessory to your Home app for core network operations. The
+Homebridge custom UI provides the more detailed maintenance and per-node tools described below.
 - **System Status**: Displays the current driver state (Initializing, Ready, Inclusion Active, etc.).
-- **Inclusion Mode**: A switch to start/stop pairing new devices (active for 3 minutes).
+- **Inclusion Mode**: A switch to start/stop pairing new devices for the configured inclusion timeout (60 seconds by default).
 - **Exclusion Mode**: A switch to remove/reset existing devices.
 - **Heal Network**: A switch to trigger a background mesh network optimization. Sleeping devices are skipped unless **Heal Network Includes Sleeping Devices** is turned on, so the operation finishes in a predictable time. Progress appears in System Status, and the switch turns itself off when the rebuild finishes, is stopped, or reports nothing for ten minutes.
 
@@ -212,7 +217,11 @@ The plugin provides additional tools for network maintenance:
 The plugin includes a dedicated **Maintenance** tab within the Homebridge custom UI (accessible via the plugin settings).
 
 - **Node Overview**: View a complete list of all Z-Wave nodes in your network, including their status and current firmware versions.
+- **Node Details**: Open one node to use its maintenance actions and inspect Device type, Parameters, and Diagnostics sections without crowding the network overview.
 - **HomeKit Publication State**: See whether a node is already published to HomeKit, still cached and waiting for interview wake-up, or intentionally deferred until interview metadata is available.
+- **Device Type**: See what HomeKit publishes, where that decision came from, and which compatible alternatives the reported hardware can support.
+- **Configuration Parameters**: Search the settings reported through Configuration CC, show advanced and partial parameters, ask the device to report its current values, and edit one supported value at a time.
+- **Radio and Route Diagnostics**: Inspect the node's neighbors, last working route, signal measurements, command statistics, and covering test tools where available.
 - **Node Rename**: Rename the Z-Wave node from the plugin UI without recreating the HomeKit accessory.
 - **Official Updates**: Click "Check Update" to query the official Z-Wave JS Firmware Update Service. If a manufacturer-approved update is available, you can start the OTA transfer with a single click.
 - **Battery Device Support**: Firmware updates are supported for battery-powered devices. You will be prompted to manually wake the device after starting the process to initiate the transfer.
@@ -220,6 +229,23 @@ The plugin includes a dedicated **Maintenance** tab within the Homebridge custom
 - **Clean Up Stale Accessories**: Remove stale cached Homebridge accessories explicitly from the maintenance UI instead of relying on automatic startup pruning.
 - **Remove a Failed Node**: Remove one node from the Z-Wave network, after the controller has been asked whether it can be removed and the answer has been shown. A battery device that sleeps between wake-ups is refused, as is a node the controller cannot assess. Removal is permanent and the device has to be included again physically.
 - **Rebuild Routes**: Start a network route rebuild from the maintenance UI and watch it run. Sleeping devices are skipped unless Heal Network Includes Sleeping Devices is turned on. If a rebuild started elsewhere is already running, the button waits for that one to finish instead of starting a second.
+
+### Device types and Configuration parameters
+
+Device type overrides are keyed to the Manufacturer Specific fingerprint rather than the reusable
+Z-Wave node number. The built-in verified registry remains the default, and the plugin offers only
+types that every affected node can drive from the values it currently reports. Replacing a HomeKit
+service can require scenes and automations that used the old service to be set up again. Matter
+adopts the new type after Homebridge restarts.
+
+Opening Parameters reads the zwave-js cache and sends nothing to the device. **Re-read values**
+sends Configuration Gets and may remain pending until a sleeping device wakes. Editing validates
+the value again against live metadata, warns about destructive or re-inclusion settings, and
+confirms a readable change only after the device reports it back. A partial parameter is writable
+only when all neighboring bits can be preserved.
+
+See [Node maintenance, device types, and Configuration parameters](docs/node-management.md) for the
+complete behavior, safety boundaries, and troubleshooting guidance.
 
 ## ❓ Troubleshooting
 
@@ -236,7 +262,7 @@ initial Matter integration (#15–#20).
 ## 💖 Support & Contribution
 
 - **Report Bugs**: Use the [GitHub Issues](https://github.com/sapireli/homebridge-zwave-usb/issues) page.
-- **Contribute**: Pull requests are welcome! Please ensure all tests pass (`npm test`) and follow the existing code style.
+- **Contribute**: Pull requests are welcome! Run `npm run verify` and follow [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Support**: If you find this plugin useful, consider [donating via PayPal](https://paypal.me/sapir).
 
 ---
@@ -249,16 +275,16 @@ This software is licensed under the **Polyform Noncommercial License 1.0.0**. Yo
 ### 2. Disclaimer of Warranty
 This software is provided **"as is"** and "with all faults," without warranty of any kind. As an open-source project shared for the love of the community, the author(s) make no warranties, express or implied, including but not limited to the warranties of merchantability or fitness for a particular purpose.
 
-### 2. Limitation of Liability
+### 3. Limitation of Liability
 In no event shall the author(s) be liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, hardware damage, data loss, or security breaches) however caused and on any theory of liability, whether in contract, strict liability, or tort (including negligence or otherwise) arising in any way out of the use of this software. **Use this plugin at your own risk.**
 
-### 3. Non-Affiliation
+### 4. Non-Affiliation
 This project is an independent open-source endeavor. It is **not** affiliated with, authorized, maintained, sponsored, or endorsed by:
 - The **Z-Wave Alliance** or **Silicon Labs**.
 - **Homebridge** or **Apple Inc.**
 - Hardware manufacturers such as **Aeotec**, **Zooz**, or others.
 
-### 4. Copyrights & Trademarks
+### 5. Copyrights & Trademarks
 - "Z-Wave" is a registered trademark of Silicon Labs and its subsidiaries.
 - "Homebridge", "HomeKit", and "Apple" are trademarks of their respective owners.
 - All product names, logos, and brands are property of their respective owners. Their use in this project is for identification and compatibility description purposes only and does not imply endorsement.
