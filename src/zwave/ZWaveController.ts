@@ -91,7 +91,11 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
    * Externally called when the 'S2 PIN Entry' HomeKit characteristic is written to.
    */
   public setS2Pin(pin: string): void {
-    this.log.info(`[S2] Received PIN input: ${pin}`);
+    /**
+     * The PIN is an inclusion credential printed on the device, and the Homebridge log is a file
+     * people paste into bug reports. That one arrived is worth saying; what it was is not.
+     */
+    this.log.info('[S2] PIN input received.');
     this.pendingS2Pin = pin.trim();
     this.emit('pin-received');
   }

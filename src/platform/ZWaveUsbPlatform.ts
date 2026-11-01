@@ -18,6 +18,7 @@ import { BatterySnapshot } from '../features/ZWaveFeature';
 import { AccessoryFactory } from '../accessories/AccessoryFactory';
 import { ControllerAccessory } from '../accessories/ControllerAccessory';
 import { readCoveringPosition } from '../zwave/coveringTravel';
+import { isSecretValue, REDACTED_LOG_VALUE } from '../zwave/secretValues';
 import { HAP_COMMUNICATION_FAILURE } from '../features/ZWaveFeature';
 import {
   POSITION_TOLERANCE as COVERING_POSITION_TOLERANCE,
@@ -1291,13 +1292,20 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       return;
     }
 
+    /**
+     * A device's own credentials travel as ordinary values. A door lock reports its keypad
+     * codes through User Code, so the value itself is withheld while the rest of the event
+     * still says which code changed and when.
+     */
+    const secret = isSecretValue(args);
+
     const payload = {
       commandClass: args.commandClass,
       endpoint: args.endpoint ?? 0,
       property: args.property,
       propertyKey: args.propertyKey,
-      newValue: this.serializeLogValue(args.newValue),
-      prevValue: this.serializeLogValue(args.prevValue),
+      newValue: secret ? REDACTED_LOG_VALUE : this.serializeLogValue(args.newValue),
+      prevValue: secret ? REDACTED_LOG_VALUE : this.serializeLogValue(args.prevValue),
     };
 
     this.log.debug(`Node ${node.nodeId} ${eventType} payload: ${JSON.stringify(payload)}`);
