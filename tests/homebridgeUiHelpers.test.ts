@@ -265,7 +265,7 @@ describe('homebridge-ui renderDiagnostics', () => {
     const text = renderDiagnostics(full).html.replace(/\s+/g, ' ');
 
     expect(text).toContain(
-      "A route's ACK RSSI and the average ACK RSSI show the signal strength of acknowledgement frames received by the controller.",
+      "A route's ACK RSSI and the average ACK RSSI show the signal strength of acknowledgment frames received by the controller.",
     );
     expect(text).toContain(
       'they describe the first hop, usually the nearest repeater, not the device itself.',

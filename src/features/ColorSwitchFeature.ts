@@ -151,7 +151,7 @@ export class ColorSwitchFeature extends BaseFeature {
   }
 
   /**
-   * A colour write needs both components, so whichever one HomeKit did not send is read back
+   * A color write needs both components, so whichever one HomeKit did not send is read back
    * from the device. `driver` names the characteristic that was actually written, so the log
    * does not attribute a read-back value to HomeKit.
    */

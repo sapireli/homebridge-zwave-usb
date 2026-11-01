@@ -129,7 +129,7 @@
           and last working routes, not a fixed connection.
         </p>
         <p class="text-muted mb-2">
-          A route's ACK RSSI and the average ACK RSSI show the signal strength of acknowledgement
+          A route's ACK RSSI and the average ACK RSSI show the signal strength of acknowledgment
           frames received by the controller. For a routed transmission they describe the first hop,
           usually the nearest repeater, not the device itself. Controller background RSSI is a
           separate, network-wide measurement of ambient radio noise.
@@ -198,7 +198,7 @@
     }
 
     if (!result.moved) {
-      return `${ended}. ${sent}, and the covering never reported moving afterwards, so nothing was established. Start a move first, then stop it part way.`;
+      return `${ended}. ${sent}, and the covering never reported moving afterward, so nothing was established. Start a move first, then stop it part way.`;
     }
 
     if (typeof result.target !== 'number') {
@@ -374,7 +374,7 @@
       return availableAt(version);
     }
 
-    // Opening and cancelling the dialog leave the record exactly as it was.
+    // Opening and canceling the dialog leave the record exactly as it was.
     return { record: record || null, toast: null, start: false };
   }
 
@@ -427,7 +427,7 @@
       // for a warning that arrived without a percentage.
       fifths: level === undefined ? 0 : Math.ceil(level / 20),
       // The warning is said in words as well as shown in red, so it reaches a screen reader and
-      // anyone who cannot tell the red icon from the grey one.
+      // anyone who cannot tell the red icon from the gray one.
       text: low
         ? level === undefined
           ? 'Battery low'
