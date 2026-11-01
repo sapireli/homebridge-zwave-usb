@@ -106,8 +106,6 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
         if (!this.driver) {
           return;
         }
-        this.log.info(`Controller Home ID: ${this.driver.controller.homeId}`);
-
         this.controllerListeners = {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           'inclusion started': (secure: any) => {
@@ -168,13 +166,12 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
             this.emit('heal network done', result);
           },
           'node added': (node: ZWaveNode) => {
-            this.log.info(`Node ${node.nodeId} added to controller`);
             this.emit('status updated', `Node ${node.nodeId} Added`);
-            this.addNode(node);
+            this.addNode(node, 'joined');
             this.emit('node added', node);
           },
           'node removed': (node: ZWaveNode) => {
-            this.log.info(`Node ${node.nodeId} removed from controller`);
+            this.log.info(`${ZWaveController.describe(node)} removed from the network`);
             this.emit('status updated', `Node ${node.nodeId} Removed`);
             this.removeNode(node);
           },
@@ -226,7 +223,13 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     }
   }
 
-  private addNode(node: ZWaveNode) {
+  /** Identifies a node by number, and by the device's own name when it has one. */
+  private static describe(node: ZWaveNode): string {
+    const name = node.name || node.label || node.deviceConfig?.label;
+    return name ? `Node ${node.nodeId} (${name})` : `Node ${node.nodeId}`;
+  }
+
+  private addNode(node: ZWaveNode, arrival: 'joined' | 'existing' = 'existing') {
     if (this.nodes.has(node.nodeId)) {
       this.log.warn(`Node ${node.nodeId} already exists in nodes map, skipping`);
       return;
@@ -243,13 +246,19 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
      */
     const statusMap = ['Unknown', 'Asleep', 'Awake', 'Dead', 'Alive'];
     const status = statusMap[node.status] || node.status.toString();
-    const nodeName = node.name || node.label || node.deviceConfig?.label || `Node ${node.nodeId}`;
+    const knownStatus = status === 'Unknown' ? '' : `Status: ${status}, `;
+    /**
+     * Startup walks every node the controller already knows, so only the controller's own
+     * event means a device has just arrived. Reporting both the same way would announce the
+     * whole network as newly joined on every restart.
+     */
+    const what = arrival === 'joined' ? 'joined the network' : 'is on the network';
     this.log.info(
-      `Node ${node.nodeId} (${nodeName}) added to controller (Status: ${status}, Interview Stage: ${node.interviewStage})`,
+      `${ZWaveController.describe(node)} ${what} (${knownStatus}Interview Stage: ${node.interviewStage})`,
     );
 
     const onReady = () => {
-      this.log.info(`Node ${node.nodeId} is ready (Interview Stage: ${node.interviewStage})`);
+      this.log.debug(`Node ${node.nodeId} is ready (Interview Stage: ${node.interviewStage})`);
       this.emit('status updated', `Node ${node.nodeId} Ready`);
       this.emit('node ready', node);
       void this.refreshNodeDeviceSerialNumber(node);
@@ -271,7 +280,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     };
 
     const onInterviewStageCompleted = (_n: ZWaveNode, stage: string) => {
-      this.log.info(`Node ${node.nodeId} interview stage completed: ${stage}`);
+      this.log.debug(`Node ${node.nodeId} interview stage completed: ${stage}`);
       this.emit('status updated', `Node ${node.nodeId}: ${stage}`);
       this.emit('node updated', node);
     };
@@ -282,25 +291,25 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     };
 
     const onWakeUp = () => {
-      this.log.info(`Node ${node.nodeId} has woken up. Interview will resume.`);
+      this.log.debug(`Node ${node.nodeId} has woken up`);
       this.emit('status updated', `Node ${node.nodeId} Awake`);
       this.emit('node updated', node);
       void this.refreshNodeDeviceSerialNumber(node);
     };
 
     const onSleep = () => {
-      this.log.info(`Node ${node.nodeId} has gone to sleep. Interview is paused.`);
+      this.log.debug(`Node ${node.nodeId} has gone to sleep`);
       this.emit('status updated', `Node ${node.nodeId} Asleep`);
       this.emit('node updated', node);
     };
 
     const onDead = () => {
-      this.log.info(`Node ${node.nodeId} is dead.`);
+      this.log.warn(`Node ${node.nodeId} is not responding`);
       this.emit('node updated', node);
     };
 
     const onAlive = () => {
-      this.log.info(`Node ${node.nodeId} is alive.`);
+      this.log.info(`Node ${node.nodeId} is responding again`);
       this.emit('node updated', node);
     };
 
@@ -348,10 +357,10 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
     node.on('firmware update progress', onFirmwareUpdateProgress);
     node.on('firmware update finished', onFirmwareUpdateFinished);
 
-    this.log.info(`Node ${node.nodeId} registered with event listeners (ready: ${node.ready})`);
+    this.log.debug(`Node ${node.nodeId} registered with event listeners (ready: ${node.ready})`);
 
     if (node.ready) {
-      this.log.info(`Node ${node.nodeId} is already ready, emitting node ready immediately`);
+      this.log.debug(`Node ${node.nodeId} is already ready, emitting node ready immediately`);
       this.emit('node ready', node);
       void this.refreshNodeDeviceSerialNumber(node);
     }
@@ -400,7 +409,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       }
 
       (node as ZWaveNode & { deviceSerialNumber?: string }).deviceSerialNumber = deviceSerialNumber;
-      this.log.info(`Node ${node.nodeId} reported device serial number: ${deviceSerialNumber}`);
+      this.log.debug(`Node ${node.nodeId} reported a device serial number`);
       this.emit('node updated', node);
     } catch (err) {
       this.log.debug(`Node ${node.nodeId} did not provide a device serial number yet: ${err}`);
@@ -633,17 +642,6 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       },
     });
 
-    /**
-     * Explicit log piping for Homebridge Child Bridge visibility.
-     */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.driver as any).on('logging', (message: any) => {
-      const prefix = `[Z-Wave JS] [${message.label || 'Driver'}]`;
-      if (this.options.debug) {
-        this.log.info(`${prefix} ${message.message}`);
-      }
-    });
-
     this.driver.on('error', (err: Error) => {
       this.log.error('Z-Wave driver error:', err);
       this.emit('status updated', 'Hardware Error');
@@ -685,9 +683,18 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       await new Promise((res) => setTimeout(res, 500));
       retries++;
     }
-    if (!this.homeId) {
+    const homeId = this.homeId;
+    if (!homeId) {
       throw new Error('homeId not available');
     }
+
+    /**
+     * Both bases, because the two places a reader meets this number disagree: the driver names
+     * its network cache file in lowercase hex while this line used to print decimal. It is
+     * written here rather than when the driver reports ready, because the number is not
+     * necessarily known yet at that point and a Home ID of `undefined` tells a reader nothing.
+     */
+    this.log.info(`Controller Home ID: ${homeId} (0x${homeId.toString(16)})`);
   }
 
   public async stop(): Promise<void> {

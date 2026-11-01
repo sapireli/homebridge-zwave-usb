@@ -359,14 +359,14 @@ export class ControllerAccessory {
         this.statusChar.updateValue(status);
       },
       'inclusion started': () => {
-        this.platform.log.info('Controller event: Inclusion Started');
+        this.platform.log.debug('Controller event: Inclusion Started');
         this.isInclusionActive = true;
         this.isExclusionActive = false;
         this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, true);
         this.exclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
       },
       'inclusion stopped': () => {
-        this.platform.log.info('Controller event: Inclusion Stopped');
+        this.platform.log.debug('Controller event: Inclusion Stopped');
         this.isInclusionActive = false;
         if (this.inclusionTimer) {
           clearTimeout(this.inclusionTimer);
@@ -375,7 +375,7 @@ export class ControllerAccessory {
         this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
       },
       'exclusion started': () => {
-        this.platform.log.info('Controller event: Exclusion Started');
+        this.platform.log.debug('Controller event: Exclusion Started');
         this.isExclusionActive = true;
         this.isInclusionActive = false;
         if (this.inclusionTimer) {
@@ -386,7 +386,7 @@ export class ControllerAccessory {
         this.inclusionService.updateCharacteristic(this.platform.Characteristic.On, false);
       },
       'exclusion stopped': () => {
-        this.platform.log.info('Controller event: Exclusion Stopped');
+        this.platform.log.debug('Controller event: Exclusion Stopped');
         this.isExclusionActive = false;
         if (this.exclusionTimer) {
           clearTimeout(this.exclusionTimer);
@@ -400,14 +400,14 @@ export class ControllerAccessory {
       },
       'heal network done': (result: ReadonlyMap<number, RebuildRoutesStatus>) => {
         const summary = summarizeRebuildRoutes(result);
-        this.platform.log.info(
+        this.platform.log.debug(
           `Controller event: Heal Network Done - ${formatRebuildRoutesSummary(summary)}. ` +
             'Resetting UI switch.',
         );
         this.resetHealSwitch(HEAL_SWITCH_RESET_DELAY_MS);
       },
       'heal network stopped': (reason: 'cancelled' | 'timeout') => {
-        this.platform.log.info(`Controller event: Heal Network ${reason}. Resetting UI switch.`);
+        this.platform.log.debug(`Controller event: Heal Network ${reason}. Resetting UI switch.`);
         this.resetHealSwitch();
       },
     };

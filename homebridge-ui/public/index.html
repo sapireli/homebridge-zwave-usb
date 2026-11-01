@@ -458,6 +458,72 @@
        * that is still running or an update that has been found.
        */
       const firmwareRecords = new Map();
+
+      /** What the node-list poll is doing, and whether the reader has work in progress. */
+      let nodePollTimer = null;
+      let nodesInFlight = null;
+      let rebuildWatching = false;
+      let updatesRunning = 0;
+
+      /**
+       * When the node list asks the plugin what it holds.
+       *
+       * Nothing is asked while the Maintenance tab is not the one on screen, or while the page
+       * is hidden, because nobody is reading it; a page that comes back asks at once rather
+       * than waiting out a timer that expired behind it. Work the reader started is followed
+       * closely, an idle network is left alone, and a plugin that could not answer is tried
+       * again soon rather than left for the long interval.
+       *
+       * The host writes a line into the Homebridge log for every request a custom UI makes, so
+       * a page left open used to write one every five seconds for as long as it stayed open.
+       */
+      const NODE_POLL_BUSY_MS = 5000;
+      const NODE_POLL_IDLE_MS = 30000;
+
+      const maintenanceOnScreen = () =>
+        document.getElementById('maintenance').classList.contains('active') &&
+        document.visibilityState !== 'hidden';
+
+      /**
+       * Work means a firmware update this page has committed to sending, or one a device is
+       * reporting progress for, or a route rebuild being watched. A committed update counts
+       * from the moment it is sent rather than from the first progress report, because a
+       * device can take a while to report progress and the transfer is already running.
+       *
+       * An update that is merely offered is not work: it waits for the reader indefinitely,
+       * and treating it as active would poll fast forever.
+       */
+      const nodeWorkInProgress = () =>
+        rebuildWatching || updatesRunning > 0 || lastNodes.some((node) => node.firmwareProgress);
+
+      const scheduleNodePoll = (delay) => {
+        if (nodePollTimer) {
+          clearTimeout(nodePollTimer);
+        }
+        nodePollTimer = setTimeout(pollNodes, delay);
+      };
+
+      /**
+       * Work has begun, so read now rather than waiting out an interval armed before it did.
+       * Classifying the work is not enough on its own: an idle wait is up to thirty seconds
+       * long, and until it expires nothing reclassifies anything.
+       */
+      const nodeWorkStarted = () => {
+        scheduleNodePoll(0);
+      };
+
+      async function pollNodes() {
+        nodePollTimer = null;
+
+        // Off screen or hidden: ask nothing, and look again later in case neither is noticed.
+        if (!maintenanceOnScreen()) {
+          scheduleNodePoll(NODE_POLL_IDLE_MS);
+          return;
+        }
+
+        // The loader is single-flight and schedules the next poll when it settles.
+        await loadNodes();
+      }
       let lastNodes = [];
 
       const applyFirmwareEvent = (nodeId, event) => {
@@ -589,8 +655,14 @@
 
       const rerenderNodes = () => renderNodes(lastNodes);
 
-      const loadNodes = async () => {
-        if (isPromptOpen) return;
+      /**
+       * Reads the node list once.
+       *
+       * Returns whether it got an answer, which is what decides how soon to ask again: a plugin
+       * that is still starting should be tried again shortly, not left for the idle interval.
+       */
+      const loadNodesOnce = async () => {
+        if (isPromptOpen) return true;
         try {
           const nodes = await window.homebridge.request('get-nodes');
           const tbody = document.getElementById('nodeTableBody');
@@ -613,12 +685,44 @@
 
           lastNodes = nodes;
           renderNodes(nodes);
+
+          return true;
         } catch (err) {
           const tbody = document.getElementById('nodeTableBody');
           if (tbody) {
             tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">${uiHelpers.escapeHtml(err.message)}</td></tr>`;
           }
+
+          return false;
         }
+      };
+
+      /**
+       * The one way the page reads the node list.
+       *
+       * Every caller shares a read that is already running rather than starting a second one,
+       * which the old code allowed whenever a button and the timer coincided. Whoever asked,
+       * the next poll is decided when it finishes, so work that starts or stops between polls
+       * changes the cadence immediately rather than at the end of the current wait.
+       */
+      const loadNodes = () => {
+        if (nodesInFlight) {
+          return nodesInFlight;
+        }
+
+        nodesInFlight = loadNodesOnce()
+          .then((answered) => {
+            scheduleNodePoll(
+              answered && !nodeWorkInProgress() ? NODE_POLL_IDLE_MS : NODE_POLL_BUSY_MS,
+            );
+
+            return answered;
+          })
+          .finally(() => {
+            nodesInFlight = null;
+          });
+
+        return nodesInFlight;
       };
 
       // Modal helpers
@@ -780,6 +884,14 @@
         const outcome = applyFirmwareEvent(nodeId, { type: 'recheck-result', updates });
 
         if (outcome.start) {
+          /**
+           * The recheck agreed and the request is about to go out, so the update is committed
+           * here. This is the point the cadence should change: the state before it is an
+           * update merely offered, which may wait for the reader indefinitely.
+           */
+          updatesRunning += 1;
+          nodeWorkStarted();
+
           try {
             /**
              * The request resolves only once the transfer is over: zwave-js resolves
@@ -802,6 +914,8 @@
           } catch (err) {
             applyFirmwareEvent(nodeId, { type: 'start-rejected' });
             window.homebridge.toast.error(err.message);
+          } finally {
+            updatesRunning -= 1;
           }
         }
 
@@ -943,9 +1057,12 @@
 
 	        const watchUntilItEnds = () => {
 	          let settled = false;
+	          rebuildWatching = true;
+	          nodeWorkStarted();
 	          const finish = (text) => {
 	            if (settled) return;
 	            settled = true;
+	            rebuildWatching = false;
 	            clearInterval(poll);
 	            status.textContent = text;
 	            button.disabled = false;
@@ -1058,13 +1175,29 @@
           await updateConfig();
         });
 
-        // Initialize nodes
-        loadNodes();
-        setInterval(() => {
-          if (document.getElementById('maintenance').classList.contains('active')) {
-            loadNodes();
+        /**
+         * When the node list asks the plugin what it holds.
+         *
+         * Four things decide. Nothing is asked while the Maintenance tab is not the one on
+         * screen, or while the page is hidden, because nobody is reading it. A page that comes
+         * back asks at once rather than waiting out a timer that expired behind it. Work the
+         * reader started is followed closely, and an idle network is left alone. One request is
+         * never allowed to overlap another, however long the plugin takes to answer.
+         *
+         * The host prints a line for every request a custom UI makes, so a page left open used
+         * to write one into the Homebridge log every five seconds for as long as it was open.
+         */
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible' && maintenanceOnScreen()) {
+            scheduleNodePoll(0);
           }
-        }, 5000);
+        });
+
+        /**
+         * Everything starts through the scheduler, including the first read, so the page does
+         * not ask for nodes while Configuration is the tab on screen.
+         */
+        scheduleNodePoll(0);
 
         // Manual tab switching logic for environments without full Bootstrap JS
         document.querySelectorAll('#mainTabs .nav-link').forEach((tab) => {

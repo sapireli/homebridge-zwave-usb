@@ -230,6 +230,32 @@ describe('ZWaveAccessory', () => {
     );
   });
 
+  it('names a new accessory without printing its HomeKit identity', () => {
+    // The accessory is built in the setup above. A HomeKit UUID means nothing to the reader
+    // of an ordinary log and everything to anyone who gets handed that log.
+    const written = (platform.log.info as jest.Mock).mock.calls.flat().join('\n');
+
+    expect(written).toContain('Creating a new accessory for');
+    expect(written).not.toContain('test-uuid');
+    expect(written).not.toContain('UUID');
+  });
+
+  it('says it kept an existing identity without printing it', () => {
+    // A node whose accessory was created by an older version keeps that identity so the
+    // automations pointing at it survive. Which identity it is belongs to the cache.
+    (platform.api.hap.uuid.generate as jest.Mock).mockImplementation((seed: string) =>
+      seed.includes('-v5-') ? 'legacy-identity' : 'current-identity',
+    );
+    platform.accessories = [{ ...platformAccessoryFactory(), UUID: 'legacy-identity' }];
+    (platform.log.info as jest.Mock).mockClear();
+
+    new ZWaveAccessory(platform as unknown as ZWaveUsbPlatform, node as IZWaveNode, 12345);
+
+    const written = (platform.log.info as jest.Mock).mock.calls.flat().join('\n');
+    expect(written).toContain('Keeping the existing HomeKit identity for Node');
+    expect(written).not.toContain('legacy-identity');
+  });
+
   it('should update accessory and service names when renamed', () => {
     accessory.rename('New Friendly Name');
 

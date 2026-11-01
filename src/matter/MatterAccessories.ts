@@ -85,6 +85,9 @@ const BAT_CHARGE_WARNING = 1;
  */
 const PUBLISH_DEBOUNCE_MS = 3000;
 
+/** The noun that agrees with `count`. */
+const accessoryNoun = (count: number): string => (count === 1 ? 'accessory' : 'accessories');
+
 /**
  * Publishes supported Z-Wave services over Matter so controllers that cannot speak HomeKit, such as
  * Alexa, can operate them.
@@ -490,7 +493,7 @@ export class MatterAccessories {
        * dispatched, must not disturb the HomeKit accessories that are already working.
        */
       this.platform.log.warn(
-        `Could not publish ${descriptors.length} accessory(ies) over Matter: ${
+        `Could not publish ${descriptors.length} ${accessoryNoun(descriptors.length)} over Matter: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
@@ -533,7 +536,7 @@ export class MatterAccessories {
        * The wording follows.
        */
       this.platform.log.info(
-        `Handed ${committed.length} accessory(ies) to Matter: ` +
+        `Handed ${committed.length} ${accessoryNoun(committed.length)} to Matter: ` +
           committed.map((entry) => entry.accessory.platformAccessory.displayName).join(', '),
       );
     }
@@ -551,7 +554,7 @@ export class MatterAccessories {
        * the controller that nothing knows about.
        */
       this.platform.log.warn(
-        `Could not undo a registration for ${undo.length} removed accessory(ies): ${
+        `Could not undo a registration for ${undo.length} removed ${accessoryNoun(undo.length)}: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );

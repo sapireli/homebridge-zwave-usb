@@ -1116,6 +1116,94 @@ describe('management page integration', () => {
     return fs.readFileSync(path.join(__dirname, '../homebridge-ui/public/index.html'), 'utf8');
   };
 
+  describe('when the node list asks the plugin for nodes', () => {
+    /**
+     * The host writes a line into the Homebridge log for every request a custom UI makes, so a
+     * page left open on a quiet network used to write one every five seconds for as long as it
+     * stayed open, whether or not anyone was looking at it.
+     */
+    it('asks nothing while the page is hidden or the tab is elsewhere', () => {
+      const page = readPage();
+
+      expect(page).toMatch(
+        /const maintenanceOnScreen = \(\) =>\s+document\.getElementById\('maintenance'\)\.classList\.contains\('active'\) &&\s+document\.visibilityState !== 'hidden';/,
+      );
+      expect(page).toMatch(/if \(!maintenanceOnScreen\(\)\) \{\s+scheduleNodePoll\(NODE_POLL_IDLE_MS\);\s+return;/);
+    });
+
+    it('asks at once when the page comes back', () => {
+      expect(readPage()).toMatch(
+        /visibilitychange[\s\S]{0,160}scheduleNodePoll\(0\);/,
+      );
+    });
+
+    it('follows reported progress rather than an offered update', () => {
+      /**
+       * An update that is merely offered waits for the reader indefinitely, and the loader
+       * deletes its record the moment real progress arrives, so counting records would poll
+       * fast forever for an offer and slowly for an update actually running.
+       */
+      const page = readPage();
+
+      expect(page).toContain('const NODE_POLL_BUSY_MS = 5000;');
+      expect(page).toContain('const NODE_POLL_IDLE_MS = 30000;');
+      expect(page).toMatch(
+        /const nodeWorkInProgress = \(\) =>\s+rebuildWatching \|\| updatesRunning > 0 \|\| lastNodes\.some\(\(node\) => node\.firmwareProgress\);/,
+      );
+      expect(page).not.toMatch(/firmwareRecords\.size > 0/);
+      expect(page).toContain('rebuildWatching = true;');
+      expect(page).toContain('rebuildWatching = false;');
+    });
+
+    it('reads at once when work starts, rather than waiting out an armed interval', () => {
+      /**
+       * The cadence is chosen when a read settles, so work beginning between two reads would
+       * otherwise go unobserved until an interval armed before it began ran out. A committed
+       * update is counted separately from a reported one, because the device can take a while
+       * to report progress and the transfer is running in the meantime.
+       */
+      const page = readPage();
+
+      expect(page).toMatch(/const nodeWorkStarted = \(\) => \{\s+scheduleNodePoll\(0\);/);
+      expect(page).toMatch(/rebuildWatching = true;\s+nodeWorkStarted\(\);/);
+      expect(page).toMatch(/updatesRunning \+= 1;\s+nodeWorkStarted\(\);/);
+      expect(page).toMatch(/\} finally \{\s+updatesRunning -= 1;/);
+    });
+
+    it('reads through one loader, so nothing overlaps and every caller resets the cadence', () => {
+      const page = readPage();
+
+      expect(page).toMatch(/const loadNodes = \(\) => \{\s+if \(nodesInFlight\) \{\s+return nodesInFlight;/);
+      expect(page).toMatch(/\.finally\(\(\) => \{\s+nodesInFlight = null;/);
+      expect(page).toMatch(
+        /scheduleNodePoll\(\s+answered && !nodeWorkInProgress\(\) \? NODE_POLL_IDLE_MS : NODE_POLL_BUSY_MS,\s+\);/,
+      );
+    });
+
+    it('starts through the scheduler, so Configuration asks for nothing', () => {
+      const page = readPage();
+
+      expect(page).toMatch(
+        /Everything starts through the scheduler[\s\S]{0,160}scheduleNodePoll\(0\);/,
+      );
+      expect(page).not.toMatch(/\n\s+loadNodes\(\);\n\s+scheduleNodePoll\(/);
+    });
+
+    it('does not leave the old unconditional interval behind', () => {
+      expect(readPage()).not.toMatch(/setInterval\(\(\) => \{\s+if \(document\.getElementById\('maintenance'\)/);
+    });
+  });
+
+  it('answers a request that arrives before the plugin is up, without a stack trace', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const server = fs.readFileSync(path.join(__dirname, '../homebridge-ui/server.js'), 'utf8');
+
+    expect(server).toContain('RequestError');
+    expect(server).toMatch(/throw new RequestError\(/);
+    expect(server).not.toMatch(/throw new Error\('Plugin IPC server not found/);
+  });
+
   it('repairs the table contrast with selectors scoped to the Maintenance surface', () => {
     /**
      * config-ui-x ships a bare `td { color: #999 !important }` that the plugin's own rule

@@ -364,8 +364,24 @@ describe('MatterAccessories', () => {
 
     await expect(publish(coverings, createCoveringAccessory())).resolves.toBeUndefined();
     expect(platform.log.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Could not publish 1 accessory(ies) over Matter'),
+      expect.stringContaining('Could not publish 1 accessory over Matter'),
     );
+  });
+
+  it('counts accessories in words that agree with the number', async () => {
+    // The message is read by whoever is trying to work out what did not reach Matter, so it
+    // should read as a sentence rather than as a template with both endings left in.
+    matter.registerPlatformAccessories.mockRejectedValue(new Error('matter is not ready'));
+    const coverings = new MatterAccessories(platform as ZWaveUsbPlatform);
+
+    coverings.add(createCoveringAccessory('covering-one', 'One'));
+    coverings.add(createCoveringAccessory('covering-two', 'Two'));
+    await jest.advanceTimersByTimeAsync(4000);
+
+    const warned = (platform.log.warn as jest.Mock).mock.calls.flat().join('\n');
+    expect(warned).toContain('Could not publish 2 accessories over Matter');
+    expect(warned).not.toContain('accessory(ies)');
+    expect(warned).not.toContain('2 accessory ');
   });
 
   describe('commands', () => {
