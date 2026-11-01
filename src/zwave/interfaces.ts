@@ -168,6 +168,19 @@ export interface IZWaveNode {
   getDefinedValueIDs(): ValueID[];
   getAllEndpoints(): Endpoint[];
   getValueMetadata(valueId: ValueID): ValueMetadata;
+  /**
+   * When the node last updated this value, which is the only honest answer to how fresh a reading
+   * is. The time the plugin read its own cache says nothing about the device.
+   */
+  getValueTimestamp(valueId: ValueID): number | undefined;
+  /**
+   * Asks the device for current values of one command class.
+   *
+   * zwave-js's own documentation says not to await this, and it resolves even where every
+   * endpoint failed, because it catches and logs each one. Its settling therefore reports that
+   * the attempt finished, never that any value was confirmed.
+   */
+  refreshCCValues(cc: number): Promise<void>;
 
   // Events
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

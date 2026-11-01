@@ -3,6 +3,8 @@ import { ZWaveUsbPlatform } from '../src/platform/ZWaveUsbPlatform';
 import { PLATFORM_NAME } from '../src/platform/settings';
 import { AccessoryFactory } from '../src/accessories/AccessoryFactory';
 import { ZWaveController } from '../src/zwave/ZWaveController';
+import { TypeOverrideResolver } from '../src/platform/TypeOverrideResolver';
+import { REALISTIC_DEVICES, buildNode } from './fixtures/realisticDevices';
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
@@ -120,6 +122,61 @@ describe('ZWaveUsbPlatform', () => {
 
     if (fs.existsSync(storagePath)) {
       fs.rmSync(storagePath, { recursive: true, force: true });
+    }
+  });
+
+  it('builds a node from the type saved for its hardware', () => {
+    // The override is read from the file for this network before the node is first planned, so
+    // the accessory is built as the saved type rather than published as detected and rebuilt.
+    const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() } as any;
+    const config: PlatformConfig = {
+      platform: PLATFORM_NAME,
+      name: 'Z-Wave USB',
+      serialPort: '/dev/null',
+    };
+    const fingerprint = { manufacturerId: 2748, productType: 2, productId: 16 };
+    const device = REALISTIC_DEVICES.find(
+      (candidate) => candidate.name === 'covering (Multilevel Switch only)',
+    )!;
+    const shade = buildNode(device, { nodeId: 10, ...fingerprint });
+
+    fs.writeFileSync(
+      path.join(storagePath, 'homebridge-zwave-usb-overrides-00000064.json'),
+      JSON.stringify({
+        version: 1,
+        homeId: '00000064',
+        overrides: [
+          { fingerprint, primaryKind: 'window-covering', savedAt: '2026-10-12T18:20:00Z' },
+        ],
+        observations: [],
+      }),
+    );
+
+    const platform = new ZWaveUsbPlatform(log, config, api);
+    (platform as any).zwaveController.homeId = 0x64;
+    (platform as any).zwaveController.nodes = new Map([[10, shade]]);
+
+    const observed = jest
+      .spyOn(TypeOverrideResolver.prototype, 'observe')
+      .mockResolvedValue(undefined);
+    const created = jest.spyOn(AccessoryFactory, 'create').mockReturnValue({
+      initialize: jest.fn(),
+      isInitialized: () => true,
+      getGraphSignature: () => undefined,
+      stop: jest.fn(),
+      refresh: jest.fn(),
+    } as never);
+    jest.spyOn((platform as any).matterAccessories, 'add').mockImplementation(() => undefined);
+
+    try {
+      (platform as any).syncNodeAccessory(shade);
+
+      expect(AccessoryFactory.planFeatures(shade)[0].effectiveKinds).toEqual(['multilevel-switch']);
+      expect((created.mock.calls[0][3] as any[])[0].effectiveKinds).toEqual(['window-covering']);
+      expect(observed).toHaveBeenCalledWith(shade);
+    } finally {
+      created.mockRestore();
+      observed.mockRestore();
     }
   });
 
@@ -707,6 +764,10 @@ describe('ZWaveUsbPlatform', () => {
     };
     (platform as any).accessories.push(staleAccessory, liveAccessory);
     (platform as any).zwaveAccessories.set(99, { platformAccessory: staleAccessory });
+    // A question put to each node, so pruning is shown to drop the departed node's and keep the
+    // other one's rather than simply emptying the map.
+    (platform as any).parameterRefreshes.set(99, { nodeId: 99, owner: {}, dispatching: false });
+    (platform as any).parameterRefreshes.set(2, { nodeId: 2, owner: {}, dispatching: false });
 
     const fakeServer = new EventEmitter() as EventEmitter & {
       listen: jest.Mock;
@@ -741,6 +802,8 @@ describe('ZWaveUsbPlatform', () => {
       );
       expect((platform as any).accessories).toEqual([liveAccessory]);
       expect((platform as any).zwaveAccessories.has(99)).toBe(false);
+      expect((platform as any).parameterRefreshes.has(99)).toBe(false);
+      expect((platform as any).parameterRefreshes.has(2)).toBe(true);
     } finally {
       createServerSpy.mockRestore();
     }
@@ -830,14 +893,16 @@ describe('ZWaveUsbPlatform', () => {
     const matterAdd = jest.fn();
     (platform as any).matterAccessories.add = matterAdd;
 
-    const graphSpy = jest.spyOn(AccessoryFactory, 'getGraphSignature').mockReturnValue('new-graph');
+    const graphSpy = jest
+      .spyOn(AccessoryFactory, 'signatureOfPlans')
+      .mockReturnValue('new-graph');
     const createSpy = jest.spyOn(AccessoryFactory, 'create').mockReturnValue(reconciled as any);
 
     try {
       (platform as any).handleNodeUpdated(node);
 
       expect(existing.stop).toHaveBeenCalled();
-      expect(createSpy).toHaveBeenCalledWith(platform, node, 100);
+      expect(createSpy).toHaveBeenCalledWith(platform, node, 100, expect.any(Array));
       expect(reconciled.initialize).toHaveBeenCalledWith({ pruneUnmanagedServices: true });
       expect(existing.updateNode).not.toHaveBeenCalled();
       expect(existing.refresh).not.toHaveBeenCalled();
@@ -849,6 +914,67 @@ describe('ZWaveUsbPlatform', () => {
       expect(matterAdd).toHaveBeenCalledWith(reconciled);
     } finally {
       graphSpy.mockRestore();
+      createSpy.mockRestore();
+    }
+  });
+
+  it('plans a node once per pass and builds from that same plan', () => {
+    /**
+     * The platform takes a node's signature to decide whether to rebuild, then builds. Those
+     * were two separate readings of the node, and a node that is still interviewing answers
+     * differently as it goes, so an accessory could be built from the second reading and
+     * labelled with the first. Its stored signature would then describe services it does not
+     * have, and the next comparison would rebuild it again.
+     */
+    const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() } as any;
+    const config: PlatformConfig = {
+      platform: PLATFORM_NAME,
+      name: 'Z-Wave USB',
+      serialPort: '/dev/null',
+    };
+
+    const platform = new ZWaveUsbPlatform(log, config, api);
+    (platform as any).zwaveController.homeId = 100;
+
+    const node = {
+      nodeId: 2,
+      name: 'Interviewing Node',
+      ready: true,
+      status: 4,
+      deviceConfig: { label: 'Interviewing Node', manufacturer: 'Maker' },
+      getAllEndpoints: jest
+        .fn()
+        .mockReturnValue([{ index: 0, supportsCC: jest.fn().mockReturnValue(false) }]),
+      getDefinedValueIDs: jest.fn().mockReturnValue([]),
+      getValueMetadata: jest.fn(),
+      getValue: jest.fn(),
+      supportsCC: jest.fn().mockReturnValue(false),
+    };
+
+    const existing = {
+      isInitialized: jest.fn().mockReturnValue(true),
+      getGraphSignature: jest.fn().mockReturnValue('old-graph'),
+      stop: jest.fn(),
+      updateNode: jest.fn(),
+      refresh: jest.fn(),
+    };
+    (platform as any).zwaveAccessories.set(2, existing);
+    (platform as any).matterAccessories.add = jest.fn();
+
+    const planSpy = jest.spyOn(AccessoryFactory, 'planFeatures');
+    const createSpy = jest
+      .spyOn(AccessoryFactory, 'create')
+      .mockReturnValue({ initialize: jest.fn(), stop: jest.fn() } as any);
+
+    try {
+      (platform as any).handleNodeUpdated(node);
+
+      // One reading, and the build was handed exactly the plan that reading produced.
+      expect(planSpy).toHaveBeenCalledTimes(1);
+      expect(createSpy).toHaveBeenCalledTimes(1);
+      expect(createSpy.mock.calls[0][3]).toBe(planSpy.mock.results[0].value);
+    } finally {
+      planSpy.mockRestore();
       createSpy.mockRestore();
     }
   });
@@ -899,7 +1025,7 @@ describe('ZWaveUsbPlatform', () => {
     (platform as any).matterAccessories.add = matterAdd;
 
     const graphSpy = jest
-      .spyOn(AccessoryFactory, 'getGraphSignature')
+      .spyOn(AccessoryFactory, 'signatureOfPlans')
       .mockReturnValue('same-graph');
     const createSpy = jest.spyOn(AccessoryFactory, 'create');
 
@@ -2068,6 +2194,1756 @@ describe('ZWaveUsbPlatform', () => {
 
       expect(status).toBe(500);
       expect(body.error).toContain('Controller');
+    });
+  });
+
+  describe('device type IPC routes', () => {
+    const FINGERPRINT = { manufacturerId: 2748, productType: 2, productId: 16 };
+    const OVERRIDES_FILE = 'homebridge-zwave-usb-overrides-00000064.json';
+
+    const driveRoute = async (
+      platform: any,
+      url: string,
+      method: string,
+      body?: unknown,
+    ): Promise<{ status: number | undefined; body: any }> => {
+      const fakeServer = new EventEmitter() as EventEmitter & {
+        listen: jest.Mock;
+        close: jest.Mock;
+        address: jest.Mock;
+      };
+      fakeServer.listen = jest.fn().mockImplementation((_port, _host, cb) => cb());
+      fakeServer.close = jest.fn();
+      fakeServer.address = jest.fn().mockReturnValue({ port: 12345, address: '127.0.0.1' });
+      const createServerSpy = jest.spyOn(http, 'createServer').mockReturnValue(fakeServer as never);
+
+      const req = new EventEmitter() as EventEmitter & { url?: string; method?: string };
+      const res = { writeHead: jest.fn(), end: jest.fn() };
+      req.url = url;
+      req.method = method;
+
+      try {
+        platform.startIpcServer();
+        const handler = createServerSpy.mock.calls.at(-1)?.[0];
+        await new Promise<void>((resolve) => {
+          res.end = jest.fn().mockImplementation(() => resolve());
+          handler(req, res);
+          if (body !== undefined) {
+            req.emit('data', typeof body === 'string' ? body : JSON.stringify(body));
+            req.emit('end');
+          }
+        });
+        return {
+          status: (res.writeHead as jest.Mock).mock.calls[0]?.[0],
+          body: JSON.parse((res.end as jest.Mock).mock.calls[0][0]),
+        };
+      } finally {
+        createServerSpy.mockRestore();
+      }
+    };
+
+    /** An accessory already published, so a write exercises the rebuild rather than discovery. */
+    const published = (nodeId: number, signature: string) => ({
+      platformAccessory: { UUID: `uuid-${nodeId}` },
+      initialize: jest.fn(),
+      isInitialized: () => true,
+      getGraphSignature: () => signature,
+      stop: jest.fn(),
+      refresh: jest.fn(),
+      updateNode: jest.fn(),
+    });
+
+    const shadeNode = (nodeId: number) =>
+      buildNode(
+        REALISTIC_DEVICES.find((c) => c.name === 'covering (Multilevel Switch only)')!,
+        { nodeId, ...FINGERPRINT },
+      );
+
+    const saved = (overrides: unknown[] = [], observations: unknown[] = []) =>
+      fs.writeFileSync(
+        path.join(storagePath, OVERRIDES_FILE),
+        JSON.stringify({ version: 1, homeId: '00000064', overrides, observations }),
+      );
+
+    const onDisk = () =>
+      JSON.parse(fs.readFileSync(path.join(storagePath, OVERRIDES_FILE), 'utf8'));
+
+    const newPlatform = (nodes: Map<number, any>) => {
+      const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() } as any;
+      const config: PlatformConfig = {
+        platform: PLATFORM_NAME,
+        name: 'Z-Wave USB',
+        serialPort: '/dev/null',
+      };
+      const platform = new ZWaveUsbPlatform(log, config, api) as any;
+      platform.zwaveController.homeId = 0x64;
+      platform.zwaveController.nodes = nodes;
+      jest.spyOn(platform.matterAccessories, 'add').mockImplementation(() => undefined);
+      jest.spyOn(AccessoryFactory, 'create').mockImplementation(((
+        _platform: unknown,
+        node: any,
+        _homeId: unknown,
+        plans: any,
+      ) => ({
+        ...published(node.nodeId, AccessoryFactory.signatureOfPlans(plans)),
+      })) as never);
+      return platform;
+    };
+
+    const buildsButCannotPublish = () =>
+      (AccessoryFactory.create as jest.Mock).mockImplementation(((
+        _platform: unknown,
+        node: any,
+        _homeId: unknown,
+        plans: any,
+      ) => ({
+        ...published(node.nodeId, AccessoryFactory.signatureOfPlans(plans)),
+        isInitialized: () => false,
+        initialize: () => {
+          throw new Error('HomeKit refused the service');
+        },
+      })) as never);
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it('answers with everything the type panel draws', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+
+      const { status, body } = await driveRoute(platform, '/nodes/10/type', 'GET');
+
+      expect(status).toBe(200);
+      expect(body).toMatchObject({
+        nodeId: 10,
+        fingerprint: FINGERPRINT,
+        primaryKind: 'multilevel-switch',
+        source: 'detected',
+        options: ['window-covering', 'multilevel-switch'],
+        cohortRevision: expect.any(String),
+      });
+    });
+
+    it('answers that a node it does not have is not in the network', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+
+      const { status, body } = await driveRoute(platform, '/nodes/99/type', 'GET');
+
+      expect(status).toBe(404);
+      expect(body.error).toContain('99');
+    });
+
+    it('saves a decision and rebuilds every accessory it changed', async () => {
+      saved();
+      const nodes = new Map([
+        [10, shadeNode(10)],
+        [11, shadeNode(11)],
+      ]);
+      const platform = newPlatform(nodes);
+      platform.zwaveAccessories = new Map([
+        [10, published(10, 'before')],
+        [11, published(11, 'before')],
+      ]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+
+      const { body } = await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      expect(body.rebuilt).toEqual([10, 11]);
+      expect(body.failed).toEqual([]);
+      expect(body.payload).toMatchObject({ primaryKind: 'window-covering', source: 'override' });
+      expect(onDisk().overrides[0]).toMatchObject({ primaryKind: 'window-covering' });
+    });
+
+    it('refuses a decision composed against a cohort that has moved, and changes nothing', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+
+      const { status, body } = await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: 'stale123',
+      });
+
+      // The refusal is an answer, not a transport failure: the panel redraws from the payload
+      // and tells the user what moved, which an error status would turn into a bare message.
+      expect(status).toBe(200);
+      expect(body.refusal).toBe('cohort-changed');
+      expect(body.rebuilt).toEqual([]);
+      expect(body.payload).toMatchObject({ source: 'detected' });
+      expect(onDisk().overrides).toEqual([]);
+    });
+
+    it('reports a request missing the guards it needs rather than acting on it', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+
+      const { body } = await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+      });
+
+      expect(body.refusal).toBe('incomplete-request');
+      expect(onDisk().overrides).toEqual([]);
+    });
+
+    it('answers a body that is not JSON without reaching the write', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+
+      const { status, body } = await driveRoute(platform, '/nodes/10/type', 'POST', '{ not json');
+
+      expect(status).toBe(400);
+      expect(body.error).toEqual(expect.any(String));
+      expect(onDisk().overrides).toEqual([]);
+    });
+
+    it('clears a decision and returns the node to its own type', async () => {
+      saved([
+        { fingerprint: FINGERPRINT, primaryKind: 'window-covering', savedAt: '2026-10-12T18:20:00Z' },
+      ]);
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+
+      const { body } = await driveRoute(platform, '/nodes/10/type/clear', 'POST', {
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      expect(body.rebuilt).toEqual([10]);
+      expect(body.payload).toMatchObject({ primaryKind: 'multilevel-switch', source: 'detected' });
+      expect(onDisk().overrides).toEqual([]);
+    });
+
+    it('removes a decision that reaches no device', async () => {
+      saved([
+        { fingerprint: FINGERPRINT, primaryKind: 'window-covering', savedAt: '2026-10-12T18:20:00Z' },
+      ]);
+      // The relay reports the same hardware identifiers but cannot be a covering, so the saved
+      // decision reaches nothing and removing it changes what no device publishes.
+      const relay = buildNode(
+        REALISTIC_DEVICES.find((c) => c.name === 'relay')!,
+        { nodeId: 10, ...FINGERPRINT },
+      );
+      const platform = newPlatform(new Map([[10, relay]]));
+      const before = (await driveRoute(platform, '/nodes/10/type', 'GET')).body;
+
+      const { body } = await driveRoute(platform, '/nodes/10/type/remove', 'POST', {
+        expectedRevision: before.cohortRevision,
+      });
+
+      expect(before.invalid).toMatchObject({ primaryKind: 'window-covering', appliedTo: [] });
+      expect(body.refusal).toBeUndefined();
+      expect(body.payload.invalid).toBeNull();
+      expect(onDisk().overrides).toEqual([]);
+    });
+
+    it('refuses to remove a decision that is still in force on a device', async () => {
+      saved([
+        { fingerprint: FINGERPRINT, primaryKind: 'window-covering', savedAt: '2026-10-12T18:20:00Z' },
+      ]);
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      const before = (await driveRoute(platform, '/nodes/10/type', 'GET')).body;
+
+      const { body } = await driveRoute(platform, '/nodes/10/type/remove', 'POST', {
+        expectedRevision: before.cohortRevision,
+      });
+
+      expect(body.refusal).toBe('override-in-use');
+      expect(onDisk().overrides).toHaveLength(1);
+    });
+
+    it('refuses a write naming a node that is not in the network', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+
+      const { body } = await driveRoute(platform, '/nodes/99/type/clear', 'POST', {
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: 'unused',
+      });
+
+      expect(body.refusal).toBe('unknown-node');
+      expect(body.payload).toBeNull();
+    });
+
+    it('accepts a change of hardware on one node number', async () => {
+      const orphanFingerprint = { manufacturerId: 1, productType: 2, productId: 3 };
+      saved(
+        [
+          { fingerprint: orphanFingerprint, primaryKind: 'window-covering', savedAt: '2026-10-12T18:20:00Z' },
+        ],
+        [
+          {
+            id: 'ob-1',
+            nodeId: 10,
+            fingerprint: orphanFingerprint,
+            appliedAt: '2026-09-30T17:02:00Z',
+            orphanedAt: '2026-10-05T00:00:00Z',
+          },
+        ],
+      );
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+
+      const before = (await driveRoute(platform, '/nodes/10/type', 'GET')).body;
+      const { body } = await driveRoute(platform, '/nodes/10/type/acknowledge', 'POST', {
+        observationId: 'ob-1',
+        expectedFingerprint: FINGERPRINT,
+      });
+
+      expect(before.orphans).toHaveLength(1);
+      expect(body.refusal).toBeUndefined();
+      expect(body.payload.orphans).toEqual([]);
+      // Accepting a change of hardware says nothing about the decision itself.
+      expect(onDisk().overrides).toHaveLength(1);
+      expect(onDisk().observations).toEqual([]);
+    });
+
+    it('keeps a saved decision when one node cannot be rebuilt, and rebuilds the rest', async () => {
+      saved();
+      const platform = newPlatform(
+        new Map([
+          [10, shadeNode(10)],
+          [11, shadeNode(11)],
+        ]),
+      );
+      platform.zwaveAccessories = new Map([
+        [10, published(10, 'before')],
+        [11, published(11, 'before')],
+      ]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      const real = platform.syncNodeAccessory.bind(platform);
+      platform.syncNodeAccessory = (node: any) => {
+        if (node.nodeId === 10) {
+          throw new Error('HomeKit refused the service');
+        }
+        return real(node);
+      };
+
+      const { body } = await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      expect(body.failed).toEqual([{ nodeId: 10, error: 'HomeKit refused the service.' }]);
+      expect(body.rebuilt).toEqual([11]);
+      expect(onDisk().overrides[0]).toMatchObject({ primaryKind: 'window-covering' });
+    });
+
+    it('does not claim a node was rebuilt when the decision did not change it', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      // The accessory already carries the graph the decision produces, so nothing is replaced.
+      const unchanged = AccessoryFactory.signatureOfPlans(
+        AccessoryFactory.planFeatures(shadeNode(10), { primaryOverride: 'window-covering' }),
+      );
+      platform.zwaveAccessories = new Map([[10, published(10, unchanged)]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+
+      const { body } = await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      expect(body.rebuilt).toEqual([]);
+      expect(body.failed).toEqual([]);
+    });
+
+    it('rebuilds nothing for a refused write, whatever the refusal reports', async () => {
+      // The platform does not reason about which refusals could carry nodes. A refusal means
+      // nothing was saved, so nothing is rebuilt on the strength of it.
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      jest
+        .spyOn(TypeOverrideResolver.prototype, 'setNodeType')
+        .mockResolvedValue({ refusal: 'cohort-changed', rebuild: [10] });
+
+      const { body } = await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: 'anything',
+      });
+
+      expect(body.refusal).toBe('cohort-changed');
+      expect(body.rebuilt).toEqual([]);
+    });
+
+    /**
+     * An accessory whose stop() has an effect. Once stopped it answers nothing, which is what a
+     * torn-down covering controller does: a stub whose stop() changes nothing cannot show the
+     * defect these two cover, because using the stopped accessory would look like success.
+     */
+    const stoppable = (nodeId: number, signature: string) => {
+      const refuseWhenStopped = (what: string) =>
+        jest.fn(() => {
+          if (accessory.stopped) {
+            throw new Error(`${what} reached a stopped accessory for Node ${nodeId}`);
+          }
+        });
+
+      const accessory = {
+        platformAccessory: { UUID: `uuid-${nodeId}` },
+        stopped: false,
+        initialize: jest.fn(),
+        isInitialized: () => true,
+        getGraphSignature: () => signature,
+        stop: jest.fn(() => {
+          accessory.stopped = true;
+        }),
+        refresh: refuseWhenStopped('refresh'),
+        updateNode: refuseWhenStopped('updateNode'),
+      };
+
+      return accessory;
+    };
+
+    it('keeps no accessory it stopped when the replacement cannot be built', async () => {
+      /**
+       * The old accessory is stopped before the new one is built. Left in place after a failed
+       * build it answers nothing, while the signature it still reports says the node is up to
+       * date, so the next pass settles the warning, skips the rebuild, and leaves HomeKit bound
+       * to it until Homebridge restarts.
+       */
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      const original = stoppable(10, 'before');
+      platform.zwaveAccessories = new Map([[10, original]]);
+      jest
+        .spyOn(TypeOverrideResolver.prototype, 'setNodeType')
+        .mockResolvedValue({ rebuild: [10] });
+      jest.spyOn(AccessoryFactory, 'create').mockImplementation(() => {
+        throw new Error('HAP refused the service change');
+      });
+
+      const { body } = await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: 'anything',
+      });
+
+      expect(original.stopped).toBe(true);
+      expect(body.failed).toEqual([
+        { nodeId: 10, error: expect.stringContaining('HAP refused the service change') },
+      ]);
+      expect(platform.zwaveAccessories.get(10)).toBeUndefined();
+    });
+
+    it('rebuilds after a failed rebuild rather than settling against what it stopped', async () => {
+      /**
+       * The sequence that made the first finding matter: an apply fails, and the revert that
+       * follows finds the signature it expects on the accessory the failure stopped. With that
+       * accessory gone, there is nothing to match and the node is built again.
+       */
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, stoppable(10, 'before')]]);
+      jest
+        .spyOn(TypeOverrideResolver.prototype, 'setNodeType')
+        .mockResolvedValue({ rebuild: [10] });
+      jest
+        .spyOn(TypeOverrideResolver.prototype, 'clearNodeType')
+        .mockResolvedValue({ rebuild: [10] });
+
+      const create = jest.spyOn(AccessoryFactory, 'create').mockImplementation(() => {
+        throw new Error('HAP refused the service change');
+      });
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: 'anything',
+      });
+
+      const rebuilt = {
+        platformAccessory: { UUID: 'uuid-10' },
+        initialize: jest.fn(),
+        isInitialized: () => true,
+        getGraphSignature: () => 'after',
+        stop: jest.fn(),
+        refresh: jest.fn(),
+        updateNode: jest.fn(),
+      };
+      create.mockReturnValue(rebuilt as never);
+
+      const { body } = await driveRoute(platform, '/nodes/10/type/clear', 'POST', {
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: 'anything',
+      });
+
+      expect(body.rebuilt).toEqual([10]);
+      expect(platform.zwaveAccessories.get(10)).toBe(rebuilt);
+    });
+
+    /**
+     * A node whose configuration values answer on command, so the routes can be driven through
+     * the states a real device moves between: nothing asked, asking, answered, and asked again
+     * after an attempt that fell short.
+     */
+    const paramNode = (over: Record<string, unknown> = {}) => {
+      const reported = new Map<string, number>([['1', 1_000]]);
+      let settle: () => void = () => undefined;
+      const dispatches: number[] = [];
+
+      const node: Record<string, unknown> = {
+        nodeId: 10,
+        ready: true,
+        isListening: true,
+        status: 4,
+        manufacturerId: 0x026e,
+        productType: 2,
+        productId: 16,
+        setValue: jest.fn(),
+        supportsCC: (cc: number) => cc === CommandClasses.Configuration,
+        getAllEndpoints: () => [{ index: 0, supportsCC: () => true }],
+        getDefinedValueIDs: () => [
+          { commandClass: CommandClasses.Configuration, endpoint: 0, property: 1 },
+        ],
+        getValue: () => 5,
+        getValueTimestamp: (valueId: { property: unknown }) => reported.get(String(valueId.property)),
+        getValueMetadata: () => ({ type: 'number', readable: true, writeable: true, label: 'Hold' }),
+        refreshCCValues: jest.fn().mockImplementation(() => {
+          dispatches.push(1);
+          return new Promise<void>((resolve) => {
+            settle = resolve;
+          });
+        }),
+        on: () => node,
+        off: () => node,
+        ...over,
+      };
+
+      return {
+        node,
+        dispatches,
+        /** Lets the attempt finish, which says only that zwave-js stopped trying. */
+        settleAttempt: async () => {
+          settle();
+          await Promise.resolve();
+          await Promise.resolve();
+        },
+        /** Lets the device answer, which is the only thing that confirms a value. */
+        answer: (at: number) => reported.set('1', at),
+      };
+    };
+
+    /**
+     * A re-read as the page makes it, naming the device that holds the number. The route
+     * requires that name, so a test that left it out would be testing the refusal.
+     */
+    const askRefresh = (platform: any, nodeId = 10) => {
+      const node = platform.zwaveController.nodes.get(nodeId);
+
+      return driveRoute(platform, `/nodes/${nodeId}/parameters/refresh`, 'POST', {
+        identity: node ? platform.nodeIdentity(node) : 'a device that is not in the network',
+      });
+    };
+
+    it('reads the parameters without asking the device anything', async () => {
+      const { node } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      const { body } = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(body.state).toBe('parameters');
+      expect(body.groups[0]).toMatchObject({ parameter: 1 });
+      expect(node.refreshCCValues).not.toHaveBeenCalled();
+      expect(node.setValue).not.toHaveBeenCalled();
+      expect(body.refresh).toMatchObject({ state: 'idle', canRequest: true });
+    });
+
+    it('never writes to the device, whichever parameter route is called', async () => {
+      const { node } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      await driveRoute(platform, '/nodes/10/parameters', 'GET');
+      await askRefresh(platform);
+
+      expect(node.setValue).not.toHaveBeenCalled();
+    });
+
+    it('answers with nothing for a node that is not in the network', async () => {
+      const platform = newPlatform(new Map([[10, paramNode().node]]));
+
+      expect((await driveRoute(platform, '/nodes/99/parameters', 'GET')).status).toBe(404);
+      expect(
+        (await askRefresh(platform, 99)).status,
+      ).toBe(404);
+    });
+
+    it('returns before the attempt it started has settled', async () => {
+      /**
+       * zwave-js says not to await the refresh, and the route must not: a sleeping device would
+       * hold the request open for as long as it sleeps.
+       */
+      const { node } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      const { body } = await askRefresh(platform);
+
+      expect(node.refreshCCValues).toHaveBeenCalledWith(CommandClasses.Configuration);
+      expect(body.refresh).toMatchObject({
+        state: 'dispatching',
+        asked: 1,
+        waiting: [{ endpoint: 0, parameter: 1, bitMask: null }],
+      });
+    });
+
+    it('treats a request made while one is running as that same request', async () => {
+      const { node, dispatches } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      const first = await askRefresh(platform);
+      const second = await askRefresh(platform);
+
+      expect(dispatches).toHaveLength(1);
+      expect(second.body.refresh.requestedAt).toBe(first.body.refresh.requestedAt);
+      expect(second.body.refresh.state).toBe('dispatching');
+    });
+
+    it('does not confirm a value because the attempt finished', async () => {
+      /**
+       * `refreshCCValues` resolves even where every endpoint failed, because it catches and logs
+       * each one. Its settling says the attempt stopped, never that the device answered.
+       */
+      const { node, settleAttempt } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      await askRefresh(platform);
+      await settleAttempt();
+
+      const { body } = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(body.refresh).toMatchObject({ state: 'incomplete', waiting: [expect.anything()] });
+    });
+
+    it('reports completion when the device answers', async () => {
+      const { node, settleAttempt, answer } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      await askRefresh(platform);
+      answer(2_000);
+      await settleAttempt();
+
+      const { body } = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(body.refresh).toMatchObject({ state: 'complete', waiting: [] });
+    });
+
+    it('lets an attempt that fell short be tried again, and that one dispatches', async () => {
+      const { node, dispatches, settleAttempt } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      await askRefresh(platform);
+      await settleAttempt();
+      const { body } = await askRefresh(platform);
+
+      expect(dispatches).toHaveLength(2);
+      expect(body.refresh.state).toBe('dispatching');
+    });
+
+    it('holds the request so returning to the page finds it rather than starting another', async () => {
+      const { node, dispatches } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      await askRefresh(platform);
+      const { body } = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(dispatches).toHaveLength(1);
+      expect(body.refresh.state).toBe('dispatching');
+    });
+
+    it('discards a request made of hardware the node no longer reports', async () => {
+      // Z-Wave gives a node number away again, and the old question answers for nothing.
+      const { node } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      await askRefresh(platform);
+      node.productId = 0x99;
+
+      const { body } = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(body.refresh.state).toBe('idle');
+    });
+
+    it('does not pass a request to a replacement that reports the same hardware', async () => {
+      /**
+       * Matching on number and fingerprint alone hands the new device the question put to the
+       * old one, and an attempt whose promise never settles would suppress a real request for
+       * as long as the page stayed open.
+       */
+      const first = paramNode();
+      const platform = newPlatform(new Map([[10, first.node]]));
+
+      await askRefresh(platform);
+      expect(first.dispatches).toHaveLength(1);
+
+      const second = paramNode();
+      platform.zwaveController.nodes = new Map([[10, second.node]]);
+
+      const read = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+      expect(read.body.refresh.state).toBe('idle');
+
+      await askRefresh(platform);
+      expect(second.dispatches).toHaveLength(1);
+    });
+
+    it('does not pass a request to a replacement when neither reports hardware', async () => {
+      // Two unknown devices are not the same device, and nothing about them says otherwise.
+      const unknown = { manufacturerId: undefined, productType: undefined, productId: undefined };
+      const first = paramNode(unknown);
+      const platform = newPlatform(new Map([[10, first.node]]));
+
+      await askRefresh(platform);
+
+      const second = paramNode(unknown);
+      platform.zwaveController.nodes = new Map([[10, second.node]]);
+
+      await askRefresh(platform);
+
+      expect(second.dispatches).toHaveLength(1);
+    });
+
+    it('forgets a request when the node is removed', async () => {
+      const { node } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      await askRefresh(platform);
+      expect(platform.parameterRefreshes.has(10)).toBe(true);
+
+      platform.handleNodeRemoved(node);
+
+      expect(platform.parameterRefreshes.has(10)).toBe(false);
+    });
+
+    it('does not offer a refresh where nothing could answer', async () => {
+      const { node } = paramNode({
+        getValueMetadata: () => ({ type: 'number', readable: false, writeable: true }),
+      });
+      const platform = newPlatform(new Map([[10, node]]));
+
+      const { body } = await askRefresh(platform);
+
+      expect(node.refreshCCValues).not.toHaveBeenCalled();
+      expect(body.refresh).toMatchObject({ state: 'idle', canRequest: false });
+    });
+
+    it('does not call a re-read successful when the values it asked about went', async () => {
+      /**
+       * A value that is no longer there did not answer. Reading the empty waiting list as a
+       * success would tell a reader the device had just confirmed settings it no longer has.
+       */
+      const ids = [
+        { commandClass: CommandClasses.Configuration, endpoint: 0, property: 1 },
+        { commandClass: CommandClasses.Configuration, endpoint: 0, property: 2 },
+      ];
+      const { node, settleAttempt, answer } = paramNode({ getDefinedValueIDs: () => ids });
+      const platform = newPlatform(new Map([[10, node]]));
+
+      await askRefresh(platform);
+      answer(2_000);
+      ids.splice(1, 1);
+      await settleAttempt();
+
+      const { body } = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(body.refresh).toMatchObject({
+        state: 'unavailable',
+        waiting: [],
+        asked: 2,
+        completedAt: null,
+      });
+    });
+
+    it('does not call a re-read successful when a value stopped being readable', async () => {
+      const ids = [
+        { commandClass: CommandClasses.Configuration, endpoint: 0, property: 1 },
+        { commandClass: CommandClasses.Configuration, endpoint: 0, property: 2 },
+      ];
+      let readable = true;
+      const { node, settleAttempt, answer } = paramNode({
+        getDefinedValueIDs: () => ids,
+        getValueMetadata: (valueId: { property: unknown }) => ({
+          type: 'number',
+          readable: valueId.property === 2 ? readable : true,
+          writeable: true,
+          label: 'Hold',
+        }),
+      });
+      const platform = newPlatform(new Map([[10, node]]));
+
+      await askRefresh(platform);
+      answer(2_000);
+      readable = false;
+      await settleAttempt();
+
+      const { body } = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(body.refresh).toMatchObject({ state: 'unavailable', completedAt: null });
+    });
+
+    it('refuses a re-read that does not name the device it is for', async () => {
+      /**
+       * A re-read puts commands on the network. A caller that does not say which device it
+       * means cannot be answered about whichever device holds the number now, and a name that
+       * is not a name is not one.
+       */
+      const { node } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      const missing = await driveRoute(platform, '/nodes/10/parameters/refresh', 'POST', {});
+      const notAName = await driveRoute(platform, '/nodes/10/parameters/refresh', 'POST', {
+        identity: 7,
+      });
+      const empty = await driveRoute(platform, '/nodes/10/parameters/refresh', 'POST', {
+        identity: '',
+      });
+
+      expect([missing.status, notAName.status, empty.status]).toEqual([400, 400, 400]);
+      expect(node.refreshCCValues).not.toHaveBeenCalled();
+    });
+
+    it('does not ask a device the page did not mean to ask', async () => {
+      /**
+       * A re-read puts commands on the network. A node number can change hands between the list
+       * the page read and the request it made from it, and the reader asked for the device they
+       * were looking at.
+       */
+      const { node } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      const { body } = await driveRoute(platform, '/nodes/10/parameters/refresh', 'POST', {
+        identity: 'the-device-that-had-the-number',
+      });
+
+      expect(node.refreshCCValues).not.toHaveBeenCalled();
+      expect(body.refresh.state).toBe('idle');
+      expect(body.identity).not.toBe('the-device-that-had-the-number');
+    });
+
+    it('asks when the page named the device that holds the number now', async () => {
+      const { node } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+      const read = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      const { body } = await driveRoute(platform, '/nodes/10/parameters/refresh', 'POST', {
+        identity: read.body.identity,
+      });
+
+      expect(node.refreshCCValues).toHaveBeenCalledWith(CommandClasses.Configuration);
+      expect(body.refresh.state).toBe('dispatching');
+    });
+
+    it('names the node a payload was built from, the same name the list gives it', async () => {
+      const { node } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      const listed = await driveRoute(platform, '/nodes', 'GET');
+      const { body } = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(typeof body.identity).toBe('string');
+      expect(body.identity).toBe(listed.body[0].identity);
+    });
+
+    it('keeps that name for as long as the node holds the number', async () => {
+      const { node } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      const first = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+      const second = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(second.body.identity).toBe(first.body.identity);
+    });
+
+    it('names a replacement differently, though the number never went missing', async () => {
+      /**
+       * Nothing announces that a node was replaced: the number is the same, the hardware can be
+       * the same, and a page that never saw the number absent would go on drawing what it read
+       * for the device that had it before.
+       */
+      const platform = newPlatform(new Map([[10, paramNode().node]]));
+      const before = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      platform.zwaveController.nodes = new Map([[10, paramNode().node]]);
+      const after = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(after.body.nodeId).toBe(10);
+      expect(after.body.identity).not.toBe(before.body.identity);
+    });
+
+    it('names a replacement differently where neither reports any hardware', async () => {
+      // Two unknown devices are not one device, and the fingerprint cannot tell them apart.
+      const unknown = { manufacturerId: undefined, productType: undefined, productId: undefined };
+      const platform = newPlatform(new Map([[10, paramNode(unknown).node]]));
+      const before = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      platform.zwaveController.nodes = new Map([[10, paramNode(unknown).node]]);
+      const after = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(after.body.identity).not.toBe(before.body.identity);
+    });
+
+    it('records the completion where it happened, not where it was next read', async () => {
+      /**
+       * A page that was closed while the device answered must not have its reopening dated as
+       * the moment the values were confirmed, and the request is no better a stand-in: a
+       * sleeping device can answer hours after it was asked.
+       */
+      const { node, settleAttempt, answer } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+      const clock = jest.spyOn(Date, 'now');
+
+      clock.mockReturnValue(1_000);
+      await askRefresh(platform);
+      answer(2_000);
+      clock.mockReturnValue(5_000);
+      await settleAttempt();
+      clock.mockReturnValue(9_000);
+
+      const { body } = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(body.refresh).toMatchObject({
+        state: 'complete',
+        requestedAt: 1_000,
+        completedAt: 5_000,
+      });
+    });
+
+    it('dates no completion while the attempt is still running', async () => {
+      // A value can answer before the attempt stops, and what finishes is the attempt.
+      const { node, settleAttempt, answer } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+      const clock = jest.spyOn(Date, 'now');
+
+      clock.mockReturnValue(1_000);
+      await askRefresh(platform);
+      answer(2_000);
+      clock.mockReturnValue(3_000);
+      const mid = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(mid.body.refresh).toMatchObject({ state: 'dispatching', completedAt: null });
+
+      clock.mockReturnValue(6_000);
+      await settleAttempt();
+      const { body } = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(body.refresh).toMatchObject({ state: 'complete', completedAt: 6_000 });
+    });
+
+    it('dates a completion that only a later reading could see', async () => {
+      // A value the device reports of its own accord answers the question the refresh asked.
+      const { node, settleAttempt, answer } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+      const clock = jest.spyOn(Date, 'now');
+
+      clock.mockReturnValue(1_000);
+      await askRefresh(platform);
+      await settleAttempt();
+      answer(3_000);
+      clock.mockReturnValue(8_000);
+
+      const { body } = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(body.refresh).toMatchObject({ state: 'complete', completedAt: 8_000 });
+    });
+
+    it('records no completion for an attempt that finished with values unanswered', async () => {
+      const { node, settleAttempt } = paramNode();
+      const platform = newPlatform(new Map([[10, node]]));
+
+      await askRefresh(platform);
+      await settleAttempt();
+
+      const { body } = await driveRoute(platform, '/nodes/10/parameters', 'GET');
+
+      expect(body.refresh).toMatchObject({ state: 'incomplete', completedAt: null });
+    });
+
+    it('refuses a type saved for the controller, however the request arrives', async () => {
+      /**
+       * The sync never builds a generic accessory for Node 1, so a decision saved for it would
+       * be kept and applied to nothing. The UI does not offer it, and that is not the same as
+       * refusing it: this route can be called directly, with a node that otherwise qualifies.
+       */
+      saved();
+      const controller = shadeNode(1);
+      const platform = newPlatform(new Map([[1, controller]]));
+      platform.zwaveAccessories = new Map();
+
+      const { status, body } = await driveRoute(platform, '/nodes/1/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: 'anything',
+      });
+
+      expect(status).toBe(200);
+      expect(body.refusal).toBe('not-overridable');
+      expect(body.rebuilt).toEqual([]);
+      expect(JSON.parse(fs.readFileSync(path.join(storagePath, OVERRIDES_FILE), 'utf8')).overrides)
+        .toEqual([]);
+    });
+
+    it('keeps the controller out of a cohort that shares its hardware', async () => {
+      // The cohort answers the same question the write does, so it cannot hold a node a write
+      // would refuse and then count it among those a decision would reach.
+      saved();
+      const platform = newPlatform(
+        new Map([
+          [1, shadeNode(1)],
+          [10, shadeNode(10)],
+        ]),
+      );
+      platform.zwaveAccessories = new Map();
+
+      const { body } = await driveRoute(platform, '/nodes/10/type', 'GET');
+
+      expect(body.cohort.map((member: { nodeId: number }) => member.nodeId)).toEqual([10]);
+    });
+
+    it('writes the refusal code to the log and not to the reader', async () => {
+      /**
+       * The panel says the write did not happen and sends the reader to what it now reports,
+       * which is the condition the code names. The code itself is only of use to someone
+       * reading the log, so that is where it has to arrive.
+       */
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      jest
+        .spyOn(TypeOverrideResolver.prototype, 'setNodeType')
+        .mockResolvedValue({ refusal: 'not-overridable', rebuild: [] });
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: 'anything',
+      });
+
+      expect(platform.log.debug).toHaveBeenCalledWith(
+        'Type change for Node 10 was refused: not-overridable',
+      );
+    });
+
+    it('says nothing to the log about a write it accepted', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      jest
+        .spyOn(TypeOverrideResolver.prototype, 'setNodeType')
+        .mockResolvedValue({ rebuild: [] });
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: 'anything',
+      });
+
+      expect(platform.log.debug).not.toHaveBeenCalledWith(
+        expect.stringContaining('was refused'),
+      );
+    });
+
+    it('passes over a node that left the network before the rebuild reached it', async () => {
+      // Node numbers go away when a device is excluded. One that is gone was not rebuilt and
+      // did not fail to rebuild: there is nothing there to report either way.
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      jest
+        .spyOn(TypeOverrideResolver.prototype, 'setNodeType')
+        .mockResolvedValue({ rebuild: [10, 404] });
+
+      const { body } = await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: 'anything',
+      });
+
+      expect(body.rebuilt).toEqual([10]);
+      expect(body.failed).toEqual([]);
+    });
+
+    it('treats a body that is not an object as one that is missing every field', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+
+      const { body } = await driveRoute(platform, '/nodes/10/type', 'POST', 'null');
+
+      expect(body.refusal).toBe('incomplete-request');
+      expect(onDisk().overrides).toEqual([]);
+    });
+
+    it('discloses the Matter restart only for a device Matter is publishing', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+
+      // Nothing is published yet, so there is no live endpoint holding an old device type.
+      expect((await driveRoute(platform, '/nodes/10/type', 'GET')).body.matterActive).toBe(false);
+
+      platform.zwaveAccessories = new Map([[10, published(10, 'current')]]);
+      jest.spyOn(platform.matterAccessories, 'publishes').mockReturnValue(true);
+
+      expect((await driveRoute(platform, '/nodes/10/type', 'GET')).body.matterActive).toBe(true);
+    });
+
+    it('still reports Matter after a rebuild that failed and took the wrapper with it', async () => {
+      /**
+       * A failed rebuild leaves the node with no wrapper, while Matter goes on publishing the
+       * endpoint it already has. Reading the identity only from the wrapper reported the node
+       * as absent from Matter, so the next type change would have been confirmed without the
+       * restart that published endpoint needs, and stayed on the old type in Alexa.
+       */
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      const cached = {
+        UUID: 'uuid-10',
+        context: { nodeId: 10, homeId: platform.zwaveController.homeId },
+      };
+      platform.accessories.push(cached as never);
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      jest.spyOn(platform.matterAccessories, 'publishes').mockReturnValue(true);
+      jest
+        .spyOn(TypeOverrideResolver.prototype, 'setNodeType')
+        .mockResolvedValue({ rebuild: [10] });
+      jest.spyOn(AccessoryFactory, 'create').mockImplementation(() => {
+        throw new Error('HAP refused the service change');
+      });
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: 'anything',
+      });
+
+      expect(platform.zwaveAccessories.get(10)).toBeUndefined();
+
+      // The reader now picks a third type. The endpoint Matter holds is still the old one.
+      const { body } = await driveRoute(platform, '/nodes/10/type', 'GET');
+
+      expect(body.matterActive).toBe(true);
+      expect(body.cohort.find((member: { nodeId: number }) => member.nodeId === 10).matterActive)
+        .toBe(true);
+    });
+
+    it('tells the node table which devices a decision reaches', async () => {
+      saved([
+        { fingerprint: FINGERPRINT, primaryKind: 'window-covering', savedAt: '2026-10-12T18:20:00Z' },
+      ]);
+      const platform = newPlatform(
+        new Map([
+          [10, shadeNode(10)],
+          [11, shadeNode(11)],
+        ]),
+      );
+
+      const { body } = await driveRoute(platform, '/nodes', 'GET');
+
+      expect(body[0]).toMatchObject({
+        nodeId: 10,
+        typeOverride: { primaryKind: 'window-covering', sharedWith: [11] },
+        typeInvalid: false,
+        typeOrphans: 0,
+      });
+    });
+
+    it('leaves an unchanged node alone rather than syncing it and comparing afterwards', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      const unchanged = AccessoryFactory.signatureOfPlans(
+        AccessoryFactory.planFeatures(shadeNode(10), { primaryOverride: 'window-covering' }),
+      );
+      const accessory = published(10, unchanged);
+      accessory.refresh = jest.fn(() => {
+        throw new Error('the device stopped answering');
+      });
+      platform.zwaveAccessories = new Map([[10, accessory]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+
+      const { body } = await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      // The sync reaches these on its way past an accessory it will not replace.
+      expect(accessory.refresh).not.toHaveBeenCalled();
+      expect(accessory.updateNode).not.toHaveBeenCalled();
+      expect(body.rebuilt).toEqual([]);
+      expect(body.failed).toEqual([]);
+    });
+
+    it('answers only once the records the rebuild started have been written', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      // The sync starts the record and does not wait for it, so the reply has to.
+      expect(onDisk().observations).toEqual([
+        expect.objectContaining({ nodeId: 10, fingerprint: FINGERPRINT, orphanedAt: null }),
+      ]);
+    });
+
+    it('keeps the node list whole when one node cannot be summarized', async () => {
+      saved();
+      const unreadable = shadeNode(11);
+      unreadable.getAllEndpoints = () => {
+        throw new Error('the node is still being interviewed');
+      };
+      const platform = newPlatform(
+        new Map([
+          [10, shadeNode(10)],
+          [11, unreadable],
+        ]),
+      );
+
+      const { status, body } = await driveRoute(platform, '/nodes', 'GET');
+
+      expect(status).toBe(200);
+      expect(body.map((row: { nodeId: number }) => row.nodeId)).toEqual([10, 11]);
+      expect(body[1]).toMatchObject({ typeOverride: null, typeInvalid: false, typeOrphans: 0 });
+      expect(platform.log.debug).toHaveBeenCalledWith(
+        expect.stringContaining('no summary for the node list'),
+      );
+    });
+
+    it.each(['/type/clear', '/type/remove', '/type/acknowledge'])(
+      'does not let a GET reach the write behind %s',
+      async (suffix) => {
+        saved([
+          {
+            fingerprint: FINGERPRINT,
+            primaryKind: 'window-covering',
+            savedAt: '2026-10-12T18:20:00Z',
+          },
+        ]);
+        const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+
+        const { status, body } = await driveRoute(platform, `/nodes/10${suffix}`, 'GET');
+
+        expect(status).toBe(404);
+        expect(body.error).toContain('Path not found');
+        expect(onDisk().overrides).toHaveLength(1);
+      },
+    );
+
+    it('keeps reporting a node that could not be rebuilt until one succeeds', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      const real = platform.syncNodeAccessory.bind(platform);
+      platform.syncNodeAccessory = () => {
+        throw new Error('HomeKit refused the service');
+      };
+
+      const write = await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+      expect(write.body.failed).toEqual([{ nodeId: 10, error: 'HomeKit refused the service.' }]);
+
+      /**
+       * Every other field is read from the saved decision, which is the one thing this node is
+       * not publishing, so without the mismatch the next refresh would quietly contradict the
+       * message the write just returned.
+       */
+      const stale = await driveRoute(platform, '/nodes/10/type', 'GET');
+      expect(stale.body.primaryKind).toBe('window-covering');
+      expect(stale.body.rebuildFailure).toEqual({ error: 'HomeKit refused the service.' });
+      expect((await driveRoute(platform, '/nodes', 'GET')).body[0].typeRebuildFailed).toBe(true);
+
+      platform.syncNodeAccessory = real;
+      await driveRoute(platform, '/nodes/10/type/clear', 'POST', {
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision,
+      });
+
+      const healed = await driveRoute(platform, '/nodes/10/type', 'GET');
+      expect(healed.body.rebuildFailure).toBeNull();
+      expect((await driveRoute(platform, '/nodes', 'GET')).body[0].typeRebuildFailed).toBe(false);
+    });
+
+    it('builds a changed node from the plan it was compared against', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      const handed: unknown[] = [];
+      const real = platform.syncNodeAccessory.bind(platform);
+      platform.syncNodeAccessory = (node: any, plans: any) => {
+        handed.push(plans);
+        return real(node, plans);
+      };
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      /**
+       * Planning answers with a new array every time, so the accessory can only hold the object
+       * the comparison used if that one object was carried through rather than read again.
+       */
+      expect(handed[0]).toBeDefined();
+      expect((AccessoryFactory.create as jest.Mock).mock.calls.at(-1)?.[3]).toBe(handed[0]);
+    });
+
+    it('settles the warning when an ordinary sync brings the node up to date', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      const real = platform.syncNodeAccessory.bind(platform);
+      platform.syncNodeAccessory = () => {
+        throw new Error('HomeKit refused the service');
+      };
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+      expect(
+        (await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure,
+      ).not.toBeNull();
+
+      // Nothing about the type is written here. The node simply catches up on its own.
+      platform.syncNodeAccessory = real;
+      platform.syncNodeAccessory(platform.zwaveController.nodes.get(10));
+      // The sync starts a record and does not wait for it; nothing else here will either.
+      await platform.typeOverridesFor(platform.zwaveController.homeId).settled();
+
+      expect((await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure).toBeNull();
+    });
+
+    it('does not hand a node number the warning left by the device before it', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      platform.syncNodeAccessory = () => {
+        throw new Error('HomeKit refused the service');
+      };
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      // Z-Wave hands a freed number to the next device to join, and that device failed at nothing.
+      const successor = buildNode(
+        REALISTIC_DEVICES.find((c) => c.name === 'covering (Multilevel Switch only)')!,
+        { nodeId: 10, manufacturerId: 99, productType: 7, productId: 3 },
+      );
+      platform.zwaveController.nodes = new Map([[10, successor]]);
+
+      expect((await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure).toBeNull();
+      expect((await driveRoute(platform, '/nodes', 'GET')).body[0].typeRebuildFailed).toBe(false);
+    });
+
+    it('still flags a node behind its saved type when it cannot be summarized', async () => {
+      saved();
+      const node = shadeNode(10);
+      const platform = newPlatform(new Map([[10, node]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      platform.syncNodeAccessory = () => {
+        throw new Error('HomeKit refused the service');
+      };
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      // The flag is the platform's own record, so classifying the node has no part in it.
+      node.getAllEndpoints = () => {
+        throw new Error('the node is still being interviewed');
+      };
+      const { body } = await driveRoute(platform, '/nodes', 'GET');
+
+      expect(body[0]).toMatchObject({ typeOverride: null, typeRebuildFailed: true });
+    });
+
+    it('clears the warning when the node leaves the network', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      platform.syncNodeAccessory = () => {
+        throw new Error('HomeKit refused the service');
+      };
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      platform.handleNodeRemoved(platform.zwaveController.nodes.get(10));
+
+      // The same device rejoining starts clean rather than inheriting a failure it has outlived.
+      expect((await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure).toBeNull();
+    });
+
+    it('settles the warning when a sync finds the node already publishing it', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      const real = platform.syncNodeAccessory.bind(platform);
+      platform.syncNodeAccessory = () => {
+        throw new Error('HomeKit refused the service');
+      };
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      /**
+       * The accessory caught up by some other route, so this sync replaces nothing. Reaching a
+       * node that is already right is still the moment the warning stops being true.
+       */
+      const current = AccessoryFactory.signatureOfPlans(
+        AccessoryFactory.planFeatures(shadeNode(10), { primaryOverride: 'window-covering' }),
+      );
+      platform.zwaveAccessories = new Map([[10, published(10, current)]]);
+      platform.syncNodeAccessory = real;
+      platform.syncNodeAccessory(platform.zwaveController.nodes.get(10));
+      // The sync starts a record and does not wait for it; nothing else here will either.
+      await platform.typeOverridesFor(platform.zwaveController.homeId).settled();
+
+      expect((await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure).toBeNull();
+    });
+
+    it('settles the warning when reverting leaves the node as it already is', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      const asDefault = AccessoryFactory.signatureOfPlans(
+        AccessoryFactory.planFeatures(shadeNode(10)),
+      );
+      platform.zwaveAccessories = new Map([[10, published(10, asDefault)]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      platform.syncNodeAccessory = () => {
+        throw new Error('HomeKit refused the service');
+      };
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+      expect(
+        (await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure,
+      ).not.toBeNull();
+
+      /**
+       * The rebuild failed, so the node is still publishing its default, and reverting to that
+       * default asks nothing of it. Nothing is rebuilt, and the warning is no longer true.
+       */
+      await driveRoute(platform, '/nodes/10/type/clear', 'POST', {
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision,
+      });
+
+      expect((await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure).toBeNull();
+    });
+
+    it('keeps the warning when the rebuild it is waiting for fails to publish', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      const real = platform.syncNodeAccessory.bind(platform);
+      platform.syncNodeAccessory = () => {
+        throw new Error('HomeKit refused the service');
+      };
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      /**
+       * A background reconcile replaces the accessory, and the replacement is in the map before
+       * its services exist. Settling the warning there would settle it on the way into the
+       * rebuild that fails, and nothing outside a write would set it again.
+       */
+      buildsButCannotPublish();
+      platform.syncNodeAccessory = real;
+      expect(() => platform.syncNodeAccessory(platform.zwaveController.nodes.get(10))).toThrow();
+      // The sync starts a record and does not wait for it; nothing else here will either.
+      await platform.typeOverridesFor(platform.zwaveController.homeId).settled();
+
+      expect(
+        (await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure,
+      ).not.toBeNull();
+    });
+
+    it('keeps the warning when a cached accessory only names the plan it has yet to build', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      const real = platform.syncNodeAccessory.bind(platform);
+      platform.syncNodeAccessory = () => {
+        throw new Error('HomeKit refused the service');
+      };
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      /**
+       * A restart hands the node back the signature the last run stored for it, which is the
+       * saved type, while the services behind it have yet to be built in this one. The node is
+       * named as current by that signature and rebuilt in the same pass, so reading it alone
+       * would settle the warning for a rebuild that has not happened.
+       */
+      const current = AccessoryFactory.signatureOfPlans(
+        AccessoryFactory.planFeatures(shadeNode(10), { primaryOverride: 'window-covering' }),
+      );
+      platform.zwaveAccessories = new Map([
+        [10, { ...published(10, current), isInitialized: () => false }],
+      ]);
+      buildsButCannotPublish();
+      platform.syncNodeAccessory = real;
+      expect(() => platform.syncNodeAccessory(platform.zwaveController.nodes.get(10))).toThrow();
+      // The sync starts a record and does not wait for it; nothing else here will either.
+      await platform.typeOverridesFor(platform.zwaveController.homeId).settled();
+
+      expect(
+        (await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure,
+      ).not.toBeNull();
+    });
+
+    it('settles the warning when a node with no accessory at all is finally built', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map();
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      const factory = (AccessoryFactory.create as jest.Mock).getMockImplementation()!;
+      (AccessoryFactory.create as jest.Mock).mockImplementation((() => {
+        throw new Error('HomeKit refused the service');
+      }) as never);
+
+      /**
+       * The first build of this node threw, so it has a warning and no accessory to its name.
+       * Discovery is the path that reaches it next, and it is the path that answers the warning.
+       */
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+      expect(platform.zwaveAccessories.has(10)).toBe(false);
+      expect(
+        (await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure,
+      ).not.toBeNull();
+
+      (AccessoryFactory.create as jest.Mock).mockImplementation(factory as never);
+      platform.syncNodeAccessory(platform.zwaveController.nodes.get(10));
+      // The sync starts a record and does not wait for it; nothing else here will either.
+      await platform.typeOverridesFor(platform.zwaveController.homeId).settled();
+
+      expect((await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure).toBeNull();
+    });
+
+    it('keeps the warning when a first build reaches the map and fails to publish', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map();
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      (AccessoryFactory.create as jest.Mock).mockImplementation((() => {
+        throw new Error('HomeKit refused the service');
+      }) as never);
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      // Discovery puts the accessory in the map before building its services, as the other two
+      // paths do, so the warning it answers has to wait for the same call to return.
+      buildsButCannotPublish();
+      expect(() => platform.syncNodeAccessory(platform.zwaveController.nodes.get(10))).toThrow();
+      await platform.typeOverridesFor(platform.zwaveController.homeId).settled();
+
+      expect(
+        (await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure,
+      ).not.toBeNull();
+    });
+
+    it('keeps the warning when neither the node nor its accessory names a plan', async () => {
+      saved();
+      const node = shadeNode(10);
+      const platform = newPlatform(new Map([[10, node]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      const real = platform.syncNodeAccessory.bind(platform);
+      platform.syncNodeAccessory = () => {
+        throw new Error('HomeKit refused the service');
+      };
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      /**
+       * An accessory cached by a version that stored no signature, on a node too early in its
+       * interview to be planned. Neither side names anything, and two unknowns matching is not
+       * the node having caught up.
+       */
+      platform.zwaveAccessories = new Map([
+        [10, { ...published(10, 'before'), getGraphSignature: () => undefined }],
+      ]);
+      node.ready = false;
+      platform.syncNodeAccessory = real;
+      platform.syncNodeAccessory(node);
+      await platform.typeOverridesFor(platform.zwaveController.homeId).settled();
+
+      expect(
+        (await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure,
+      ).not.toBeNull();
+    });
+
+    it('settles the warning when a later pass builds the accessory the failure left', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      const factory = (AccessoryFactory.create as jest.Mock).getMockImplementation()!;
+      buildsButCannotPublish();
+
+      /**
+       * The rebuild got as far as HomeKit and failed there, so the node is left holding an
+       * accessory whose services were never built. The next sync finds it and builds it, which
+       * is the path a cached accessory takes rather than a rebuild, and the warning is answered
+       * there too.
+       */
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+      expect(
+        (await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure,
+      ).not.toBeNull();
+
+      (AccessoryFactory.create as jest.Mock).mockImplementation(factory as never);
+      platform.syncNodeAccessory(platform.zwaveController.nodes.get(10));
+      // The sync starts a record and does not wait for it; nothing else here will either.
+      await platform.typeOverridesFor(platform.zwaveController.homeId).settled();
+
+      expect((await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure).toBeNull();
+    });
+
+    /**
+     * Whichever path reaches it, HomeKit holds the new service the moment `initialize` returns.
+     * Offering the accessory to Matter comes after that and answers for itself: the fault is
+     * logged, the sync finishes, and the warning about what HomeKit publishes is settled.
+     */
+    it.each([
+      ['a rebuild', () => new Map([[10, published(10, 'before')]])],
+      [
+        'a cached accessory',
+        () =>
+          new Map([
+            [
+              10,
+              {
+                ...published(
+                  10,
+                  AccessoryFactory.signatureOfPlans(
+                    AccessoryFactory.planFeatures(shadeNode(10), {
+                      primaryOverride: 'window-covering',
+                    }),
+                  ),
+                ),
+                isInitialized: () => false,
+              },
+            ],
+          ]),
+      ],
+      ['a first build', () => new Map()],
+    ])('finishes a sync when %s publishes and Matter then fails', async (_path, accessories) => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      const real = platform.syncNodeAccessory.bind(platform);
+      platform.syncNodeAccessory = () => {
+        throw new Error('HomeKit refused the service');
+      };
+
+      await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      platform.zwaveAccessories = accessories();
+      (platform.matterAccessories.add as jest.Mock).mockImplementation(() => {
+        throw new Error('the Matter server is not running');
+      });
+      platform.syncNodeAccessory = real;
+      platform.syncNodeAccessory(platform.zwaveController.nodes.get(10));
+      // The sync starts a record and does not wait for it; nothing else here will either.
+      await platform.typeOverridesFor(platform.zwaveController.homeId).settled();
+
+      expect(platform.log.error).toHaveBeenCalledWith(expect.stringContaining('Matter'));
+      expect((await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure).toBeNull();
+    });
+
+    it('reports a write that HomeKit took and Matter did not as the success it is', async () => {
+      saved();
+      const platform = newPlatform(new Map([[10, shadeNode(10)]]));
+      platform.zwaveAccessories = new Map([[10, published(10, 'before')]]);
+      const revision = (await driveRoute(platform, '/nodes/10/type', 'GET')).body.cohortRevision;
+      (platform.matterAccessories.add as jest.Mock).mockImplementation(() => {
+        throw new Error('the Matter server is not running');
+      });
+
+      const write = await driveRoute(platform, '/nodes/10/type', 'POST', {
+        primaryKind: 'window-covering',
+        expectedFingerprint: FINGERPRINT,
+        expectedRevision: revision,
+      });
+
+      /**
+       * The device publishes the type that was asked for. Reporting the Matter fault here would
+       * tell the user their rebuild failed, and leave a warning saying so, about a device that
+       * was rebuilt.
+       */
+      expect(write.body.rebuilt).toEqual([10]);
+      expect(write.body.failed).toEqual([]);
+      expect(write.body.payload.rebuildFailure).toBeNull();
+      expect(platform.log.error).toHaveBeenCalledWith(expect.stringContaining('Matter'));
+
+      expect((await driveRoute(platform, '/nodes/10/type', 'GET')).body.rebuildFailure).toBeNull();
     });
   });
 });

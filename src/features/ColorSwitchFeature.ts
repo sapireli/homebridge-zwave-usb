@@ -1,12 +1,29 @@
+import { Endpoint } from 'zwave-js';
+import { IZWaveNode } from '../zwave/interfaces';
 import { Service, CharacteristicValue } from 'homebridge';
 import { CommandClasses } from '@zwave-js/core';
-import { BaseFeature } from './ZWaveFeature';
+import { BaseFeature, definedValues, hasValue } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
 /**
  * ColorSwitchFeature handles RGB and White channels for Z-Wave lights.
  */
 export class ColorSwitchFeature extends BaseFeature {
+  /**
+   * Color alone is not enough: on/off and brightness always go through Multilevel Switch, so a
+   * device with color values and no switch values would publish a light that cannot be lit.
+   */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    return (
+      hasValue(values, CommandClasses['Color Switch'], 'currentColor') &&
+      hasValue(values, CommandClasses['Color Switch'], 'targetColor') &&
+      hasValue(values, CommandClasses['Multilevel Switch'], 'currentValue') &&
+      hasValue(values, CommandClasses['Multilevel Switch'], 'targetValue')
+    );
+  }
+
   private service!: Service;
 
   init(): void {
@@ -151,7 +168,7 @@ export class ColorSwitchFeature extends BaseFeature {
   }
 
   /**
-   * A colour write needs both components, so whichever one HomeKit did not send is read back
+   * A color write needs both components, so whichever one HomeKit did not send is read back
    * from the device. `driver` names the characteristic that was actually written, so the log
    * does not attribute a read-back value to HomeKit.
    */

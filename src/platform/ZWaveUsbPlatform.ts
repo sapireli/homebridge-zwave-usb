@@ -11,11 +11,23 @@ import { CommandClasses } from '@zwave-js/core';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import { randomUUID } from 'crypto';
+import { buildNodeParametersPayload, type NodeParametersPayload } from './NodeParametersPayload';
+import {
+  baselinesFor,
+  canRefresh,
+  isComplete,
+  reconcilePending,
+  refreshStatus,
+  shouldDispatch,
+  type RefreshStatus,
+  type RefreshToken,
+} from './NodeParametersRefresh';
 import { ZWaveController } from '../zwave/ZWaveController';
 import { IZWaveController, IZWaveNode, ZWaveValueEvent } from '../zwave/interfaces';
 import { ZWaveAccessory } from '../accessories/ZWaveAccessory';
 import { BatterySnapshot } from '../features/ZWaveFeature';
-import { AccessoryFactory } from '../accessories/AccessoryFactory';
+import { AccessoryFactory, EndpointPlan, PrimaryKind } from '../accessories/AccessoryFactory';
 import { ControllerAccessory } from '../accessories/ControllerAccessory';
 import { readCoveringPosition } from '../zwave/coveringTravel';
 import { HAP_COMMUNICATION_FAILURE } from '../features/ZWaveFeature';
@@ -25,6 +37,19 @@ import {
   STALL_WINDOW_MS as COVERING_STALL_WINDOW_MS,
 } from '../zwave/coveringController';
 import { MatterAccessories } from '../matter/MatterAccessories';
+import { TypeOverrideResolver, WriteResult } from './TypeOverrideResolver';
+import {
+  DeviceFingerprint,
+  TypeOverrideStore,
+  describeError,
+  fingerprintKey,
+} from './TypeOverrideStore';
+import {
+  NodeTypePayload,
+  NodeTypeSummary,
+  buildNodeTypePayload,
+  summarizeNodeType,
+} from './NodeTypePayload';
 import {
   STATUS_CHAR_UUID,
   PIN_CHAR_UUID,
@@ -63,10 +88,47 @@ function describeRequestFailure(err: unknown): string {
   return `The command failed with HomeKit status ${String(err)}.`;
 }
 
+/**
+ * The body of a type write, as it arrived over IPC.
+ *
+ * Its fields are declared as the write expects them rather than as optional, because the write
+ * is what validates them: it states which guards it requires and refuses a request missing one
+ * with no change. Checking them here as well would be a second rule to keep in step with it.
+ */
+interface TypeWriteBody {
+  primaryKind: PrimaryKind;
+  expectedFingerprint: DeviceFingerprint;
+  expectedRevision: string;
+  observationId: string;
+}
+
+/**
+ * A parameters payload as the page receives it.
+ *
+ * It carries the name of the node it was built from, so that a page holding it can tell that the
+ * number it read under now belongs to a different device.
+ */
+export type NodeParametersView = NodeParametersPayload & {
+  identity: string;
+  refresh: RefreshStatus;
+};
+
+/** What a type write did, which the panels redraw from. */
+export interface TypeWriteOutcome {
+  payload: NodeTypePayload | null;
+  rebuilt: number[];
+  failed: { nodeId: number; error: string }[];
+  refusal?: string;
+}
+
 export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
   public readonly Characteristic: typeof Characteristic;
   public readonly accessories: PlatformAccessory[] = [];
+  /** The refresh each node has running or has lately run, held so returning to the page finds it. */
+  private readonly parameterRefreshes = new Map<number, RefreshToken>();
+
+  private readonly nodeIdentities = new WeakMap<IZWaveNode, string>();
   /** Whether the one-time Matter cache sweep has run for this session. */
   private matterCacheSwept = false;
   private matterSweepTimeout?: NodeJS.Timeout;
@@ -82,11 +144,23 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
    */
   private readonly matterAccessories = new MatterAccessories(this);
   private discoveryInFlight = new Set<number>();
+
+  /**
+   * Nodes whose last rebuild after a type change failed, until one succeeds or the plugin
+   * restarts. Held here rather than derived, because the saved decision is what every other
+   * answer is read from, and the saved decision is exactly what these nodes do not publish.
+   *
+   * Each record names the hardware it was written for as well as the node number, because
+   * Z-Wave hands a freed number to the next device to join, and that device has not failed
+   * at anything.
+   */
+  private readonly rebuildFailures = new Map<number, { error: string; fingerprint: string | null }>();
   private firmwareProgress = new Map<
     number,
     { percent: number; outcome?: 'success' | 'failure' }
   >();
   private refreshStates = new Map<number, 'waiting-wakeup' | 'refreshing'>();
+  private typeOverrides?: TypeOverrideResolver;
 
   constructor(
     public readonly log: Logger,
@@ -188,6 +262,35 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
         res.end(JSON.stringify(data));
       };
 
+      /**
+       * Hands the parsed request body to a handler that answers for itself.
+       *
+       * The body is whatever the caller sent. Nothing here decides it is well formed: a write
+       * states which fields it needs and refuses a request that is missing one, so a body that
+       * is not an object arrives as an empty one and is refused the same way.
+       */
+      const readBody = (handle: (body: TypeWriteBody) => Promise<unknown>) => {
+        let body = '';
+        req.on('data', (chunk) => (body += chunk));
+        req.on('end', () => {
+          let parsed: unknown;
+          try {
+            parsed = body ? JSON.parse(body) : {};
+          } catch (err) {
+            return sendJson({ error: describeError(err) }, 400);
+          }
+          const fields =
+            typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : {};
+
+          void handle(fields as TypeWriteBody)
+            .then((answer) => sendJson(answer))
+            .catch((err) => {
+              this.log.error(`IPC Management Error: ${err}`);
+              sendJson({ error: describeError(err) }, 500);
+            });
+        });
+      };
+
       try {
         if (normalizedUrl === '/nodes' && method === 'GET') {
           const nodes = Array.from(this.zwaveController?.nodes.values() || []).map((node) => ({
@@ -204,6 +307,8 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
             refreshState: this.refreshStates.get(node.nodeId),
             homekitState: this.getHomeKitPublicationState(node),
             battery: this.readBatteryState(node),
+            identity: this.nodeIdentity(node),
+            ...this.typeSummaryFor(node),
           }));
           return sendJson(nodes);
         }
@@ -439,6 +544,126 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           return;
         }
 
+        if (normalizedUrl.startsWith('/nodes/') && normalizedUrl.endsWith('/parameters')) {
+          const nodeId = parseInt(normalizedUrl.split('/')[2], 10);
+          const payload = this.nodeParametersPayload(nodeId);
+
+          return payload
+            ? sendJson(payload)
+            : sendJson({ error: `Node ${nodeId} is not in the network` }, 404);
+        }
+
+        if (
+          normalizedUrl.startsWith('/nodes/') &&
+          normalizedUrl.endsWith('/parameters/refresh') &&
+          method === 'POST'
+        ) {
+          let body = '';
+          req.on('data', (chunk) => (body += chunk));
+          req.on('end', () => {
+            const nodeId = parseInt(normalizedUrl.split('/')[2], 10);
+
+            try {
+              /**
+               * The caller says which device it means to ask, and one that does not say is
+               * refused rather than answered about whichever device holds the number: a re-read
+               * puts commands on the network, and a node number can change hands between the
+               * list a caller read and the request it made from it.
+               */
+              const { identity } = JSON.parse(body || '{}');
+
+              if (typeof identity !== 'string' || identity.length === 0) {
+                return sendJson({ error: 'A re-read must name the device it is for.' }, 400);
+              }
+
+              const payload = this.requestParameterRefresh(nodeId, identity);
+
+              return payload
+                ? sendJson(payload)
+                : sendJson({ error: `Node ${nodeId} is not in the network` }, 404);
+            } catch (err) {
+              this.log.error(`Configuration-value re-read rejected: ${err}`);
+              return sendJson({ error: err instanceof Error ? err.message : String(err) }, 400);
+            }
+          });
+          return;
+        }
+
+        if (normalizedUrl.startsWith('/nodes/') && normalizedUrl.endsWith('/type')) {
+          const nodeId = parseInt(normalizedUrl.split('/')[2], 10);
+
+          if (method === 'GET') {
+            const payload = this.nodeTypePayload(nodeId);
+            return payload
+              ? sendJson(payload)
+              : sendJson({ error: `Node ${nodeId} is not in the network` }, 404);
+          }
+
+          if (method === 'POST') {
+            readBody((body) =>
+              this.writeNodeType(nodeId, (resolver) =>
+                resolver.setNodeType({
+                  nodeId,
+                  primaryKind: body.primaryKind,
+                  expectedFingerprint: body.expectedFingerprint,
+                  expectedRevision: body.expectedRevision,
+                }),
+              ),
+            );
+            return;
+          }
+        }
+
+        if (
+          normalizedUrl.startsWith('/nodes/') &&
+          normalizedUrl.endsWith('/type/clear') &&
+          method === 'POST'
+        ) {
+          const nodeId = parseInt(normalizedUrl.split('/')[2], 10);
+          readBody((body) =>
+            this.writeNodeType(nodeId, (resolver) =>
+              resolver.clearNodeType({
+                nodeId,
+                expectedFingerprint: body.expectedFingerprint,
+                expectedRevision: body.expectedRevision,
+              }),
+            ),
+          );
+          return;
+        }
+
+        if (
+          normalizedUrl.startsWith('/nodes/') &&
+          normalizedUrl.endsWith('/type/remove') &&
+          method === 'POST'
+        ) {
+          const nodeId = parseInt(normalizedUrl.split('/')[2], 10);
+          readBody((body) =>
+            this.writeNodeType(nodeId, (resolver) =>
+              resolver.removeTypeOverride({ nodeId, expectedRevision: body.expectedRevision }),
+            ),
+          );
+          return;
+        }
+
+        if (
+          normalizedUrl.startsWith('/nodes/') &&
+          normalizedUrl.endsWith('/type/acknowledge') &&
+          method === 'POST'
+        ) {
+          const nodeId = parseInt(normalizedUrl.split('/')[2], 10);
+          readBody((body) =>
+            this.writeNodeType(nodeId, (resolver) =>
+              resolver.acknowledgeTypeOrphan({
+                nodeId,
+                observationId: body.observationId,
+                expectedFingerprint: body.expectedFingerprint,
+              }),
+            ),
+          );
+          return;
+        }
+
         this.log.warn(`IPC Management: Path not found: ${normalizedUrl}`);
         sendJson({ error: `Path not found: ${normalizedUrl}` }, 404);
       } catch (err) {
@@ -621,7 +846,494 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     this.syncNodeAccessory(node);
   }
 
-  private syncNodeAccessory(node: IZWaveNode) {
+  /**
+   * The saved type overrides for this network, read on first use.
+   *
+   * Not read at startup, because the home ID names the file and is not known until the driver
+   * has read the controller. Reading it here keeps it ahead of the first plan it affects, so a
+   * saved override is never published as the detected type and rebuilt a moment later.
+   */
+  private typeOverridesFor(homeId: number): TypeOverrideResolver {
+    if (!this.typeOverrides) {
+      const store = new TypeOverrideStore(this.api.user.storagePath(), homeId, this.log);
+      store.load();
+      this.typeOverrides = new TypeOverrideResolver(
+        store,
+        () => Array.from(this.zwaveController?.nodes.values() ?? []),
+        this.log,
+      );
+    }
+
+    return this.typeOverrides;
+  }
+
+  /** The resolver for the running network, or none while the controller is still starting. */
+  private typeOverridesNow(): TypeOverrideResolver | undefined {
+    const homeId = this.zwaveController?.homeId;
+
+    return homeId ? this.typeOverridesFor(homeId) : undefined;
+  }
+
+  /** Whether a live Matter endpoint is publishing this node, which only a restart replaces. */
+  /**
+   * The HomeKit accessory a node has, whether or not the plugin currently holds a wrapper for
+   * it.
+   *
+   * A rebuild that failed leaves the node with no wrapper while Matter goes on publishing the
+   * endpoint it already has. Reading the identity only from the wrapper would then report the
+   * node as absent from Matter, and the next type change would be confirmed without the
+   * restart the published endpoint needs. The cached accessory is found by the node and
+   * network it records, which is the identity the accessory is adopted by when one is built.
+   */
+  private platformAccessoryFor(nodeId: number): PlatformAccessory | undefined {
+    const live = this.zwaveAccessories.get(nodeId)?.platformAccessory;
+    if (live) {
+      return live;
+    }
+
+    const homeId = this.zwaveController?.homeId;
+
+    return this.accessories.find((accessory) => {
+      const context = accessory.context as { nodeId?: number; homeId?: number } | undefined;
+
+      return context?.nodeId === nodeId && context?.homeId === homeId;
+    });
+  }
+
+  private matterPublishes(nodeId: number): boolean {
+    const accessory = this.platformAccessoryFor(nodeId);
+
+    return accessory ? this.matterAccessories.publishes(accessory.UUID) : false;
+  }
+
+  /**
+   * A name for this node that is never given to another, which the page reads the way the
+   * refresh reads the node itself.
+   *
+   * Z-Wave gives a node number away again, and a replacement can report the same hardware as the
+   * device that had the number before, or report none at all while that one reported none
+   * either. Neither the number nor the fingerprint tells those apart, so the name is minted for
+   * the node and held against it: the page can then see that what it read describes a device
+   * that is no longer there, instead of drawing one device's settings under another's name.
+   *
+   * Weakly held, so a name lasts exactly as long as the node it names.
+   */
+  private nodeIdentity(node: IZWaveNode): string {
+    const held = this.nodeIdentities.get(node);
+    if (held) {
+      return held;
+    }
+
+    const minted = randomUUID();
+    this.nodeIdentities.set(node, minted);
+
+    return minted;
+  }
+
+  /** This node's hardware as the records name it, or none when it has not reported any. */
+  private fingerprintKeyOf(node: IZWaveNode): string | null {
+    const fingerprint = TypeOverrideResolver.fingerprintOf(node);
+
+    return fingerprint ? fingerprintKey(fingerprint) : null;
+  }
+
+  /**
+   * The error from this node's last failed rebuild, while the record still describes the device
+   * that is there now. A node that cannot be read cannot be shown to be a different device, so
+   * its record stands rather than being discarded on a reading that failed.
+   */
+  private rebuildFailureFor(node: IZWaveNode): string | null {
+    const failure = this.rebuildFailures.get(node.nodeId);
+    if (!failure) {
+      return null;
+    }
+
+    let current = failure.fingerprint;
+    try {
+      current = this.fingerprintKeyOf(node);
+    } catch (err) {
+      this.log.debug(`Node ${node.nodeId}: hardware unreadable for its rebuild record: ${err}`);
+    }
+
+    return current === failure.fingerprint ? failure.error : null;
+  }
+
+  /** Everything the parameters section draws, or none when the node has left the network. */
+  public nodeParametersPayload(nodeId: number): NodeParametersView | undefined {
+    const node = this.zwaveController?.nodes.get(nodeId);
+    if (!node) {
+      return undefined;
+    }
+
+    const payload = buildNodeParametersPayload(node);
+    const token = this.parameterRefreshFor(node);
+    if (token) {
+      this.observeParameterRefresh(token, payload);
+    }
+
+    return {
+      ...payload,
+      identity: this.nodeIdentity(node),
+      refresh: refreshStatus(token, payload),
+    };
+  }
+
+  /**
+   * Narrows what the attempt is still waiting on, and records when it is first seen to have
+   * finished with every value answered.
+   *
+   * The moment is taken where the completion is seen, which is as close to it as anything here
+   * can get: a device answers when it answers, and nothing announces that the last value has
+   * arrived. It is not taken from the request, which a sleeping device can answer hours later.
+   */
+  private observeParameterRefresh(token: RefreshToken, payload: NodeParametersPayload): void {
+    reconcilePending(token, payload);
+
+    if (isComplete(token) && token.completedAt === null) {
+      token.completedAt = Date.now();
+    }
+  }
+
+  /**
+   * The refresh this node has, discarded where it was not this node that was asked.
+   *
+   * The node itself is the identity, not its number and not its fingerprint. Z-Wave gives a node
+   * number away again, and the replacement can report the same hardware, or report none at all
+   * while the one before it also reported none. Either way a question put to the device that has
+   * gone would be read as the progress of one put to the device that is here, and would go on
+   * suppressing a real request for as long as its promise stayed unsettled.
+   */
+  private parameterRefreshFor(node: IZWaveNode): RefreshToken | null {
+    const token = this.parameterRefreshes.get(node.nodeId);
+    if (!token) {
+      return null;
+    }
+
+    if (token.owner !== node || token.fingerprint !== this.fingerprintKeyOf(node)) {
+      this.parameterRefreshes.delete(node.nodeId);
+      return null;
+    }
+
+    return token;
+  }
+
+  /**
+   * Asks a device for its current configuration values.
+   *
+   * A request arriving while an attempt is running is that same attempt: its baselines are not
+   * replaced and nothing further is dispatched, because a baseline taken from a timestamp the
+   * running refresh has already advanced would wait for a move it will not make again.
+   *
+   * The caller names the device it means to ask, and a caller naming another one is answered
+   * about the device that holds the number now with nothing put on the network for it: the
+   * reader asked for the device they were looking at, and a number can have changed hands since
+   * they looked.
+   */
+  public requestParameterRefresh(
+    nodeId: number,
+    expectedIdentity: string,
+  ): NodeParametersView | undefined {
+    const node = this.zwaveController?.nodes.get(nodeId);
+    if (!node) {
+      return undefined;
+    }
+
+    const payload = buildNodeParametersPayload(node);
+    const identity = this.nodeIdentity(node);
+    const fingerprint = this.fingerprintKeyOf(node);
+    const existing = this.parameterRefreshFor(node);
+    const meant = expectedIdentity === identity;
+
+    if (meant && canRefresh(payload) && shouldDispatch(existing)) {
+      const baselines = baselinesFor(payload);
+      const token: RefreshToken = {
+        nodeId,
+        owner: node,
+        fingerprint,
+        requestedAt: Date.now(),
+        dispatching: true,
+        asked: baselines.length,
+        retired: 0,
+        completedAt: null,
+        pending: baselines,
+      };
+      this.parameterRefreshes.set(nodeId, token);
+      this.dispatchParameterRefresh(node, token);
+    }
+
+    const token = this.parameterRefreshFor(node);
+    if (token) {
+      this.observeParameterRefresh(token, payload);
+    }
+
+    return { ...payload, identity, refresh: refreshStatus(token, payload) };
+  }
+
+  /**
+   * Sends the refresh and stops waiting on it.
+   *
+   * zwave-js's own documentation says not to await `refreshCCValues`, and it resolves even where
+   * every endpoint failed, because it catches and logs each one. Settling is therefore recorded as
+   * the attempt having finished and nothing more: whether any value answered is read from the
+   * timestamps. The handlers are here so that not awaiting it cannot leave a rejection unhandled.
+   */
+  private dispatchParameterRefresh(node: IZWaveNode, token: RefreshToken): void {
+    const settle = () => {
+      if (this.parameterRefreshes.get(token.nodeId) !== token) {
+        return;
+      }
+
+      token.dispatching = false;
+
+      /**
+       * Read here as well as on the next request, so that an attempt that finishes while nobody
+       * is looking is recorded as having finished then. Reading a device that has just left the
+       * network can throw, and this is not inside a request that would answer for it.
+       */
+      try {
+        this.observeParameterRefresh(token, buildNodeParametersPayload(node));
+      } catch (err) {
+        this.log.debug(`Node ${token.nodeId}: configuration values unreadable on settling: ${err}`);
+      }
+    };
+
+    void node
+      .refreshCCValues(CommandClasses.Configuration)
+      .then(settle)
+      .catch((err) => {
+        this.log.debug(`Node ${token.nodeId}: configuration-value refresh failed: ${err}`);
+        settle();
+      });
+  }
+
+  /** Everything the node's type panel draws, or none when the node has left the network. */
+  public nodeTypePayload(nodeId: number): NodeTypePayload | undefined {
+    const node = this.zwaveController?.nodes.get(nodeId);
+    const resolver = this.typeOverridesNow();
+    if (!node || !resolver) {
+      return undefined;
+    }
+
+    return buildNodeTypePayload(resolver, node, {
+      matterPublishes: (member) => this.matterPublishes(member),
+      rebuildFailure: this.rebuildFailureFor(node),
+    });
+  }
+
+  /** What the node table shows about a node's type, which is a summary of the same decision. */
+  private typeSummaryFor(node: IZWaveNode): NodeTypeSummary {
+    /**
+     * Read before anything that can fail, because this comes from the platform's own record
+     * rather than from classifying the node. A node too broken to summarize is exactly the one
+     * whose accessory is most likely to be behind its saved decision.
+     */
+    const neutral: NodeTypeSummary = {
+      typeOverride: null,
+      typeInvalid: false,
+      typeOrphans: 0,
+      typeRebuildFailed: this.rebuildFailureFor(node) !== null,
+    };
+
+    const resolver = this.typeOverridesNow();
+    if (!resolver) {
+      return neutral;
+    }
+
+    /**
+     * Called per node while the list is built, so a failure here is contained to its own row,
+     * as the battery read beside it is. Deciding what a node could be published as reaches the
+     * node and each of its endpoints, and one node that answers badly would otherwise answer
+     * the whole page with a 500 and leave the table with no rows at all.
+     */
+    try {
+      return summarizeNodeType(resolver, node, neutral.typeRebuildFailed);
+    } catch (err) {
+      this.log.debug(`Type [Node ${node.nodeId}]: no summary for the node list: ${err}`);
+      return neutral;
+    }
+  }
+
+  /**
+   * Runs a type write and rebuilds what it changed.
+   *
+   * The payload returned describes the network after the write, whether the write was accepted
+   * or refused, so a panel that refreshes from it is showing the state a refusal was measured
+   * against rather than the stale one the request was composed from.
+   */
+  private async writeNodeType(
+    nodeId: number,
+    write: (resolver: TypeOverrideResolver) => Promise<WriteResult>,
+  ): Promise<TypeWriteOutcome> {
+    const resolver = this.typeOverridesNow();
+    if (!resolver) {
+      throw new Error('Controller not initialized');
+    }
+
+    const result = await write(resolver);
+
+    if (result.refusal) {
+      /**
+       * The reader is told the write did not happen and is sent to what the panel now reports,
+       * which is the condition the refusal names. The code itself is only useful to someone
+       * reading the log, and is kept here rather than put in front of them.
+       */
+      this.log.debug(`Type change for Node ${nodeId} was refused: ${result.refusal}`);
+    }
+
+    const { rebuilt, failed } = result.refusal
+      ? { rebuilt: [], failed: [] }
+      : this.rebuildForTypeChange(result.rebuild);
+
+    // Rebuilding records where the decision landed, and the payload below reports those records.
+    await resolver.settled();
+
+    return {
+      payload: this.nodeTypePayload(nodeId) ?? null,
+      rebuilt,
+      failed,
+      ...(result.refusal ? { refusal: result.refusal } : {}),
+    };
+  }
+
+  /**
+   * Rebuilds the accessories a saved decision reached.
+   *
+   * The decision is already on disk, so a node that cannot be rebuilt is reported rather than
+   * rolled back: it publishes the saved type from the next restart, and the nodes after it in
+   * the list are still rebuilt. Whether a node was rebuilt is read from its graph signature,
+   * the same comparison the sync makes, so a cohort node the decision did not change is not
+   * claimed as rebuilt.
+   */
+  private rebuildForTypeChange(nodeIds: readonly number[]): {
+    rebuilt: number[];
+    failed: { nodeId: number; error: string }[];
+  } {
+    const rebuilt: number[] = [];
+    const failed: { nodeId: number; error: string }[] = [];
+
+    const homeId = this.zwaveController?.homeId;
+
+    for (const nodeId of nodeIds) {
+      const node = this.zwaveController?.nodes.get(nodeId);
+      if (!node) {
+        continue;
+      }
+
+      const existing = this.zwaveAccessories.get(nodeId);
+      const before = existing?.getGraphSignature();
+
+      /**
+       * One reading of the node, which both decides whether anything changes and builds the
+       * accessory when it does. Planning here and again inside the sync would compare one
+       * reading of a node and build from another, which is the inconsistency the shared plan
+       * exists to prevent.
+       *
+       * A cohort node the decision does not change is then left alone rather than synced and
+       * compared afterward. The sync reaches `updateNode` and `refresh` on its way past an
+       * accessory it will not replace, and either can throw, which would report a rebuild
+       * failure for a node that was never going to be rebuilt. Planning can throw too, and a
+       * plan that cannot be read is no reason to skip, so it falls through to the sync and the
+       * guard around it.
+       */
+      let plans: EndpointPlan[] | undefined;
+      let planned: string | undefined;
+      try {
+        if (homeId && node.ready) {
+          const overrides = this.typeOverridesFor(homeId);
+          plans = AccessoryFactory.planFeatures(node, overrides.planOptionsFor(node));
+          planned = existing?.isInitialized()
+            ? AccessoryFactory.signatureOfPlans(plans)
+            : undefined;
+        }
+      } catch (err) {
+        plans = undefined;
+        this.log.debug(`Node ${nodeId}: could not be planned before a rebuild: ${err}`);
+      }
+
+      if (planned !== undefined && planned === before) {
+        // The decision still reaches this node, and the sync is the only other thing that records it.
+        if (homeId) {
+          void this.typeOverridesFor(homeId).observe(node);
+        }
+        this.rebuildFailures.delete(nodeId);
+        continue;
+      }
+
+      try {
+        this.syncNodeAccessory(node, plans);
+        if (this.zwaveAccessories.get(nodeId)?.getGraphSignature() !== before) {
+          rebuilt.push(nodeId);
+        }
+      } catch (err) {
+        const error = describeError(err);
+        this.log.error(`Failed to rebuild Node ${nodeId} after a type change: ${err}`);
+        this.rebuildFailures.set(nodeId, { error, fingerprint: this.fingerprintKeyOf(node) });
+        failed.push({ nodeId, error });
+      }
+    }
+
+    return { rebuilt, failed };
+  }
+
+  /**
+   * Puts a freshly built accessory in place of the one a node has.
+   *
+   * The old one is stopped first, because two accessories bound to one node would both answer
+   * it. It is also taken out of the map first, and that is the part that matters: if the
+   * replacement cannot be built, a stopped accessory left in the map answers nothing while its
+   * stored signature still says the node is up to date. The next pass, or a revert, would then
+   * find the signature it expects, settle the warning, skip the rebuild, and leave HomeKit
+   * bound to a thing that does nothing until Homebridge is restarted. With no entry there, the
+   * next pass has a node with no accessory and builds one.
+   */
+  private replaceAccessory(
+    node: IZWaveNode,
+    homeId: number,
+    plans: readonly EndpointPlan[],
+    options: { removeSupersededServices?: boolean; pruneUnmanagedServices?: boolean },
+  ): void {
+    this.zwaveAccessories.get(node.nodeId)?.stop();
+    this.zwaveAccessories.delete(node.nodeId);
+
+    const replacement = AccessoryFactory.create(this, node, homeId, plans);
+    this.zwaveAccessories.set(node.nodeId, replacement);
+    replacement.initialize(options);
+    this.settleRebuildWarning(node.nodeId);
+    this.offerToMatter(replacement, node.nodeId);
+  }
+
+  /**
+   * A node publishing the plan made for this pass is no longer behind the type saved for it,
+   * whatever brought it up to date.
+   *
+   * Every call below sits immediately after `initialize`, which is the call that gives the
+   * accessory its services. Before it they do not exist, so the warning would be settled on the
+   * way into a rebuild that then fails, and nothing outside a write would set it again.
+   */
+  private settleRebuildWarning(nodeId: number): void {
+    this.rebuildFailures.delete(nodeId);
+  }
+
+  /**
+   * Offers a built accessory to the Matter layer, which publishes it on its own schedule.
+   *
+   * A failure here is logged and goes no further. HomeKit has the accessory by this point, so
+   * letting the fault out would abort a sync that has already done its work: an event handler
+   * would lose the rest of its pass, and a type write would record a HomeKit rebuild failure,
+   * and warn about one, for a device HomeKit rebuilt.
+   */
+  private offerToMatter(accessory: ZWaveAccessory, nodeId: number): void {
+    try {
+      this.matterAccessories.add(accessory);
+    } catch (err) {
+      this.log.error(
+        `Node ${nodeId}: HomeKit was updated, but the accessory could not be offered to ` +
+          `the Matter layer: ${err}`,
+      );
+    }
+  }
+
+  private syncNodeAccessory(node: IZWaveNode, plans?: EndpointPlan[]) {
     // Skip Node 1 (the controller itself) as it's handled by ControllerAccessory
     if (Number(node.nodeId) === 1) {
       this.log.info(
@@ -636,23 +1348,50 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       return;
     }
 
-    const graphSignature = node.ready ? AccessoryFactory.getGraphSignature(node) : undefined;
+    /**
+     * One reading of the node for this pass. The signature compared below and every accessory
+     * built from it describe the same plan. Planning again inside the build would read a node
+     * that is still interviewing a second time, and the two readings can differ, so the
+     * accessory would carry a signature describing services it does not have.
+     */
+    const typeOverrides = this.typeOverridesFor(homeId);
+    void typeOverrides.observe(node);
+
+    let planned: EndpointPlan[] | undefined = plans;
+    const featurePlans = () =>
+      (planned ??= AccessoryFactory.planFeatures(node, typeOverrides.planOptionsFor(node)));
+    const graphSignature = node.ready
+      ? AccessoryFactory.signatureOfPlans(featurePlans())
+      : undefined;
 
     const existing = this.zwaveAccessories.get(node.nodeId);
+
+    /**
+     * However a node came to publish what was planned for it, it is no longer behind the
+     * decision saved for it. An ordinary reconcile reaching it in the background settles the
+     * warning as well as a rebuild started from the panel does. A cached accessory answers with
+     * the signature the last run stored for it while its services have yet to be built in this
+     * one, so having been initialized is part of being current.
+     */
+    if (
+      graphSignature !== undefined &&
+      existing?.isInitialized() &&
+      existing.getGraphSignature() === graphSignature
+    ) {
+      this.settleRebuildWarning(node.nodeId);
+    }
     if (existing || this.discoveryInFlight.has(node.nodeId)) {
       if (existing) {
         if (node.ready && !existing.isInitialized()) {
           /**
-           * The accessory was materialised from the HomeKit cache before the interview finished,
+           * The accessory was materialized from the HomeKit cache before the interview finished,
            * so its services still describe whatever the previous run believed the node to be.
            * Building the graph again replaces the stored signature, which is why the reconcile
            * has to be requested here rather than inferred from a later comparison.
            */
-          existing.stop();
-          const hydratedAccessory = AccessoryFactory.create(this, node, homeId);
-          this.zwaveAccessories.set(node.nodeId, hydratedAccessory);
-          hydratedAccessory.initialize({ removeSupersededServices: true });
-          this.matterAccessories.add(hydratedAccessory);
+          this.replaceAccessory(node, homeId, featurePlans(), {
+            removeSupersededServices: true,
+          });
           return;
         }
 
@@ -665,11 +1404,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           this.log.info(
             `Rebuilding accessory graph for Node ${node.nodeId} after capability change was detected.`,
           );
-          existing.stop();
-          const reconciledAccessory = AccessoryFactory.create(this, node, homeId);
-          this.zwaveAccessories.set(node.nodeId, reconciledAccessory);
-          reconciledAccessory.initialize({ pruneUnmanagedServices: true });
-          this.matterAccessories.add(reconciledAccessory);
+          this.replaceAccessory(node, homeId, featurePlans(), { pruneUnmanagedServices: true });
           return;
         }
 
@@ -698,7 +1433,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           `Refreshing cached accessory for Node ${node.nodeId} before interview completion so HomeKit can surface fault state.`,
         );
       }
-      const accessory = AccessoryFactory.create(this, node, homeId);
+      const accessory = AccessoryFactory.create(this, node, homeId, featurePlans());
       this.zwaveAccessories.set(node.nodeId, accessory);
 
       if (node.ready) {
@@ -707,8 +1442,10 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
          * classification differed, so the graph is reconciled as part of the first build.
          */
         accessory.initialize({ removeSupersededServices: true });
-        this.matterAccessories.add(accessory);
+        this.settleRebuildWarning(node.nodeId);
+        this.offerToMatter(accessory, node.nodeId);
       } else {
+        // A node partway through its interview publishes nothing to be behind or up to date on.
         accessory.refresh();
       }
     } finally {
@@ -1211,13 +1948,19 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
     const remaining = this.accessories.filter((accessory) => !staleUuids.has(accessory.UUID));
     this.accessories.length = 0;
     this.accessories.push(...remaining);
-    staleNodeIds.forEach((nodeId) => this.zwaveAccessories.delete(nodeId));
+    staleNodeIds.forEach((nodeId) => {
+      this.zwaveAccessories.delete(nodeId);
+      this.rebuildFailures.delete(nodeId);
+      this.parameterRefreshes.delete(nodeId);
+    });
 
     return staleAccessories.length;
   }
 
   private handleNodeRemoved(node: IZWaveNode) {
     this.refreshStates.delete(node.nodeId);
+    this.rebuildFailures.delete(node.nodeId);
+    this.parameterRefreshes.delete(node.nodeId);
     this.log.info(`Node ${node.nodeId} removed`);
 
     const homeId = this.zwaveController?.homeId;

@@ -1,6 +1,8 @@
+import { Endpoint } from 'zwave-js';
+import { IZWaveNode } from '../zwave/interfaces';
 import { Service, CharacteristicValue } from 'homebridge';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
-import { BaseFeature } from './ZWaveFeature';
+import { BaseFeature, definedValues, hasValue } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
 /**
@@ -8,6 +10,27 @@ import { ZWaveValueEvent } from '../zwave/interfaces';
  * It is exposed as a Fan to allow volume control via the RotationSpeed slider in the Apple Home app.
  */
 export class SirenFeature extends BaseFeature {
+  /**
+   * The volume control is added whenever Sound Switch CC is advertised, so a device missing
+   * `defaultVolume` would publish a control with nothing behind it. A device without Sound
+   * Switch is driven as a plain switch instead.
+   */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    if (endpoint.supportsCC(CommandClasses['Sound Switch'])) {
+      return (
+        hasValue(values, CommandClasses['Sound Switch'], 'toneId') &&
+        hasValue(values, CommandClasses['Sound Switch'], 'defaultVolume')
+      );
+    }
+
+    return (
+      hasValue(values, CommandClasses['Binary Switch'], 'currentValue') &&
+      hasValue(values, CommandClasses['Binary Switch'], 'targetValue')
+    );
+  }
+
   private service!: Service;
 
   init(): void {

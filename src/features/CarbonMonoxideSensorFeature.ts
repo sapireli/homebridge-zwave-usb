@@ -1,12 +1,24 @@
+import { Endpoint } from 'zwave-js';
+import { IZWaveNode } from '../zwave/interfaces';
 import { Service } from 'homebridge';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
-import { BaseFeature } from './ZWaveFeature';
+import { BaseFeature, definedValues, hasBinarySensor, hasNotification } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
 /**
  * CarbonMonoxideSensorFeature handles Z-Wave CO detectors.
  */
 export class CarbonMonoxideSensorFeature extends BaseFeature {
+  /** Reads whichever source reports, so either one is enough to drive the service. */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    return (
+      hasNotification(values, 'Carbon Monoxide Alarm', ['Sensor status'], true) ||
+      hasBinarySensor(values, 'CO')
+    );
+  }
+
   private service!: Service;
 
   init(): void {

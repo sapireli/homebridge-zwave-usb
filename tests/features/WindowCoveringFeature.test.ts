@@ -270,6 +270,40 @@ describe('WindowCoveringFeature', () => {
       expect(current()).toBe(40);
     });
 
+    it('refuses to move when it advertises Window Covering CC but keys no position', async () => {
+      /**
+       * This shape reads convincingly and cannot be driven, which is why it is not offered as a
+       * type a user can choose. The position is resolved through the Multilevel Switch fallback,
+       * so the covering reports where it is. Movement does not use that fallback: the command
+       * class comes from `supportsCC`, so a Window Covering `targetValue` is built, and the
+       * write is refused because no keyed Window Covering position exists to name.
+       */
+      node.getDefinedValueIDs = jest
+        .fn()
+        .mockReturnValue([
+          { endpoint: 0, commandClass: MULTILEVEL_SWITCH, property: 'currentValue' },
+          { endpoint: 0, commandClass: MULTILEVEL_SWITCH, property: 'targetValue' },
+        ]);
+      endpoint.supportsCC.mockImplementation((cc: number) => cc === WINDOW_COVERING);
+      node.getValue.mockImplementation((vid: any) =>
+        vid.commandClass === MULTILEVEL_SWITCH && vid.property === 'currentValue' ? 40 : undefined,
+      );
+      node.pollValue.mockImplementation(() => new Promise(() => undefined));
+      await start();
+
+      // It reports a position, which is what makes the shape look serviceable.
+      expect(current()).toBe(40);
+
+      // HomeKit is told the command failed, and nothing is transmitted.
+      await expect(move(80)).rejects.toBeDefined();
+
+      expect(node.setValue).not.toHaveBeenCalled();
+      // Nothing reaches the device, and nothing is logged to explain the refusal either, which
+      // is why the type is withheld rather than offered and left to fail in use.
+      expectLogged(/HomeKit requested 80%/);
+      expectNotLogged(/transmitting/);
+    });
+
     it('prefers the keyed Window Covering position over a stale Multilevel Switch one', async () => {
       node.getDefinedValueIDs = jest
         .fn()

@@ -92,7 +92,7 @@ describe('AccessoryFactory', () => {
       { endpoint: 2, commandClass: 37, property: 'currentValue' },
     ]);
 
-    const zAccessory = AccessoryFactory.create(platform, node, 123);
+    const zAccessory = AccessoryFactory.create(platform, node, 123, AccessoryFactory.planFeatures(node));
 
     // We expect 2 switches added (for ep 1 and 2), but ep 0 should be skipped for CC 37
     // Each Switch feature calls addFeature.
@@ -133,7 +133,7 @@ describe('AccessoryFactory', () => {
 
     // For this test environment, we'll assume if it doesn't crash and returns an accessory, it's partially working.
     // To really test it, we should mock the feature classes.
-    const zAccessory = AccessoryFactory.create(platform, node, 123);
+    const zAccessory = AccessoryFactory.create(platform, node, 123, AccessoryFactory.planFeatures(node));
     expect(zAccessory).toBeDefined();
   });
 
@@ -148,7 +148,7 @@ describe('AccessoryFactory', () => {
       { endpoint: 0, commandClass: CommandClasses['Binary Switch'], property: 'currentValue' },
     ]);
 
-    AccessoryFactory.create(platform, node, 123);
+    AccessoryFactory.create(platform, node, 123, AccessoryFactory.planFeatures(node));
 
     expect(platform.api.platformAccessory).toHaveBeenCalledWith(
       expect.any(String),
@@ -173,7 +173,7 @@ describe('AccessoryFactory', () => {
       },
     ]);
 
-    AccessoryFactory.create(platform, node, 123);
+    AccessoryFactory.create(platform, node, 123, AccessoryFactory.planFeatures(node));
 
     expect(platform.api.platformAccessory).toHaveBeenCalledWith(
       expect.any(String),
@@ -195,7 +195,7 @@ describe('AccessoryFactory', () => {
       { endpoint: 0, commandClass: 98, property: 'currentMode' },
     ]);
 
-    AccessoryFactory.create(platform, node, 123);
+    AccessoryFactory.create(platform, node, 123, AccessoryFactory.planFeatures(node));
 
     const hasLockFeature = addFeatureSpy.mock.calls.some(
       ([feature]) => feature instanceof LockFeature,
@@ -236,7 +236,7 @@ describe('AccessoryFactory', () => {
       },
     ]);
 
-    AccessoryFactory.create(platform, node, 123);
+    AccessoryFactory.create(platform, node, 123, AccessoryFactory.planFeatures(node));
 
     const hasContact = addFeatureSpy.mock.calls.some(
       ([feature]) => feature instanceof ContactSensorFeature,
@@ -293,7 +293,7 @@ describe('AccessoryFactory', () => {
       return undefined;
     });
 
-    AccessoryFactory.create(platform, node, 123);
+    AccessoryFactory.create(platform, node, 123, AccessoryFactory.planFeatures(node));
 
     const hasContact = addFeatureSpy.mock.calls.some(
       ([feature]) => feature instanceof ContactSensorFeature,
@@ -337,7 +337,7 @@ describe('AccessoryFactory', () => {
       },
     ]);
 
-    const withoutSensors = AccessoryFactory.getGraphSignature(node);
+    const withoutSensors = AccessoryFactory.signatureOfPlans(AccessoryFactory.planFeatures(node));
 
     node.getDefinedValueIDs.mockReturnValue([
       {
@@ -368,7 +368,7 @@ describe('AccessoryFactory', () => {
       return undefined;
     });
 
-    const withSensors = AccessoryFactory.getGraphSignature(node);
+    const withSensors = AccessoryFactory.signatureOfPlans(AccessoryFactory.planFeatures(node));
 
     expect(withSensors).not.toBe(withoutSensors);
   });
@@ -406,7 +406,7 @@ describe('AccessoryFactory', () => {
       },
     ]);
 
-    AccessoryFactory.create(platform, node, 123);
+    AccessoryFactory.create(platform, node, 123, AccessoryFactory.planFeatures(node));
 
     const hasContact = addFeatureSpy.mock.calls.some(
       ([feature]) => feature instanceof ContactSensorFeature,
@@ -444,9 +444,14 @@ describe('AccessoryFactory', () => {
       node.getAllEndpoints.mockReturnValue([multilevelSwitchEndpoint()]);
       node.getDefinedValueIDs.mockReturnValue(definedValues);
 
-      expect(AccessoryFactory.getGraphSignature(node as IZWaveNode)).toContain('window-covering');
+      expect(AccessoryFactory.signatureOfPlans(AccessoryFactory.planFeatures(node as IZWaveNode))).toContain('window-covering');
 
-      AccessoryFactory.create(platform, node as IZWaveNode, 123);
+      AccessoryFactory.create(
+      platform,
+      node as IZWaveNode,
+      123,
+      AccessoryFactory.planFeatures(node as IZWaveNode),
+    );
 
       expect(
         addFeatureSpy.mock.calls.some(([feature]) => feature instanceof WindowCoveringFeature),
@@ -465,7 +470,12 @@ describe('AccessoryFactory', () => {
       node.getAllEndpoints.mockReturnValue([multilevelSwitchEndpoint()]);
       node.getDefinedValueIDs.mockReturnValue(definedValues);
 
-      AccessoryFactory.create(platform, node as IZWaveNode, 123);
+      AccessoryFactory.create(
+      platform,
+      node as IZWaveNode,
+      123,
+      AccessoryFactory.planFeatures(node as IZWaveNode),
+    );
 
       expect(platform.api.platformAccessory).toHaveBeenCalledWith(
         expect.any(String),
@@ -483,9 +493,14 @@ describe('AccessoryFactory', () => {
       node.getAllEndpoints.mockReturnValue([multilevelSwitchEndpoint()]);
       node.getDefinedValueIDs.mockReturnValue(definedValues);
 
-      expect(AccessoryFactory.getGraphSignature(node as IZWaveNode)).toContain('multilevel-switch');
+      expect(AccessoryFactory.signatureOfPlans(AccessoryFactory.planFeatures(node as IZWaveNode))).toContain('multilevel-switch');
 
-      AccessoryFactory.create(platform, node as IZWaveNode, 123);
+      AccessoryFactory.create(
+      platform,
+      node as IZWaveNode,
+      123,
+      AccessoryFactory.planFeatures(node as IZWaveNode),
+    );
 
       expect(
         addFeatureSpy.mock.calls.some(([feature]) => feature instanceof MultilevelSwitchFeature),
@@ -511,8 +526,8 @@ describe('AccessoryFactory', () => {
       node.getAllEndpoints.mockReturnValue([multilevelSwitchEndpoint()]);
       node.getDefinedValueIDs.mockReturnValue(definedValues);
 
-      expect(AccessoryFactory.getGraphSignature(node as IZWaveNode)).toContain('multilevel-switch');
-      expect(AccessoryFactory.getGraphSignature(node as IZWaveNode)).not.toContain(
+      expect(AccessoryFactory.signatureOfPlans(AccessoryFactory.planFeatures(node as IZWaveNode))).toContain('multilevel-switch');
+      expect(AccessoryFactory.signatureOfPlans(AccessoryFactory.planFeatures(node as IZWaveNode))).not.toContain(
         'window-covering',
       );
     });
@@ -535,7 +550,7 @@ describe('AccessoryFactory', () => {
       ]);
       node.getDefinedValueIDs.mockReturnValue(definedValues);
 
-      const signature = AccessoryFactory.getGraphSignature(node as IZWaveNode);
+      const signature = AccessoryFactory.signatureOfPlans(AccessoryFactory.planFeatures(node as IZWaveNode));
       expect(signature.match(/window-covering/g)).toHaveLength(1);
       expect(signature).not.toContain('multilevel-switch');
     });
@@ -557,8 +572,13 @@ describe('AccessoryFactory', () => {
       ]);
       node.getDefinedValueIDs.mockReturnValue(definedValues);
 
-      const signature = AccessoryFactory.getGraphSignature(node as IZWaveNode);
-      AccessoryFactory.create(platform, node as IZWaveNode, 123);
+      const signature = AccessoryFactory.signatureOfPlans(AccessoryFactory.planFeatures(node as IZWaveNode));
+      AccessoryFactory.create(
+      platform,
+      node as IZWaveNode,
+      123,
+      AccessoryFactory.planFeatures(node as IZWaveNode),
+    );
 
       expect(JSON.parse(signature)[0].features).toEqual(['window-covering']);
       expect(
@@ -588,8 +608,13 @@ describe('AccessoryFactory', () => {
       },
     ]);
 
-    const signature = AccessoryFactory.getGraphSignature(node as IZWaveNode);
-    AccessoryFactory.create(platform, node as IZWaveNode, 123);
+    const signature = AccessoryFactory.signatureOfPlans(AccessoryFactory.planFeatures(node as IZWaveNode));
+    AccessoryFactory.create(
+      platform,
+      node as IZWaveNode,
+      123,
+      AccessoryFactory.planFeatures(node as IZWaveNode),
+    );
 
     expect(signature).toContain('smoke-sensor');
     expect(

@@ -108,27 +108,115 @@
      * without being cut off or adding to the width the table can scroll.
      */
     .tip { position: relative; }
+    /*
+     * Hidden by display rather than by opacity. A tooltip that is invisible but still laid out
+     * counts toward the table's scrollable width, which is the measurement this column has to
+     * pass, so one that is not being read does not exist.
+     */
     .tip::after {
-      content: attr(data-tip); position: absolute; bottom: calc(100% + 6px);
+      content: attr(data-tip); display: none; position: absolute; bottom: calc(100% + 6px);
       left: 50%; transform: translateX(-50%);
       padding: 4px 7px; border-radius: 3px; white-space: nowrap;
-      font-size: 12px; line-height: 1.3; pointer-events: none; opacity: 0; z-index: 5;
+      font-size: 12px; line-height: 1.3; pointer-events: none; z-index: 5;
       background: var(--hb-text-color, #212529); color: var(--hb-background-color, #fff);
       /* A tooltip is a sentence, not a button label. The host stylesheet sets
          text-transform and letter-spacing on .btn, which a pseudo-element inherits. */
       text-transform: none; letter-spacing: normal; font-weight: 400;
     }
-    .tip:hover::after, .tip:focus-visible::after { opacity: 1; }
+    .tip:hover::after, .tip:focus-visible::after { display: block; }
+
+    /* The way into the node, outside the group of things done to it. */
+    .node-action-cell { display: inline-flex; align-items: center; gap: 6px; }
+
+    /*
+     * The two buttons nearest the right edge hang their tooltip from that edge instead of
+     * centering it on the button, which is what put it past the table.
+     */
+    .node-action-cell > .tip:last-child::after,
+    .node-action-cell .btn-group .tip:last-child::after {
+      left: auto; right: 0; transform: none;
+    }
 
     @media (min-width: 576px) {
       #maintenance .table-responsive { overflow: visible; }
     }
     /* Below 576 px the visual tooltip is hidden; the aria-label still carries the name. */
     @media (max-width: 575.98px) {
-      .tip::after { display: none; }
+      .tip::after, .tip:hover::after, .tip:focus-visible::after { display: none; }
     }
 
     #nodeTable th.col-actions, #nodeTable td.node-actions { text-align: right; }
+
+    /* A node's own page, which replaces the table rather than sitting beside it. */
+    .node-detail-back { display: inline-block; margin-bottom: 12px; }
+    .node-detail-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .node-detail-head h5 { margin: 0; }
+    .node-detail-facts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+      margin-top: 6px; font-size: 85%; }
+    .node-detail-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 14px 0 4px; }
+    #nodeSections { margin-top: 16px; }
+    .type-row { display: flex; gap: 12px; margin-bottom: 10px; }
+    .type-row-label { flex: 0 0 150px; }
+    .type-row-value { flex: 1 1 auto; min-width: 0; }
+    .type-chip { font-weight: 500; margin-left: 8px; vertical-align: 1px; }
+    .cohort-chip { display: inline-block; margin: 2px 6px 2px 0; padding: 2px 8px; border-radius: 4px;
+                   border: 1px solid rgba(127, 127, 127, 0.35); }
+    .cohort-chip .cohort-note { opacity: 0.75; }
+    .type-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: space-between;
+                    margin-top: 12px; }
+    .orphan-cards { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .orphan-card { flex: 1 1 200px; padding: 8px; border-radius: 4px;
+                   border: 1px solid rgba(127, 127, 127, 0.35); }
+    /* Bootstrap colors <code> pink, which reads as something being wrong with the value. */
+    .type-hex { margin-right: 6px; padding: 2px 6px; border-radius: 3px; color: inherit;
+                background: rgba(127, 127, 127, 0.16); }
+    @media (max-width: 575.98px) {
+      .type-row { display: block; }
+      .type-row-label { margin-bottom: 2px; }
+    }
+    .node-section:focus { outline: none; }
+    /*
+     * The controls wrap rather than compress: at the width the plugin's page is given, a search
+     * field and two buttons on one line would leave the field too narrow to read what is in it.
+     */
+    .parameters-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .parameters-controls .parameters-search { flex: 1 1 200px; min-width: 0; }
+    .parameter-group { padding: 10px 0; border-top: 1px solid rgba(127, 127, 127, 0.25); }
+    .parameter-group:first-child { border-top: none; }
+    .parameter-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+    .parameter-field { margin-top: 8px; }
+    .parameter-group .parameter-field:first-of-type { margin-top: 4px; }
+    .parameter-field-divided { padding-left: 12px; border-left: 2px solid rgba(127, 127, 127, 0.25); }
+    /* Long labels and descriptions wrap; nothing here may widen the page. */
+    .parameter-group, .parameter-field { overflow-wrap: break-word; min-width: 0; }
+    .parameter-value { font-weight: 600; }
+    .parameter-raw { font-weight: 400; opacity: 0.75; margin-left: 6px; }
+    .parameter-rows { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 2px; }
+    .parameter-marks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    /*
+     * Mark colors, measured against the card each theme puts this page on: #fff under the
+     * light themes and #2b2b2b under the dark ones. The two a reader has to act on carry their
+     * own color, and the rest stay in the muted text color, so a parameter that can erase the
+     * device's settings or leave it needing re-inclusion is seen rather than read for.
+     *
+     * The chip is drawn in its own color rather than filled, so the label sits on the card and
+     * one measurement holds for every mark. A neutral mark takes the chip's own color, which is
+     * why only the two that depart from it have a rule of their own. Light 4.69:1, 6.80:1,
+     * 7.36:1. Dark 6.82:1, 6.57:1, 5.60:1. Re-measure if the host changes the card background.
+     */
+    .parameter-mark {
+      font-weight: 500;
+      background-color: transparent;
+      border: 1px solid currentColor;
+      /* This page forces white text on every badge, which a chip that is not filled is not. */
+      color: #6c757d !important;
+    }
+    .parameter-mark-caution { color: #8a4b00 !important; }
+    .parameter-mark-danger { color: #a71d2a !important; }
+    body.dark-mode #maintenance .parameter-mark { color: #adb5bd !important; }
+    body.dark-mode #maintenance .parameter-mark-caution { color: #e8a33d !important; }
+    body.dark-mode #maintenance .parameter-mark-danger { color: #ea868f !important; }
+    .node-detail-actions .ico { margin-right: 5px; vertical-align: -2px; }
 
     /* The gap the paired buttons in this page's dialogs already sit at. */
     .maintenance-actions { gap: 0.5rem; }
@@ -289,8 +377,8 @@
 
       <!-- Maintenance Tab -->
       <div class="tab-pane fade" id="maintenance" role="tabpanel">
-        <div class="card card-body">
-          <h5>Z-Wave Node Maintenance</h5>
+        <div class="card card-body" id="nodeList">
+          <h5 id="nodeListTitle" tabindex="-1">Z-Wave Node Maintenance</h5>
           <p class="text-muted small">
             View and manage your Z-Wave nodes. Check for official firmware updates via Z-Wave JS Service.
           </p>
@@ -322,7 +410,7 @@
                   <th>Name</th>
                   <th>Status</th>
                   <th>Firmware</th>
-                  <th class="col-actions">Actions</th>
+                  <th class="col-actions">Details</th>
                 </tr>
               </thead>
               <tbody id="nodeTableBody">
@@ -332,6 +420,63 @@
               </tbody>
             </table>
           </div>
+        </div>
+
+        <div class="card card-body" id="nodeDetail" style="display: none;" title="">
+          <a href="#" class="node-detail-back" id="backToNodes"><span aria-hidden="true">&lsaquo;</span> All nodes</a>
+          <div id="nodeDetailError"></div>
+          <div id="nodeDetailHeader"></div>
+          <ul class="nav nav-tabs" id="nodeSections" role="tablist">
+            <li class="nav-item" role="presentation">
+              <a class="nav-link active" href="#nodeSectionType" id="nodeSectionTypeTab" role="tab"
+                aria-controls="nodeSectionType" aria-selected="true" tabindex="0">Device type</a>
+            </li>
+            <li class="nav-item" role="presentation">
+              <a class="nav-link" href="#nodeSectionParameters" id="nodeSectionParametersTab"
+                role="tab" aria-controls="nodeSectionParameters" aria-selected="false"
+                tabindex="-1">Parameters<span class="badge badge-light type-chip"
+                  id="parametersTabCount" style="display: none;"></span></a>
+            </li>
+            <li class="nav-item" role="presentation">
+              <a class="nav-link" href="#nodeSectionDiagnostics" id="nodeSectionDiagnosticsTab"
+                role="tab" aria-controls="nodeSectionDiagnostics" aria-selected="false"
+                tabindex="-1">Diagnostics</a>
+            </li>
+          </ul>
+          <div class="node-section mt-3" id="nodeSectionType" role="tabpanel"
+            aria-labelledby="nodeSectionTypeTab">
+            <div id="typePanelRows"></div>
+            <div id="typeFormHost"></div>
+          </div>
+          <!--
+            The controls are written once and kept, so a payload arriving while the reader is
+            typing cannot take the search text, the caret or the keyboard away from them. Only
+            the list below is redrawn.
+          -->
+          <div class="node-section mt-3" id="nodeSectionParameters" role="tabpanel"
+            aria-labelledby="nodeSectionParametersTab" style="display: none;">
+            <div class="parameters-controls" id="parametersControls">
+              <input type="search" class="form-control form-control-sm parameters-search"
+                id="parameterSearch" placeholder="Search by name or number"
+                aria-label="Search by name or number" autocomplete="off">
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="parametersAdvanced"
+                aria-expanded="false" aria-controls="parametersList" style="display: none;"></button>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="parametersReread"
+                style="display: none;"></button>
+            </div>
+            <div class="small text-muted mt-2" id="parametersStatus"></div>
+            <div class="small text-muted" id="parametersCount"></div>
+            <div id="parametersList" class="mt-2"></div>
+          </div>
+          <div class="node-section mt-3" id="nodeSectionDiagnostics" role="tabpanel"
+            aria-labelledby="nodeSectionDiagnosticsTab" style="display: none;"></div>
+          <!--
+            Written once and kept, so it speaks when its contents change and stays quiet when a
+            redraw puts back what was already there. A region recreated on every render would
+            announce a sentence that had not changed.
+          -->
+          <div id="typeAnnounce" class="sr-only" role="status" aria-live="polite"></div>
+          <div id="parametersAnnounce" class="sr-only" role="status" aria-live="polite"></div>
         </div>
       </div>
     </div>
@@ -351,20 +496,21 @@
     </div>
   </div>
 
+  <div id="typeWriteModal" class="custom-modal" title="">
+    <h6 id="typeWriteTitle"></h6>
+    <div id="typeWriteBody" class="small"></div>
+    <div class="modal-actions">
+      <button class="btn btn-sm btn-secondary" id="cancelTypeWrite">Cancel</button>
+      <button class="btn btn-sm btn-primary" id="confirmTypeWrite"></button>
+    </div>
+  </div>
+
   <div id="confirmModal" class="custom-modal" title="">
     <h6>Confirm Action</h6>
     <p id="confirmMessage" class="small"></p>
     <div class="modal-actions">
       <button class="btn btn-sm btn-secondary" id="cancelConfirm">Cancel</button>
       <button class="btn btn-sm btn-primary" id="executeConfirm">OK</button>
-    </div>
-  </div>
-
-  <div id="diagnosticsModal" class="custom-modal" title="">
-    <h6 id="diagnosticsTitle">Radio and Route Diagnostics</h6>
-    <div id="diagnosticsBody" class="small"></div>
-    <div class="modal-actions">
-      <button class="btn btn-sm btn-secondary" id="closeDiagnostics">Close</button>
     </div>
   </div>
 
@@ -449,8 +595,6 @@
         }
       };
 
-      const statusMap = ['Unknown', 'Asleep', 'Awake', 'Dead', 'Alive'];
-
       /**
        * What this page remembers about a firmware update per node, keyed by node id as a
        * string. It holds a phase and at most a version, never an update payload. The plugin's
@@ -502,25 +646,42 @@
         } title="" data-tip="${label}" aria-label="${label}">${body}</button>`;
       };
 
+      /**
+       * The list offers the way into a node and nothing else. Everything that acts on a node is
+       * on the node's own page, so no control is offered in two places and the list reads as an
+       * overview rather than a control panel.
+       */
       const actionCellHtml = (nodeId, actions) => {
         if (actions.kind === 'controller') {
           return '<span class="badge badge-light">Controller</span>';
         }
 
-        if (actions.kind === 'progress') {
-          return `
-                <div class="progress" style="height: 20px;">
-                  <div class="progress-bar progress-bar-striped progress-bar-animated${
-                    actions.failed ? ' bg-danger' : ''
-                  }" role="progressbar" style="width: ${actions.percent}%">${actions.percent}%</div>
-                </div>
-              `;
-        }
-
-        return `<div class="btn-group">${actions.buttons
-          .map((button) => actionButtonHtml(nodeId, button))
-          .join('')}</div>`;
+        return `<div class="node-action-cell">${actionButtonHtml(nodeId, actions.open)}</div>`;
       };
+
+      /**
+       * One bar, drawn the same way wherever it appears. Movement is drawn from whether the
+       * update is still running, so one that has finished or failed stops rather than going on
+       * reporting itself as in progress, and the bar carries what it is and where it has got
+       * to for a reader who cannot see it.
+       */
+      const progressBarHtml = (progress, height) => `
+        <div class="progress mt-1" style="height: ${height}px;">
+          <div class="progress-bar progress-bar-striped${
+            progress.active ? ' progress-bar-animated' : ''
+          }${
+            progress.failed ? ' bg-danger' : ''
+          }" role="progressbar" aria-label="${uiHelpers.escapeHtml(
+            progress.label,
+          )}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${
+            progress.percent
+          }" style="width: ${progress.percent}%">${progress.percent}%</div>
+        </div>`;
+
+      const firmwareCellHtml = (cell) => `
+        ${uiHelpers.escapeHtml(cell.version)}${
+          cell.progress ? progressBarHtml(cell.progress, 14) : ''
+        }`;
 
       const batteryHtml = (battery) => {
         if (!battery) return '';
@@ -561,7 +722,7 @@
           );
           const actions = uiHelpers.describeNodeActions(node, firmwareState);
           const notices = uiHelpers.describeNodeNotices(node, firmwareState);
-          const status = statusMap[node.status] || 'Unknown';
+          const status = uiHelpers.describeNodeStatus(node);
           const nodeName = node.name || node.label || 'Node ' + node.nodeId;
 
           const tr = document.createElement('tr');
@@ -569,9 +730,9 @@
 	              <td>${node.nodeId}</td>
 	              <td id="node-name-${node.nodeId}">${uiHelpers.escapeHtml(nodeName)}${batteryHtml(uiHelpers.describeBattery(node))}</td>
 	              <td>
-	                <span class="badge badge-${status === 'Alive' || status === 'Awake' ? 'success' : 'secondary'}">${status}</span>
+	                <span class="badge badge-${status.tone}">${status.text}</span>
 	              </td>
-	              <td>${uiHelpers.escapeHtml(node.firmwareVersion || 'Unknown')}</td>
+	              <td>${firmwareCellHtml(uiHelpers.describeFirmwareCell(node, firmwareState))}</td>
 	              <td class="node-actions" id="node-action-${node.nodeId}">${actionCellHtml(node.nodeId, actions)}</td>
 	            `;
           tbody.appendChild(tr);
@@ -587,7 +748,1166 @@
         });
       };
 
-      const rerenderNodes = () => renderNodes(lastNodes);
+      /** The node whose own page is open, or null while the list is showing. */
+      let detailNodeId = null;
+
+      /**
+       * Draws whatever is on screen from what the page already knows. An action changes what it
+       * knows in one place, and the list or the node's own page, whichever is showing, follows.
+       */
+      const rerenderNodes = () => {
+        renderNodes(lastNodes);
+        if (detailNodeId === null) return;
+
+        renderNodeDetail();
+        renderDiagnosticsSection();
+      };
+
+      /**
+       * A labeled button for the node's page. It carries the same action class and node number
+       * the list's icon buttons do, so one handler answers for both.
+       */
+      const detailButtonHtml = (nodeId, button) => {
+        const body = button.spinner
+          ? '<span class="spinner-border spinner-border-sm" role="status"></span>'
+          : `${iconSvg(button.icon)}${uiHelpers.escapeHtml(button.label)}`;
+
+        return `<button type="button" class="btn btn-sm btn-${button.variant} ${
+          button.action
+        }" data-nodeid="${nodeId}"${
+          button.action === 'refresh-node-info'
+            ? ` data-requires-wakeup="${button.requiresWakeup}"`
+            : ''
+        }${button.disabled ? ' disabled' : ''} title="">${body}</button>`;
+      };
+
+      /**
+       * What the page last drew, so a refresh that finds nothing changed leaves it alone.
+       * Rewriting it every five seconds takes the keyboard out of the page, and would take a
+       * half-made choice with it once a section carries a form.
+       */
+      let detailDrawn = null;
+
+      /**
+       * Set when the node this page was opened on leaves the network, and cleared only by
+       * opening a node again.
+       *
+       * Z-Wave gives a node number away again, so a later list carrying this number is not
+       * necessarily this device coming back. Without this the page would quietly redraw itself
+       * around whatever now answers to the number, in front of a reader who was last told the
+       * node had gone.
+       */
+      let detailGone = false;
+
+      /**
+       * A node that leaves the network while its page is open says so, and takes its sections
+       * with it.
+       */
+      const markNodeGone = () => {
+        const host = document.getElementById('nodeDetailHeader');
+        if (!host || detailGone) return;
+
+        detailGone = true;
+
+        /**
+         * Read before anything is rewritten, because by the time the controls are gone the
+         * keyboard is already on the document body and there is nothing left to ask.
+         */
+        const detail = document.getElementById('nodeDetail');
+        const hadFocus = detail.contains(document.activeElement);
+
+        // Announced rather than only drawn: a reader who was in the controls is being told
+        // why they have just been taken away.
+        host.innerHTML =
+          '<p class="small text-muted" role="status">This node is no longer in the network.</p>';
+        /**
+         * The sections go with it. Emptied rather than only hidden, because Z-Wave gives a
+         * node number away again, and controls that move a motor must not be sitting in the
+         * page waiting for whatever device takes this number next.
+         */
+        showNodeSections(false);
+
+        if (hadFocus) {
+          document.getElementById('backToNodes').focus({ preventScroll: true });
+        }
+      };
+
+      const renderNodeDetail = () => {
+        const node = lastNodes.find((n) => String(n.nodeId) === String(detailNodeId));
+        const host = document.getElementById('nodeDetailHeader');
+        if (!host || detailGone) return;
+
+        if (!node) {
+          markNodeGone();
+          return;
+        }
+
+        showNodeSections(true);
+
+        const detail = uiHelpers.describeNodeDetail(
+          node,
+          uiHelpers.firmwareStateOf(node, firmwareRecords.get(String(node.nodeId))),
+        );
+
+        const signature = JSON.stringify(detail);
+        if (signature === detailDrawn) return;
+        detailDrawn = signature;
+
+        const head = detail.header;
+
+        host.innerHTML = `
+          <div class="node-detail-head">
+            <h5>${uiHelpers.escapeHtml(head.name)}</h5>
+            ${detail.rename ? actionButtonHtml(node.nodeId, detail.rename) : ''}
+          </div>
+          <div class="node-detail-facts">
+            <span class="text-muted">Node ${node.nodeId}</span>
+            <span class="badge badge-${head.statusTone}">${head.status}</span>
+            <span class="text-muted">${uiHelpers.escapeHtml(head.firmware)}</span>
+            <span class="text-muted">${uiHelpers.escapeHtml(head.listening)}</span>
+          </div>
+          ${
+            detail.progress
+              ? progressBarHtml(detail.progress, 20)
+              : `<div class="node-detail-actions">${detail.controls
+                  .map((button) => detailButtonHtml(node.nodeId, button))
+                  .join('')}</div>`
+          }
+        `;
+      };
+
+      /** Where the list was left when a node's page was opened over it. */
+      let listScroll = 0;
+
+      /**
+       * This page scrolls as one document inside the host's frame, so the offset belongs to the
+       * document and not to the card. Hiding the list shortens the document and the browser
+       * clamps the offset to what is left, which is why it is read before the list goes and
+       * written back after it returns.
+       */
+      const scrollOffset = () =>
+        window.pageYOffset || (document.documentElement || {}).scrollTop || 0;
+
+      const openNodeDetail = (nodeId) => {
+        detailGone = false;
+        /**
+         * Only the way in from the list is the list's own position. A node reached from another
+         * node's page leaves what is remembered alone, since back returns to the list from
+         * either of them and the list has not moved in between.
+         */
+        if (detailNodeId === null) listScroll = scrollOffset();
+
+        const detail = document.getElementById('nodeDetail');
+        detailNodeId = String(nodeId);
+        detailDrawn = null;
+        document.getElementById('nodeList').style.display = 'none';
+        detail.style.display = '';
+        renderNodeDetail();
+        typePanelDrawn = null;
+        typeFormDrawn = null;
+        parametersDrawn = null;
+        clearTypeAnnounce();
+        clearParametersAnnounce();
+        typeDrafts.delete(String(nodeId));
+        /**
+         * The filter and the disclosure belong to the reading, not to the device, so another
+         * node's page starts with neither. The field is cleared along with them: it is written
+         * once and kept, so what was typed on the last node would still be in it.
+         */
+        parametersSearch = '';
+        parametersShowAdvanced = false;
+        document.getElementById('parameterSearch').value = '';
+        selectNodeSection('type');
+        renderDiagnosticsSection();
+        // Read here rather than on entering the section, so the tab carries its count before a
+        // reader has any reason to open it. The read sends no command to the device.
+        renderParametersTab();
+        loadParametersSection();
+        /**
+         * The control that was clicked is inside the list that has just been put away, so the
+         * keyboard would be left on the document body. The back link takes it: it is the first
+         * thing on the page, it says what it does, and it is written once rather than redrawn,
+         * so a refresh cannot take the keyboard off it. The node's name is the next thing read.
+         */
+        document.getElementById('backToNodes').focus({ preventScroll: true });
+        // The page that has just replaced the list starts at its own top, wherever the reader
+        // happened to be in the list when they left it.
+        window.scrollTo(0, 0);
+      };
+
+      const closeNodeDetail = () => {
+        const leaving = detailNodeId;
+        detailNodeId = null;
+        detailDrawn = null;
+        clearTypeAnnounce();
+        document.getElementById('nodeDetail').style.display = 'none';
+        document.getElementById('nodeList').style.display = '';
+        window.scrollTo(0, listScroll);
+
+        /**
+         * Back to the control the reader came in by, found by node number rather than held as
+         * an element, because every refresh replaces the row it sits in. It is labeled "Open
+         * node {n}", so arriving on it says which node. A node that has left the network since
+         * has no row, and the list's own heading takes the keyboard instead.
+         */
+        const wayIn = [...document.querySelectorAll('#nodeTableBody button.open-node')].find(
+          (button) => button.getAttribute('data-nodeid') === String(leaving),
+        );
+
+        (wayIn || document.getElementById('nodeListTitle')).focus({ preventScroll: true });
+      };
+
+      /** The sections a node's page carries, in the order the strip draws them. */
+      const NODE_SECTIONS = [
+        { name: 'type', tab: 'nodeSectionTypeTab', panel: 'nodeSectionType' },
+        { name: 'parameters', tab: 'nodeSectionParametersTab', panel: 'nodeSectionParameters' },
+        { name: 'diagnostics', tab: 'nodeSectionDiagnosticsTab', panel: 'nodeSectionDiagnostics' },
+      ];
+
+      let nodeSection = 'type';
+
+      /**
+       * What each section is made of when it holds nothing, read from the markup once rather
+       * than written out again here. A section whose own structure was emptied along with its
+       * contents could not be drawn into afterward: the Device type section is two hosts, one
+       * for what the plugin reports and one for the decision being made.
+       */
+      const SECTION_SKELETON = new Map(
+        NODE_SECTIONS.map((section) => [
+          section.panel,
+          (document.getElementById(section.panel) || { innerHTML: '' }).innerHTML,
+        ]),
+      );
+
+      /**
+       * Whether the node still exists decides whether its sections are offered at all. Taking
+       * them away empties them, so nothing that acts on a node outlives the node.
+       */
+      const showNodeSections = (present) => {
+        const strip = document.getElementById('nodeSections');
+        if (!strip) return;
+
+        strip.style.display = present ? '' : 'none';
+
+        NODE_SECTIONS.forEach((section) => {
+          const panel = document.getElementById(section.panel);
+          if (present) return;
+
+          panel.style.display = 'none';
+          panel.innerHTML = SECTION_SKELETON.get(section.panel) || '';
+          panel.tabIndex = -1;
+        });
+
+        if (!present) {
+          diagnosticsDrawn = null;
+          typePanelDrawn = null;
+          typeFormDrawn = null;
+          parametersDrawn = null;
+          clearTypeAnnounce();
+          clearParametersAnnounce();
+        }
+      };
+
+      /**
+       * Shows one section and hides the other, and moves the strip's single tab stop with it,
+       * so tabbing into the strip reaches the open section rather than every tab in turn.
+       */
+      const selectNodeSection = (name, focusTab) => {
+        nodeSection = name;
+
+        NODE_SECTIONS.forEach((section) => {
+          const chosen = section.name === name;
+          const tab = document.getElementById(section.tab);
+          const panel = document.getElementById(section.panel);
+
+          tab.classList.toggle('active', chosen);
+          tab.setAttribute('aria-selected', chosen ? 'true' : 'false');
+          tab.tabIndex = chosen ? 0 : -1;
+          panel.style.display = chosen ? '' : 'none';
+          settlePanelFocus(panel);
+
+          if (chosen && focusTab) {
+            tab.focus();
+          }
+        });
+
+        if (name === 'diagnostics') {
+          loadDiagnosticsSection();
+        }
+        if (name === 'type') {
+          loadTypeSection();
+        }
+        if (name === 'parameters') {
+          loadParametersSection();
+        }
+      };
+
+      /**
+       * What the Diagnostics section knows about each node: the report it fetched or the
+       * failure instead, whether a fetch is running, and any covering operation on that node.
+       * Kept here rather than in the panel, so an operation survives a change of section, the
+       * five-second refresh, and the reader going back to the list and returning.
+       */
+      const diagnosticsState = new Map();
+
+      const diagnosticsFor = (nodeId) => {
+        const key = String(nodeId);
+        if (!diagnosticsState.has(key)) {
+          diagnosticsState.set(key, {});
+        }
+        return diagnosticsState.get(key);
+      };
+
+      /**
+       * A panel with nothing focusable inside it takes the keyboard itself, so a reader tabbing
+       * out of the strip reaches what it says; one with controls does not, since that would be
+       * a stop announcing nothing ahead of the controls. A disabled control is not focusable,
+       * so a panel whose only controls are disabled, which is every covering with an operation
+       * running and every Device type state that cannot be edited, still takes it.
+       */
+      const PANEL_FOCUSABLE =
+        'a[href], button:not([disabled]), select:not([disabled]), input:not([disabled]), textarea:not([disabled])';
+
+      /**
+       * A control that is not displayed cannot take the keyboard, so it cannot stand in for the
+       * panel either: the Parameters section puts its controls away in the states that list
+       * nothing, and a panel left unfocusable by them would be a section a reader tabbing out
+       * of the strip went straight past.
+       */
+      const isDisplayed = (element) => Boolean(element && element.offsetParent !== null);
+
+      const settlePanelFocus = (panel) => {
+        panel.tabIndex = [...panel.querySelectorAll(PANEL_FOCUSABLE)].some(isDisplayed) ? -1 : 0;
+      };
+
+      const coveringControlsHtml = (nodeId, controls) => {
+        const disabled = controls.disabled ? ' disabled' : '';
+
+        return `
+          <div class="mt-3">
+            <div class="small font-weight-bold">Move the covering and report where it stops</div>
+            <div class="btn-group btn-group-sm mt-1">
+              ${[0, 25, 75, 100]
+                .map(
+                  (position) =>
+                    `<button type="button" class="btn btn-outline-secondary section-test-position" data-nodeid="${nodeId}" data-position="${position}"${disabled}>${position}%</button>`,
+                )
+                .join('')}
+              <button type="button" class="btn btn-outline-warning section-stop-covering" data-nodeid="${nodeId}"${disabled}>Stop</button>
+            </div>
+            <div class="small text-muted mt-1" id="sectionTestResult">${uiHelpers.escapeHtml(controls.text)}</div>
+            <div class="small text-muted mt-1">To test Stop, start the covering from another controller or its remote, then select Stop while it is moving.</div>
+          </div>`;
+      };
+
+      /** What the Diagnostics panel is showing, so a redraw that would change nothing is not made. */
+      let diagnosticsDrawn = null;
+
+      const renderDiagnosticsSection = () => {
+        const host = document.getElementById('nodeSectionDiagnostics');
+        if (!host || detailNodeId === null) return;
+
+        /**
+         * A node that has gone has had its sections emptied, and drawing here again would put
+         * the panel back. What it is showing is the header's sentence and nothing else.
+         */
+        if (detailGone) return;
+
+        const view = uiHelpers.describeDiagnosticsSection(
+          diagnosticsState.get(String(detailNodeId)),
+        );
+        const signature = `${detailNodeId}:${JSON.stringify(view)}`;
+        if (signature === diagnosticsDrawn) return;
+        diagnosticsDrawn = signature;
+
+        if (view.kind === 'loading') {
+          host.innerHTML =
+            '<p class="small text-muted">Loading radio and route diagnostics...</p>';
+        } else if (view.kind === 'error') {
+          host.innerHTML = `<p class="small text-danger">${uiHelpers.escapeHtml(view.text)}</p>`;
+        } else {
+          host.innerHTML = `<div class="small">${uiHelpers.renderDiagnostics(view.report).html}</div>${
+            view.controls ? coveringControlsHtml(detailNodeId, view.controls) : ''
+          }`;
+        }
+
+        settlePanelFocus(host);
+      };
+
+      /**
+       * Reads the report each time the reader comes to the section, which is the only thing
+       * that asks for one: a rebuild, an interview or a repair changes what it would say, and
+       * a request that failed once has to be allowed to succeed. Nothing polls it.
+       *
+       * Only a request already running is not repeated. A report already read stays on screen
+       * while the next one is fetched, so returning to the section does not blank what it said
+       * a moment ago, and an error is cleared only once something has replaced it.
+       */
+      const loadDiagnosticsSection = async () => {
+        if (detailNodeId === null) return;
+
+        const nodeId = detailNodeId;
+        const state = diagnosticsFor(nodeId);
+
+        if (state.loading) return;
+
+        state.loading = true;
+        renderDiagnosticsSection();
+
+        try {
+          const report = await window.homebridge.request('node-diagnostics', nodeId);
+          state.report = report;
+          state.error = null;
+        } catch (err) {
+          state.error = err.message;
+        } finally {
+          state.loading = false;
+          renderDiagnosticsSection();
+        }
+      };
+
+      /**
+       * What the Device type section knows about each node, read the same way the Diagnostics
+       * report is: when the reader comes to the section, and never on a timer.
+       */
+      const typeState = new Map();
+
+      /**
+       * Bumped each time a write answers for a node. A read started before that answer is
+       * discarded when it arrives: it was composed against the state the write has replaced,
+       * and the five-second refresh means one is often in flight when a write lands, so the
+       * panel would go back to showing what the reader had just changed.
+       */
+      const typeGenerations = new Map();
+
+      const typeGenerationOf = (nodeId) => typeGenerations.get(String(nodeId)) || 0;
+
+      const supersedeTypeReads = (nodeId) =>
+        typeGenerations.set(String(nodeId), typeGenerationOf(nodeId) + 1);
+
+      const typeFor = (nodeId) => {
+        const key = String(nodeId);
+        if (!typeState.has(key)) {
+          typeState.set(key, {});
+        }
+        return typeState.get(key);
+      };
+
+      const typeRowHtml = (row) => {
+        const value = row.hex
+          ? row.hex.map((word) => `<code class="type-hex">${uiHelpers.escapeHtml(word)}</code>`).join('')
+          : uiHelpers.escapeHtml(row.value);
+        const under = row.caption || row.detail;
+
+        return `
+          <div class="type-row">
+            <div class="type-row-label text-muted">${uiHelpers.escapeHtml(row.label)}</div>
+            <div class="type-row-value">
+              <span>${value}</span>${
+                row.chip
+                  ? `<span class="badge badge-light type-chip">${uiHelpers.escapeHtml(row.chip)}</span>`
+                  : ''
+              }
+              ${under ? `<div class="small text-muted">${uiHelpers.escapeHtml(under)}</div>` : ''}
+            </div>
+          </div>`;
+      };
+
+      /**
+       * A warning interrupts; the informational states do not. Waiting for an interview and
+       * having several endpoints are ordinary facts about a device, and reading one of those
+       * over whatever a reader is doing would interrupt them to say nothing has gone wrong.
+       */
+      const exceptionChipHtml = (chip) => `
+        <span class="cohort-chip"><strong>${chip.nodeId}</strong> ${uiHelpers.escapeHtml(
+          chip.name,
+        )}</span>`;
+
+      const orphanCardHtml = (card) => `
+        <div class="orphan-card">
+          <div class="small font-weight-bold">${uiHelpers.escapeHtml(card.title)}</div>
+          ${
+            card.hex
+              ? `<div class="mt-1">${card.hex
+                  .map((word) => `<code class="type-hex">${uiHelpers.escapeHtml(word)}</code>`)
+                  .join('')}</div>`
+              : ''
+          }
+          ${card.type ? `<div class="mt-1">${uiHelpers.escapeHtml(card.type)}</div>` : ''}
+          ${
+            card.applied
+              ? `<div class="small text-muted">${uiHelpers.escapeHtml(card.applied)}</div>`
+              : ''
+          }
+        </div>`;
+
+      const typeExceptionsHtml = (nodeId, exceptions) => `
+        ${
+          exceptions.invalid
+            ? `<div class="alert alert-warning py-2 small" role="alert">
+                 <strong>${uiHelpers.escapeHtml(exceptions.invalid.heading)}</strong>
+                 <div class="mt-1">${uiHelpers.escapeHtml(exceptions.invalid.body)}</div>
+                 ${
+                   exceptions.invalid.chips.length > 0
+                     ? `<div class="mt-1">${exceptions.invalid.chips
+                         .map(exceptionChipHtml)
+                         .join('')}</div>`
+                     : ''
+                 }
+                 ${
+                   exceptions.invalid.manage
+                     ? `<div class="mt-1"><a href="#node-${
+                         exceptions.invalid.manage.nodeId
+                       }" data-focus-key="manage">${uiHelpers.escapeHtml(
+                         exceptions.invalid.manage.text,
+                       )}</a></div>`
+                     : ''
+                 }
+                 ${
+                   exceptions.invalid.remove
+                     ? `<div class="mt-2"><button type="button" class="btn btn-sm btn-outline-danger type-remove-override" data-nodeid="${nodeId}" data-focus-key="remove-override"${typeWriteRunning ? ' disabled' : ''}>${uiHelpers.escapeHtml(
+                         exceptions.invalid.remove.label,
+                       )}</button></div>`
+                     : ''
+                 }
+               </div>`
+            : ''
+        }
+        ${exceptions.orphans
+          .map(
+            (orphan) => `<div class="alert alert-warning py-2 small" role="alert">
+                 <strong>${uiHelpers.escapeHtml(orphan.heading)}</strong>
+                 <div class="mt-1">${uiHelpers.escapeHtml(orphan.body)}</div>
+                 <div class="orphan-cards">${orphanCardHtml(orphan.savedFor)}${orphanCardHtml(
+                   orphan.nowReports,
+                 )}</div>
+                 <div class="mt-2"><button type="button" class="btn btn-sm btn-outline-secondary type-acknowledge" data-nodeid="${nodeId}" data-observation="${uiHelpers.escapeHtml(
+                   orphan.observationId,
+                 )}" data-focus-key="ack:${uiHelpers.escapeHtml(
+                   orphan.observationId,
+                 )}"${typeWriteRunning || !orphan.canAcknowledge ? ' disabled' : ''}>${uiHelpers.escapeHtml(
+                   orphan.acknowledge,
+                 )}</button></div>
+               </div>`,
+          )
+          .join('')}`;
+
+      const typeCalloutHtml = (callout) => `
+        <div class="alert alert-${callout.severity === 'warning' ? 'warning' : 'info'} py-2 small" role="${
+          callout.severity === 'warning' ? 'alert' : 'status'
+        }">
+          ${callout.heading ? `<strong>${uiHelpers.escapeHtml(callout.heading)}</strong><br>` : ''}
+          ${uiHelpers.escapeHtml(callout.body)}
+        </div>`;
+
+      /**
+       * The type each node's reader has chosen and not yet applied, kept here rather than in
+       * the payload, which is replaced every five seconds.
+       */
+      const typeDrafts = new Map();
+
+      /**
+       * Empties the live region and forgets what it said, so the next sentence drawn is
+       * remembered rather than announced and no node inherits what was said about another.
+       */
+      const clearTypeAnnounce = () => {
+        const region = document.getElementById('typeAnnounce');
+        if (region) region.textContent = '';
+        typeNoteSaid = null;
+      };
+
+      /**
+       * A choice belongs to the hardware it was made against. Z-Wave reuses node numbers, and
+       * a fingerprint can change under a node that is being re-interviewed, so a choice held
+       * only by node number could be applied to a different device that happens to accept it.
+       */
+      const draftFor = (nodeId, payload) => {
+        const held = typeDrafts.get(String(nodeId));
+        if (!held) return null;
+
+        if (held.fingerprint !== uiHelpers.fingerprintKey(payload && payload.fingerprint)) {
+          typeDrafts.delete(String(nodeId));
+          return null;
+        }
+
+        return held.kind;
+      };
+
+      /**
+       * The sentence the live region last said, or null before a node's first payload has been
+       * drawn. The first one is remembered without being said: a selection that was already
+       * unavailable when the page opened is read from the select's own description, and only a
+       * selection that becomes unavailable under the reader is announced.
+       */
+      let typeNoteSaid = null;
+
+      /** Set while a write is in flight, which disables both buttons until it answers. */
+      let typeWriteRunning = false;
+
+      const cohortChipHtml = (chip) => `
+        <span class="cohort-chip"><strong>${chip.nodeId}</strong> ${uiHelpers.escapeHtml(chip.name)}${
+          chip.thisNode ? ' <span class="cohort-note">(this node)</span>' : ''
+        }${chip.note ? ` <span class="cohort-note">${uiHelpers.escapeHtml(chip.note)}</span>` : ''}</span>`;
+
+      const typeFormHtml = (nodeId, form) => `
+        ${
+          form.cohort
+            ? `<div class="alert alert-info py-2 small">
+                 <strong>${uiHelpers.escapeHtml(form.cohort.heading)}</strong>
+                 <div class="mt-1">${uiHelpers.escapeHtml(form.cohort.count)}</div>
+                 <div class="mt-1">${form.cohort.chips.map(cohortChipHtml).join('')}</div>
+               </div>`
+            : ''
+        }
+        <div class="mb-2">
+          <label class="small font-weight-bold mb-1" for="typeSelect">${uiHelpers.escapeHtml(
+            form.select.label,
+          )}</label>
+          <select class="form-control form-control-sm" id="typeSelect" data-nodeid="${nodeId}"
+            data-focus-key="select"
+            aria-describedby="typeSelectNote"${form.select.disabled || typeWriteRunning ? ' disabled' : ''}>
+            ${
+              form.select.disabled
+                ? `<option>${uiHelpers.escapeHtml(form.select.placeholder)}</option>`
+                : form.select.options
+                    .map(
+                      (option) =>
+                        `<option value="${uiHelpers.escapeHtml(option.kind)}"${
+                          option.kind === form.select.value ? ' selected' : ''
+                        }${option.available ? '' : ' disabled'}>${uiHelpers.escapeHtml(option.label)}</option>`,
+                    )
+                    .join('')
+            }
+          </select>
+          <div class="small text-muted mt-1" id="typeSelectNote">${
+            form.select.note ? uiHelpers.escapeHtml(form.select.note) : ''
+          }</div>
+        </div>
+        ${
+          form.apply.hint
+            ? `<div class="small text-muted mb-2">${uiHelpers.escapeHtml(form.apply.hint)}</div>`
+            : ''
+        }
+        ${form.hint ? `<div class="small text-muted mb-2">${uiHelpers.escapeHtml(form.hint)}</div>` : ''}
+        <div class="alert alert-warning py-2 small">${uiHelpers.escapeHtml(form.warning)}</div>
+        <div class="type-actions">
+          <span>${
+            form.revert
+              ? `<button type="button" class="btn btn-sm btn-outline-secondary type-revert" data-nodeid="${nodeId}" data-focus-key="revert"${
+                  form.revert.disabled || typeWriteRunning ? ' disabled' : ''
+                }>${uiHelpers.escapeHtml(form.revert.label)}</button>`
+              : ''
+          }</span>
+          <button type="button" class="btn btn-sm btn-primary type-apply" data-nodeid="${nodeId}" data-focus-key="apply"${
+            form.apply.disabled || typeWriteRunning ? ' disabled' : ''
+          }>${uiHelpers.escapeHtml(form.apply.label)}</button>
+        </div>`;
+
+      /** What each half of the Device type panel is showing, so neither is redrawn for nothing. */
+      let typePanelDrawn = null;
+      let typeFormDrawn = null;
+
+      /**
+       * Where the keyboard was inside a half of the section, so it can be put back on whatever
+       * takes that control's place. Both halves are redrawn by the five-second refresh, and the
+       * form by every change of selection, so without this a reader is dropped out of the
+       * control they are using by a refresh they did not ask for.
+       *
+       * Each control carries the key it is found by, rather than the page matching on shapes.
+       */
+      const focusKeyIn = (host) => {
+        const active = document.activeElement;
+        if (!host || !active || !host.contains(active)) return null;
+
+        return active.getAttribute('data-focus-key');
+      };
+
+      /** Whether an element can take the keyboard: present, and not refusing it. */
+      const canTakeFocus = (element) => Boolean(element) && !element.disabled;
+
+      const byFocusKey = (host, key) =>
+        key
+          ? [...host.querySelectorAll('[data-focus-key]')].find(
+              (element) => element.getAttribute('data-focus-key') === key,
+            )
+          : null;
+
+      /**
+       * Puts the keyboard back after a half of the section is redrawn.
+       *
+       * The control it was on may be gone, or may have been disabled by what the refresh
+       * reported, and a disabled control does not take focus. The list is the next most useful
+       * place, then the section itself, which is focusable whenever nothing in it is, and
+       * failing that the way back out of the page.
+       */
+      const restoreSectionFocus = (host, key) => {
+        const formHost = document.getElementById('typeFormHost');
+        const candidates = [
+          byFocusKey(host, key),
+          formHost ? formHost.querySelector('#typeSelect') : null,
+          document.getElementById('nodeSectionType'),
+          document.getElementById('backToNodes'),
+        ];
+
+        const target = candidates.find(canTakeFocus);
+        if (target) target.focus({ preventScroll: true });
+      };
+
+      const renderTypeSection = () => {
+        const host = document.getElementById('nodeSectionType');
+        const rows = document.getElementById('typePanelRows');
+        const formHost = document.getElementById('typeFormHost');
+        if (!host || !rows || !formHost || detailNodeId === null || detailGone) return;
+
+        const state = typeState.get(String(detailNodeId)) || {};
+        const draft = draftFor(detailNodeId, state.payload);
+        const panelSignature = `${detailNodeId}:${state.error || ''}:${typeWriteRunning}:${JSON.stringify(
+          state.payload || null,
+        )}`;
+
+        if (panelSignature !== typePanelDrawn) {
+          typePanelDrawn = panelSignature;
+
+          // The panel half carries controls of its own now, so it is treated like the form.
+          const panelKey = focusKeyIn(rows);
+
+          if (state.error) {
+            rows.innerHTML = `<p class="small text-danger">${uiHelpers.escapeHtml(state.error)}</p>`;
+          } else if (!state.payload) {
+            rows.innerHTML = '<p class="small text-muted">Loading device type...</p>';
+          } else {
+            const panel = uiHelpers.describeTypePanel(state.payload);
+            const exceptions = uiHelpers.describeTypeExceptions(state.payload);
+            rows.innerHTML = `${typeExceptionsHtml(detailNodeId, exceptions)}${panel.panels
+              .map(typeCalloutHtml)
+              .join('')}${panel.rows.map(typeRowHtml).join('')}${panel.notices
+              .map(typeCalloutHtml)
+              .join('')}`;
+          }
+
+          if (panelKey) {
+            restoreSectionFocus(rows, panelKey);
+          }
+        }
+
+        const formSignature = `${detailNodeId}:${state.error || ''}:${draft}:${typeWriteRunning}:${JSON.stringify(
+          state.payload || null,
+        )}`;
+
+        if (formSignature !== typeFormDrawn) {
+          typeFormDrawn = formSignature;
+
+          /**
+           * Read before either branch, because both take the control the keyboard is on away:
+           * one replaces it, the other removes it along with the rest of the form.
+           */
+          const mark = focusKeyIn(formHost);
+
+          if (!state.payload || state.error) {
+            formHost.innerHTML = '';
+            /**
+             * The sentence under the select went with the select, so the region must not go on
+             * carrying it. Forgetting it also means the form, when it returns, is drawn fresh
+             * and its first sentence is remembered rather than announced.
+             */
+            clearTypeAnnounce();
+
+            if (mark) {
+              restoreSectionFocus(formHost, mark);
+            }
+          } else {
+            const form = uiHelpers.describeTypeForm(state.payload, draft);
+            formHost.innerHTML = typeFormHtml(detailNodeId, form);
+
+            if (mark) {
+              restoreSectionFocus(formHost, mark);
+            }
+
+            /**
+             * The sentence under the select is read when the select is focused, through
+             * aria-describedby. The live region carries it only when it has changed since the
+             * last draw, and the first draw for a node is remembered rather than said.
+             */
+            const note = form.select.note || '';
+            if (typeNoteSaid === null) {
+              typeNoteSaid = note;
+            } else if (note !== typeNoteSaid) {
+              document.getElementById('typeAnnounce').textContent = note;
+              typeNoteSaid = note;
+            }
+          }
+        }
+
+        settlePanelFocus(host);
+      };
+
+      /**
+       * Read when the reader comes to the section, like the diagnostics report, because a
+       * rebuild or a write from another window changes what it would say. Only a request
+       * already running is not repeated, and what was read last stays until the next answer.
+       */
+      const loadTypeSection = async () => {
+        if (detailNodeId === null) return;
+
+        const nodeId = detailNodeId;
+        const state = typeFor(nodeId);
+
+        if (state.loading) return;
+
+        state.loading = true;
+        renderTypeSection();
+
+        const generation = typeGenerationOf(nodeId);
+
+        try {
+          const payload = await window.homebridge.request('get-node-type', nodeId);
+          // A write has answered for this node since the read was asked for, and what it
+          // returned describes the node after it rather than before.
+          if (generation === typeGenerationOf(nodeId)) {
+            state.payload = payload;
+            state.error = null;
+          }
+        } catch (err) {
+          if (generation === typeGenerationOf(nodeId)) {
+            state.error = err.message;
+          }
+        } finally {
+          state.loading = false;
+          renderTypeSection();
+        }
+      };
+
+      /**
+       * What the Parameters section knows about each node: the payload it read, or the failure
+       * instead, and whether a read is running. The payload is read from the plugin's cache and
+       * sends no Z-Wave command, so it is also read when the page opens, to count the tab.
+       */
+      const parametersState = new Map();
+
+      /** The name the plugin gives the device holding this number, while it lists one. */
+      const nodeIdentityOf = (nodeId) => {
+        const node = lastNodes.find((n) => String(n.nodeId) === String(nodeId));
+
+        return node ? node.identity : undefined;
+      };
+
+      /**
+       * What the section knows about this node, emptied where the number has changed hands.
+       *
+       * Z-Wave gives a node number away again. A payload read for the device that had the number
+       * before describes that device, and drawing it under the name of the one that has it now
+       * would report another device's settings as this device's. The plugin names every node it
+       * lists, and an entry whose name is not the one the list now gives is replaced rather than
+       * read, so the section fills again from the device that is there.
+       *
+       * A list that says nothing about the number says nothing about a change either, so the
+       * entry stands: a node that has left the network is emptied by the refresh instead.
+       */
+      const parametersFor = (nodeId) => {
+        const key = String(nodeId);
+        const identity = nodeIdentityOf(nodeId);
+        const held = parametersState.get(key);
+
+        if (held && (identity === undefined || held.identity === identity)) {
+          return held;
+        }
+
+        const fresh = { identity };
+        parametersState.set(key, fresh);
+
+        return fresh;
+      };
+
+      /**
+       * What the reader has typed and whether they have asked for the advanced parameters.
+       *
+       * Held here rather than taken from the payload, which is replaced underneath them every
+       * five seconds while a re-read is running. A filter that a refresh could clear would drop
+       * a reader out of what they were reading without their having touched anything.
+       */
+      let parametersSearch = '';
+      let parametersShowAdvanced = false;
+
+      /** Set between asking for a re-read and the answer, which refuses the control meanwhile. */
+      let parametersAsking = false;
+
+      /** What the list is showing, so a re-read that changes nothing leaves it alone. */
+      let parametersDrawn = null;
+
+      /**
+       * The sentence the Parameters live region last said, or null before the section's first
+       * draw for a node. The first is remembered rather than said: it is already on screen, and
+       * only a sentence that changes under the reader is news.
+       */
+      let parametersStatusSaid = null;
+
+      const clearParametersAnnounce = () => {
+        const region = document.getElementById('parametersAnnounce');
+        if (region) region.textContent = '';
+        parametersStatusSaid = null;
+      };
+
+      /**
+       * The marks a value carries, and under them what each one means. The explanation is
+       * written out rather than hidden behind the mark, because a badge carrying its meaning
+       * only in a tooltip says nothing to a reader who cannot hover.
+       */
+      const parameterMarksHtml = (marks) =>
+        marks.length === 0
+          ? ''
+          : `<div class="parameter-marks">${marks
+              .map(
+                (mark) =>
+                  `<span class="badge parameter-mark parameter-mark-${uiHelpers.escapeHtml(
+                    mark.tone,
+                  )}">${uiHelpers.escapeHtml(mark.label)}</span>`,
+              )
+              .join('')}</div>
+             <div class="small text-muted">${marks
+               .map((mark) => uiHelpers.escapeHtml(mark.explanation))
+               .join(' ')}</div>`;
+
+      const parameterFieldHtml = (field, divided) => `
+        <div class="parameter-field${divided ? ' parameter-field-divided' : ''}">
+          ${
+            field.label
+              ? `<div class="small font-weight-bold">${uiHelpers.escapeHtml(field.label)}</div>`
+              : ''
+          }
+          <div><span class="parameter-value">${uiHelpers.escapeHtml(field.value.text)}</span>${
+            field.value.raw
+              ? `<span class="parameter-raw">(${uiHelpers.escapeHtml(field.value.raw)})</span>`
+              : ''
+          }</div>
+          ${
+            field.description
+              ? `<div class="small text-muted">${uiHelpers.escapeHtml(field.description)}</div>`
+              : ''
+          }
+          ${
+            field.rows.length > 0
+              ? `<div class="parameter-rows small text-muted">${field.rows
+                  .map(
+                    (row) =>
+                      `<span>${uiHelpers.escapeHtml(row.label)}: ${uiHelpers.escapeHtml(
+                        row.value,
+                      )}</span>`,
+                  )
+                  .join('')}</div>`
+              : ''
+          }
+          ${parameterMarksHtml(field.marks)}
+          ${
+            field.reportedAt
+              ? `<div class="small text-muted">${uiHelpers.escapeHtml(field.reportedAt)}</div>`
+              : ''
+          }
+          ${
+            field.waiting
+              ? '<div class="small text-muted">Waiting for the device to report this value.</div>'
+              : ''
+          }
+        </div>`;
+
+      /**
+       * One parameter, with its fields inside it. A parameter divided into fields draws each one
+       * set in from the number they share, so a reader can see that they are parts of one
+       * setting rather than settings of their own.
+       */
+      const parameterGroupHtml = (group) => `
+        <div class="parameter-group">
+          <div class="parameter-head">
+            <span class="font-weight-bold">${uiHelpers.escapeHtml(group.number)}</span>
+            ${group.label ? `<span>${uiHelpers.escapeHtml(group.label)}</span>` : ''}
+            ${
+              group.endpoint
+                ? `<span class="badge parameter-mark">${uiHelpers.escapeHtml(
+                    group.endpoint,
+                  )}</span>`
+                : ''
+            }
+          </div>
+          ${group.fields
+            .map((field) => parameterFieldHtml(field, group.fields.length > 1))
+            .join('')}
+        </div>`;
+
+      const renderParametersSection = () => {
+        const panel = document.getElementById('nodeSectionParameters');
+        const list = document.getElementById('parametersList');
+        if (!panel || !list || detailNodeId === null || detailGone) return;
+
+        const view = uiHelpers.describeParametersSection(
+          Object.assign(
+            { search: parametersSearch, showAdvanced: parametersShowAdvanced },
+            parametersFor(detailNodeId),
+          ),
+        );
+        const listed = view.kind === 'parameters';
+        const advanced = document.getElementById('parametersAdvanced');
+        const reread = document.getElementById('parametersReread');
+
+        /**
+         * The controls are written to rather than rewritten. The search field is the reader's:
+         * replacing it would take what they had typed, and the caret with it.
+         */
+        document.getElementById('parametersControls').style.display = listed ? '' : 'none';
+        advanced.style.display = listed && view.advanced ? '' : 'none';
+        reread.style.display = listed && view.refresh.button ? '' : 'none';
+
+        if (listed && view.advanced) {
+          advanced.textContent = view.advanced.label;
+          advanced.setAttribute('aria-expanded', view.advanced.expanded ? 'true' : 'false');
+        }
+        if (listed && view.refresh.button) {
+          reread.textContent = view.refresh.button.label;
+          reread.disabled = view.refresh.button.disabled || parametersAsking;
+        }
+
+        const status = listed ? view.refresh.status || '' : '';
+        document.getElementById('parametersStatus').textContent = status;
+        document.getElementById('parametersCount').textContent = listed
+          ? view.search.count || ''
+          : '';
+
+        const signature = `${detailNodeId}:${JSON.stringify(view)}`;
+        if (signature !== parametersDrawn) {
+          parametersDrawn = signature;
+
+          if (view.kind === 'loading') {
+            list.innerHTML = '<p class="small text-muted">Loading configuration parameters...</p>';
+          } else if (view.kind === 'error') {
+            list.innerHTML = `<p class="small text-danger">${uiHelpers.escapeHtml(view.text)}</p>`;
+          } else if (view.kind === 'empty') {
+            list.innerHTML = `<p class="small text-muted">${uiHelpers.escapeHtml(view.text)}</p>`;
+          } else if (view.empty) {
+            list.innerHTML = `<p class="small text-muted">${uiHelpers.escapeHtml(view.empty)}</p>`;
+          } else {
+            list.innerHTML = view.groups.map(parameterGroupHtml).join('');
+          }
+        }
+
+        if (parametersStatusSaid === null) {
+          parametersStatusSaid = status;
+        } else if (status !== parametersStatusSaid) {
+          document.getElementById('parametersAnnounce').textContent = status;
+          parametersStatusSaid = status;
+        }
+
+        settlePanelFocus(panel);
+      };
+
+      /** The count beside the tab's name, which a device with no parameters does not carry. */
+      const renderParametersTab = () => {
+        const badge = document.getElementById('parametersTabCount');
+        if (!badge || detailNodeId === null) return;
+
+        const count = uiHelpers.parametersTabCount(parametersFor(detailNodeId).payload);
+
+        badge.style.display = count === null ? 'none' : '';
+        badge.textContent = count === null ? '' : String(count);
+      };
+
+      /**
+       * Whether an answer is about the device that was asked, and about the one the page holds
+       * the number for now.
+       *
+       * The list is read every five seconds and a payload is read on demand, so the plugin can
+       * answer for the device that has the number now while the page still has the one that had
+       * it when it asked. An answer that is not about the device in hand is dropped rather than
+       * drawn under its name, and the section is read again once the list has caught up.
+       *
+       * An entry the list has not named yet has nothing to be measured against, so it takes the
+       * name the answer carries rather than refusing every answer until the list arrives.
+       */
+      const parametersAnswerFits = (nodeId, asked, payload) => {
+        if (!payload || parametersFor(nodeId) !== asked) {
+          return false;
+        }
+
+        return asked.identity === undefined || payload.identity === asked.identity;
+      };
+
+      /**
+       * Reads what the plugin already holds. It sends no command to the device, which is why it
+       * can be read when the page opens, to count the tab, and again on the refresh cadence
+       * while a re-read is running.
+       */
+      const loadParametersSection = async () => {
+        if (detailNodeId === null) return;
+
+        const nodeId = detailNodeId;
+        const state = parametersFor(nodeId);
+
+        if (state.loading) return;
+
+        state.loading = true;
+        renderParametersSection();
+
+        try {
+          const payload = await window.homebridge.request('get-node-parameters', nodeId);
+          if (!parametersAnswerFits(nodeId, state, payload)) return;
+
+          state.identity = payload.identity;
+          state.payload = payload;
+          state.error = null;
+        } catch (err) {
+          state.error = err.message;
+        } finally {
+          state.loading = false;
+          renderParametersSection();
+          renderParametersTab();
+        }
+      };
+
+      /**
+       * Asks the device for its current values. The plugin answers with the request it is
+       * already running where there is one, so pressing this twice asks once.
+       *
+       * The request names the device the reader is looking at. A re-read puts commands on the
+       * network, and the number may have been given to another device since the list was read.
+       */
+      const requestParametersRefresh = async () => {
+        if (detailNodeId === null || parametersAsking) return;
+
+        const nodeId = detailNodeId;
+        const state = parametersFor(nodeId);
+
+        parametersAsking = true;
+        renderParametersSection();
+
+        try {
+          const payload = await window.homebridge.request('refresh-node-parameters', {
+            nodeId,
+            identity: state.identity,
+          });
+          if (!parametersAnswerFits(nodeId, state, payload)) return;
+
+          state.identity = payload.identity;
+          state.payload = payload;
+          state.error = null;
+        } catch (err) {
+          state.error = err.message;
+        } finally {
+          parametersAsking = false;
+          renderParametersSection();
+          renderParametersTab();
+        }
+      };
+
+      /**
+       * A refresh that failed, said on the node's own page. The list can give its rows over to
+       * the message, but the page is showing one node and has nothing to give, so it keeps what
+       * it has and says above it that this is no longer current.
+       */
+      const showNodeError = (message) => {
+        const host = document.getElementById('nodeDetailError');
+        if (!host) return;
+
+        host.innerHTML = message
+          ? `<p class="small text-danger">${uiHelpers.escapeHtml(message)}</p>`
+          : '';
+      };
 
       const loadNodes = async () => {
         if (isPromptOpen) return;
@@ -598,6 +1918,7 @@
 
           if (!Array.isArray(nodes)) {
             tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Plugin not responding. Is it running?</td></tr>';
+            showNodeError('Plugin not responding. Is it running?');
             return;
           }
 
@@ -607,17 +1928,64 @@
           firmwareRecords.forEach((record, key) => {
             if (!present.has(key)) firmwareRecords.delete(key);
           });
+          diagnosticsState.forEach((state, key) => {
+            if (!present.has(key)) diagnosticsState.delete(key);
+          });
+          typeState.forEach((state, key) => {
+            if (!present.has(key)) typeState.delete(key);
+          });
+          typeDrafts.forEach((kind, key) => {
+            if (!present.has(key)) typeDrafts.delete(key);
+          });
+          typeGenerations.forEach((generation, key) => {
+            if (!present.has(key)) typeGenerations.delete(key);
+          });
+          parametersState.forEach((state, key) => {
+            if (!present.has(key)) parametersState.delete(key);
+          });
           nodes.forEach((node) => {
             if (node.firmwareProgress) firmwareRecords.delete(String(node.nodeId));
           });
 
           lastNodes = nodes;
-          renderNodes(nodes);
+          showNodeError('');
+          rerenderNodes();
+
+          /**
+           * The type payload describes what the plugin holds now, not a measurement taken
+           * once, so the refresh keeps it current the way it keeps the header current. A node
+           * that finished interviewing, a rebuild that recovered, or a write made in another
+           * window would otherwise sit unreported for as long as the section stayed open.
+           *
+           * The diagnostics report is deliberately not read here: it is a point-in-time
+           * reading of the radio, and asking for one every five seconds would be a different
+           * thing from keeping a view current.
+           */
+          if (detailNodeId !== null && !detailGone && nodeSection === 'type') {
+            loadTypeSection();
+          }
+
+          /**
+           * The parameters payload is read again while a re-read is running, which is the one
+           * time it changes without anyone asking, and where the open section has nothing to
+           * draw, which is what a node number changing hands leaves behind. Settling ends the
+           * reason to keep looking: it says the attempt finished, never that a value answered,
+           * and what answered is read from the timestamps in the payload it ends on.
+           */
+          if (detailNodeId !== null && !detailGone && nodeSection === 'parameters') {
+            const state = parametersFor(detailNodeId);
+            const unread = state.payload === undefined && state.error === undefined;
+
+            if (unread || uiHelpers.parametersRefreshRunning(state.payload)) {
+              loadParametersSection();
+            }
+          }
         } catch (err) {
           const tbody = document.getElementById('nodeTableBody');
           if (tbody) {
             tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">${uiHelpers.escapeHtml(err.message)}</td></tr>`;
           }
+          showNodeError(err.message);
         }
       };
 
@@ -629,30 +1997,44 @@
       };
 
       const hideModals = () => {
-        coveringRun++;
         document.getElementById('modalBackdrop').style.display = 'none';
         document.getElementById('renameModal').style.display = 'none';
         document.getElementById('confirmModal').style.display = 'none';
-        document.getElementById('diagnosticsModal').style.display = 'none';
         document.getElementById('removeNodeModal').style.display = 'none';
+        document.getElementById('typeWriteModal').style.display = 'none';
         isPromptOpen = false;
         activeNodeId = null;
         activeMaintenanceAction = null;
       };
 
-      // Event Delegation for Table Actions (Rename & Firmware)
-      document.getElementById('nodeTableBody').addEventListener('click', async (e) => {
+      /**
+       * One handler for both places a node's actions are offered. The list and the node's own
+       * page render the same buttons from the same description, so neither needs its own copy
+       * of what the buttons do.
+       */
+      const handleNodeAction = async (e) => {
         const target = e.target.closest('button');
         if (!target) return;
 
         const nodeId = target.getAttribute('data-nodeid');
         if (!nodeId) return;
 
+        if (target.classList.contains('open-node')) {
+          openNodeDetail(nodeId);
+          return;
+        }
+
         // 1. Rename Logic
         if (target.classList.contains('rename-node')) {
-          const nameCell = document.getElementById(`node-name-${nodeId}`);
+          /**
+           * Read from what the plugin reported rather than from the cell on screen, because the
+           * list and the node's own page both carry the name and only one of them is showing.
+           */
+          const named = lastNodes.find((n) => String(n.nodeId) === String(nodeId));
           activeNodeId = nodeId;
-          document.getElementById('newLabelInput').value = nameCell ? nameCell.textContent : '';
+          document.getElementById('newLabelInput').value = named
+            ? named.name || named.label || `Node ${named.nodeId}`
+            : '';
           showModal('renameModal');
           return;
         }
@@ -665,38 +2047,6 @@
             ? 'This resets the node interview state and requests fresh metadata. Keep the device awake while the refresh runs so it can answer interview commands.'
             : 'This resets the node interview state and requests fresh metadata from the node. Continue?';
           showModal('confirmModal');
-          return;
-        }
-
-        if (target.classList.contains('node-diagnostics')) {
-          target.disabled = true;
-          try {
-            const d = await window.homebridge.request('node-diagnostics', nodeId);
-            const { title, html } = uiHelpers.renderDiagnostics(d);
-            document.getElementById('diagnosticsTitle').textContent = title;
-            document.getElementById('diagnosticsBody').innerHTML = `
-              ${html}
-              <div class="mt-2" id="positionTestRow" style="display:none;">
-                <div class="small font-weight-bold">Move the covering and report where it stops</div>
-                <div class="btn-group btn-group-sm mt-1">
-                  <button class="btn btn-outline-secondary test-position" data-position="0">0%</button>
-                  <button class="btn btn-outline-secondary test-position" data-position="25">25%</button>
-                  <button class="btn btn-outline-secondary test-position" data-position="75">75%</button>
-                  <button class="btn btn-outline-secondary test-position" data-position="100">100%</button>
-                  <button class="btn btn-outline-warning stop-covering">Stop</button>
-                </div>
-                <div class="small text-muted mt-1" id="positionTestResult"></div>
-              </div>
-            `;
-            activeNodeId = nodeId;
-            document.getElementById('positionTestRow').style.display =
-              d.isWindowCovering ? 'block' : 'none';
-            showModal('diagnosticsModal');
-          } catch (err) {
-            window.homebridge.toast.error(err.message);
-          } finally {
-            target.disabled = false;
-          }
           return;
         }
 
@@ -753,6 +2103,309 @@
               : `${warning} Proceed?`;
           showModal('confirmModal');
         }
+      };
+
+      document.getElementById('nodeTableBody').addEventListener('click', handleNodeAction);
+      document.getElementById('nodeDetail').addEventListener('click', handleNodeAction);
+
+      document.getElementById('backToNodes').addEventListener('click', (e) => {
+        e.preventDefault();
+        closeNodeDetail();
+      });
+
+      // A notice that asks the reader to review a node sends them to that node's own page.
+      const handleReviewLink = (e) => {
+        const link = e.target.closest('a[href^="#node-"]');
+        if (!link) return;
+
+        const nodeId = uiHelpers.nodeIdFromReviewLink(link.getAttribute('href'));
+        if (nodeId === null) return;
+
+        e.preventDefault();
+        openNodeDetail(nodeId);
+      };
+
+      document.getElementById('nodeTableBody').addEventListener('click', handleReviewLink);
+      document.getElementById('nodeDetail').addEventListener('click', handleReviewLink);
+
+      /** The write a confirmation is waiting on, held between opening the dialog and Confirm. */
+      let pendingTypeWrite = null;
+
+      const TYPE_WRITE_ROUTES = {
+        apply: 'set-node-type',
+        revert: 'clear-node-type',
+        remove: 'remove-type-override',
+        acknowledge: 'acknowledge-type-orphan',
+      };
+
+      /**
+       * What each write sends. Every one of them carries the piece of state it was composed
+       * against, so the plugin can refuse it if that has moved rather than act on a stale page.
+       */
+      const typeWriteBody = (action, nodeId, draft, payload, observationId) => {
+        if (action === 'apply') {
+          return {
+            nodeId,
+            primaryKind: draft,
+            expectedFingerprint: payload.fingerprint,
+            expectedRevision: payload.cohortRevision,
+          };
+        }
+        if (action === 'revert') {
+          return {
+            nodeId,
+            expectedFingerprint: payload.fingerprint,
+            expectedRevision: payload.cohortRevision,
+          };
+        }
+        if (action === 'remove') {
+          return { nodeId, expectedRevision: payload.cohortRevision };
+        }
+
+        return { nodeId, observationId, expectedFingerprint: payload.fingerprint };
+      };
+
+      const openTypeWriteDialog = (nodeId, action) => {
+        const state = typeState.get(String(nodeId));
+        if (!state || !state.payload) return;
+
+        const invalid = state.payload.invalid;
+        const draft =
+          action === 'remove'
+            ? invalid && invalid.primaryKind
+            : draftFor(nodeId, state.payload) || state.payload.primaryKind;
+        const dialog = uiHelpers.describeTypeWrite(state.payload, draft, action);
+
+        pendingTypeWrite = { nodeId, action, draft, payload: state.payload };
+        document.getElementById('typeWriteTitle').textContent = dialog.title;
+        document.getElementById('typeWriteBody').innerHTML = `
+          ${dialog.lines
+            .map((line) => `<p class="mb-1">${uiHelpers.escapeHtml(line)}</p>`)
+            .join('')}
+          ${
+            dialog.warning
+              ? `<p class="mb-1 mt-2">${uiHelpers.escapeHtml(dialog.warning)}</p>`
+              : ''
+          }
+          ${dialog.matter ? `<p class="mb-0">${uiHelpers.escapeHtml(dialog.matter)}</p>` : ''}`;
+        document.getElementById('confirmTypeWrite').textContent = dialog.confirmLabel;
+        showModal('typeWriteModal');
+      };
+
+      /**
+       * Sends the decision the dialog described, against the state it was composed from. The
+       * plugin recomputes everything from its own state and refuses the write if either the
+       * fingerprint or the cohort has moved since, so a stale page cannot act on what it shows.
+       */
+      const runTypeWrite = async () => {
+        const write = pendingTypeWrite;
+        // One write at a time: a second would be composed against state the first has moved.
+        if (!write || typeWriteRunning) return;
+
+        const { nodeId, action, draft, payload } = write;
+        pendingTypeWrite = null;
+        hideModals();
+
+        typeWriteRunning = true;
+        renderTypeSection();
+
+        try {
+          const outcome = await window.homebridge.request(
+            TYPE_WRITE_ROUTES[action],
+            typeWriteBody(action, nodeId, draft, payload, write.observationId),
+          );
+
+          /**
+           * The payload that comes back describes the network after the write, whether it was
+           * accepted or refused, so the section is redrawn from the state a refusal was
+           * measured against rather than the one the request was composed from.
+           */
+          const state = typeFor(nodeId);
+          supersedeTypeReads(nodeId);
+          if (outcome && outcome.payload) {
+            state.payload = outcome.payload;
+            state.error = null;
+          }
+
+          /**
+           * The choice goes either way. A write that happened has been answered, and a write
+           * that was refused was composed against something that has since moved, so holding
+           * the choice would offer it again against hardware or a cohort it was not made for.
+           */
+          typeDrafts.delete(String(nodeId));
+
+          if (outcome && outcome.refusal) {
+            const refusal = uiHelpers.describeWriteRefusal(outcome.refusal);
+            window.homebridge.toast.error(refusal.text);
+            if (refusal.gone && String(detailNodeId) === String(nodeId)) {
+              markNodeGone();
+            }
+          } else {
+            const result = uiHelpers.describeWriteOutcome(
+              outcome,
+              draft,
+              payload.cohort,
+              action,
+            );
+            // One for each node that failed, so no node's reason is dropped for another's.
+            result.lines.forEach((line) => window.homebridge.toast[result.type](line));
+          }
+        } catch (err) {
+          window.homebridge.toast.error(err.message);
+        } finally {
+          typeWriteRunning = false;
+          renderTypeSection();
+        }
+      };
+
+      document.getElementById('nodeSectionType').addEventListener('change', (e) => {
+        const select = e.target.closest('#typeSelect');
+        if (!select) return;
+
+        const nodeId = String(select.getAttribute('data-nodeid'));
+        const state = typeState.get(nodeId);
+
+        typeDrafts.set(nodeId, {
+          kind: select.value,
+          fingerprint: uiHelpers.fingerprintKey(state && state.payload && state.payload.fingerprint),
+        });
+        renderTypeSection();
+      });
+
+      document.getElementById('nodeSectionType').addEventListener('click', (e) => {
+        const button = e.target.closest(
+          '.type-apply, .type-revert, .type-remove-override, .type-acknowledge',
+        );
+        if (!button) return;
+
+        const nodeId = button.getAttribute('data-nodeid');
+
+        // Acknowledging says nothing is wrong, so there is nothing to confirm before it.
+        if (button.classList.contains('type-acknowledge')) {
+          pendingTypeWrite = {
+            nodeId,
+            action: 'acknowledge',
+            draft: null,
+            payload: (typeState.get(String(nodeId)) || {}).payload,
+            observationId: button.getAttribute('data-observation'),
+          };
+          runTypeWrite();
+          return;
+        }
+
+        openTypeWriteDialog(
+          nodeId,
+          button.classList.contains('type-remove-override')
+            ? 'remove'
+            : button.classList.contains('type-revert')
+              ? 'revert'
+              : 'apply',
+        );
+      });
+
+      document.getElementById('cancelTypeWrite').addEventListener('click', () => {
+        pendingTypeWrite = null;
+        hideModals();
+      });
+
+      document.getElementById('confirmTypeWrite').addEventListener('click', runTypeWrite);
+
+      const nodeSectionStrip = document.getElementById('nodeSections');
+
+      nodeSectionStrip.addEventListener('click', (e) => {
+        const tab = e.target.closest('[role="tab"]');
+        if (!tab) return;
+
+        e.preventDefault();
+        const section = NODE_SECTIONS.find((candidate) => candidate.tab === tab.id);
+        if (section) selectNodeSection(section.name);
+      });
+
+      /**
+       * Arrow keys move along the strip and open what they land on. With two sections and
+       * nothing expensive behind either, there is nothing for a separate confirming key to
+       * save, and following focus is what makes the strip readable while moving through it.
+       */
+      nodeSectionStrip.addEventListener('keydown', (e) => {
+        const next = uiHelpers.nextSectionTab(
+          NODE_SECTIONS.map((section) => section.name),
+          nodeSection,
+          e.key,
+        );
+        if (next === null) return;
+
+        e.preventDefault();
+        selectNodeSection(next, true);
+      });
+
+      /**
+       * The covering controls on the node's page. The generation is kept per node rather than
+       * shared with the dialog's counter, which a closing dialog bumps: that would drop the
+       * result of a move started here the moment the reader opened and canceled Rename, and
+       * leave the controls disabled with nothing coming to enable them.
+       *
+       * It is also not bumped when the reader leaves the node, so a move started here is still
+       * reported on their return rather than quietly dropped.
+       */
+      /**
+       * Delegated on the panel, which outlives every redraw of what is inside it, and bound at
+       * page load rather than when a node is opened, so opening one twice does not leave two
+       * listeners answering one press.
+       */
+      document.getElementById('nodeSectionParameters').addEventListener('input', (e) => {
+        if (e.target.id !== 'parameterSearch') return;
+
+        parametersSearch = e.target.value;
+        renderParametersSection();
+      });
+
+      document.getElementById('nodeSectionParameters').addEventListener('click', (e) => {
+        const target = e.target.closest('button');
+        if (!target) return;
+
+        if (target.id === 'parametersAdvanced') {
+          parametersShowAdvanced = !parametersShowAdvanced;
+          renderParametersSection();
+        }
+        if (target.id === 'parametersReread') {
+          requestParametersRefresh();
+        }
+      });
+
+      document.getElementById('nodeSectionDiagnostics').addEventListener('click', async (e) => {
+        const button = e.target.closest('.section-test-position, .section-stop-covering');
+        if (!button) return;
+
+        const nodeId = button.getAttribute('data-nodeid');
+        const stopping = button.classList.contains('section-stop-covering');
+        const position = Number(button.getAttribute('data-position'));
+        const state = diagnosticsFor(nodeId);
+        const generation = (state.coveringRun || 0) + 1;
+        state.coveringRun = generation;
+
+        state.covering = {
+          running: true,
+          text: stopping ? 'Stopping...' : `Moving to ${position}%...`,
+        };
+        renderDiagnosticsSection();
+
+        let text;
+        try {
+          text = stopping
+            ? uiHelpers.describeCoveringStopResult(
+                await window.homebridge.request('stop-covering', nodeId),
+              )
+            : uiHelpers.describeCoveringTestResult(
+                await window.homebridge.request('test-covering-position', { nodeId, position }),
+              );
+        } catch (err) {
+          text = err.message;
+        }
+
+        if (generation !== state.coveringRun) return;
+
+        state.covering = { running: false, text };
+        renderDiagnosticsSection();
       });
 
       /**
@@ -851,72 +2504,6 @@
           loadNodes();
 	        }
 	      });
-
-	      /**
-	       * One covering operation at a time. A move runs for tens of seconds, so leaving the
-	       * controls live would let a second click drive the same motor while the first is still
-	       * going and make both readings meaningless. The generation counter means a result that
-	       * arrives after the panel has moved on cannot overwrite what is on screen.
-	       */
-	      let coveringRun = 0;
-
-	      const runCoveringControl = async (pending, waitingText) => {
-	        const generation = ++coveringRun;
-	        const resultEl = document.getElementById('positionTestResult');
-	        const controls = document.querySelectorAll('#positionTestRow button');
-	        controls.forEach((control) => {
-	          control.disabled = true;
-	        });
-	        resultEl.textContent = waitingText;
-
-	        try {
-	          const text = await pending();
-	          if (generation === coveringRun) {
-	            resultEl.textContent = text;
-	          }
-	        } catch (err) {
-	          if (generation === coveringRun) {
-	            resultEl.textContent = err.message;
-	          }
-	        } finally {
-	          if (generation === coveringRun) {
-	            controls.forEach((control) => {
-	              control.disabled = false;
-	            });
-	          }
-	        }
-	      };
-
-	      document.getElementById('diagnosticsBody').addEventListener('click', async (e) => {
-	        const stopButton = e.target.closest('.stop-covering');
-	        if (stopButton) {
-	          await runCoveringControl(
-	            async () =>
-	              uiHelpers.describeCoveringStopResult(
-	                await window.homebridge.request('stop-covering', activeNodeId),
-	              ),
-	            'Stopping...',
-	          );
-	          return;
-	        }
-
-	        const target = e.target.closest('.test-position');
-	        if (!target) return;
-
-	        const position = Number(target.getAttribute('data-position'));
-	        await runCoveringControl(
-	          async () =>
-	            uiHelpers.describeCoveringTestResult(
-	              await window.homebridge.request('test-covering-position', {
-	                nodeId: activeNodeId,
-	                position,
-	              }),
-	            ),
-	          `Moving to ${position}%...`,
-	        );
-	      });
-
-	      document.getElementById('closeDiagnostics').addEventListener('click', hideModals);
 
 	      document.getElementById('cancelRemoveNode').addEventListener('click', hideModals);
 	      document.getElementById('confirmRemoveNode').addEventListener('click', async () => {

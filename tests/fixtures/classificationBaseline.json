@@ -1,0 +1,741 @@
+[
+ {
+  "supported": [],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   []
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[]}]",
+  "category": 1
+ },
+ {
+  "supported": [
+   "Battery"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "battery"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"battery\"]}]",
+  "category": 10
+ },
+ {
+  "supported": [
+   "Multilevel Switch"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "multilevel-switch"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"multilevel-switch\"]}]",
+  "category": 5
+ },
+ {
+  "supported": [
+   "Multilevel Switch",
+   "Battery"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "multilevel-switch",
+    "battery"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"multilevel-switch\",\"battery\"]}]",
+  "category": 5
+ },
+ {
+  "supported": [
+   "Binary Switch"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "binary-switch"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"binary-switch\"]}]",
+  "category": 8
+ },
+ {
+  "supported": [
+   "Binary Switch",
+   "Battery"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "binary-switch",
+    "battery"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"binary-switch\",\"battery\"]}]",
+  "category": 8
+ },
+ {
+  "supported": [
+   "Color Switch",
+   "Multilevel Switch"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "color-switch",
+    "multilevel-switch"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"color-switch\",\"multilevel-switch\"]}]",
+  "category": 5
+ },
+ {
+  "supported": [
+   "Thermostat Mode",
+   "Multilevel Sensor"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "thermostat",
+    "multilevel-sensor-skip-temperature"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"thermostat\",\"multilevel-sensor-skip-temperature\"]}]",
+  "category": 9
+ },
+ {
+  "supported": [
+   "Window Covering"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "window-covering"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"window-covering\"]}]",
+  "category": 14
+ },
+ {
+  "supported": [
+   "Barrier Operator"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "garage-door"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"garage-door\"]}]",
+  "category": 4
+ },
+ {
+  "supported": [
+   "Door Lock"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "lock"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"lock\"]}]",
+  "category": 6
+ },
+ {
+  "supported": [
+   "Door Lock",
+   "Notification"
+  ],
+  "values": [
+   {
+    "commandClass": 113,
+    "endpoint": 0,
+    "property": "Smoke Alarm"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "lock",
+    "smoke-sensor"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"lock\",\"smoke-sensor\"]}]",
+  "category": 6
+ },
+ {
+  "supported": [
+   "Door Lock",
+   "Notification"
+  ],
+  "values": [
+   {
+    "commandClass": 113,
+    "endpoint": 0,
+    "property": "Carbon Monoxide Alarm"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "lock",
+    "carbon-monoxide-sensor"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"lock\",\"carbon-monoxide-sensor\"]}]",
+  "category": 6
+ },
+ {
+  "supported": [
+   "Sound Switch"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "siren"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"siren\"]}]",
+  "category": 3
+ },
+ {
+  "supported": [
+   "Central Scene"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "central-scene"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"central-scene\"]}]",
+  "category": 15
+ },
+ {
+  "supported": [
+   "Central Scene",
+   "Battery"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "central-scene",
+    "battery"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"central-scene\",\"battery\"]}]",
+  "category": 15
+ },
+ {
+  "supported": [
+   "Multilevel Sensor"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "multilevel-sensor"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"multilevel-sensor\"]}]",
+  "category": 10
+ },
+ {
+  "supported": [
+   "Multilevel Sensor",
+   "Battery"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "multilevel-sensor",
+    "battery"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"multilevel-sensor\",\"battery\"]}]",
+  "category": 10
+ },
+ {
+  "supported": [
+   "Notification"
+  ],
+  "values": [
+   {
+    "commandClass": 113,
+    "endpoint": 0,
+    "property": "Water Alarm",
+    "propertyKey": "Water leak status"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "leak-sensor"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"leak-sensor\"]}]",
+  "category": 10
+ },
+ {
+  "supported": [
+   "Notification"
+  ],
+  "values": [
+   {
+    "commandClass": 113,
+    "endpoint": 0,
+    "property": "Home Security",
+    "propertyKey": "Motion sensor status"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "motion-sensor"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"motion-sensor\"]}]",
+  "category": 10
+ },
+ {
+  "supported": [
+   "Notification"
+  ],
+  "values": [
+   {
+    "commandClass": 113,
+    "endpoint": 0,
+    "property": "Access Control",
+    "propertyKey": "Door status"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "contact-sensor"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"contact-sensor\"]}]",
+  "category": 10
+ },
+ {
+  "supported": [
+   "Notification"
+  ],
+  "values": [
+   {
+    "commandClass": 113,
+    "endpoint": 0,
+    "property": "Smoke Alarm"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "smoke-sensor"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"smoke-sensor\"]}]",
+  "category": 10
+ },
+ {
+  "supported": [
+   "Notification"
+  ],
+  "values": [
+   {
+    "commandClass": 113,
+    "endpoint": 0,
+    "property": "Carbon Monoxide Alarm"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "carbon-monoxide-sensor"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"carbon-monoxide-sensor\"]}]",
+  "category": 10
+ },
+ {
+  "supported": [
+   "Multilevel Sensor",
+   "Binary Sensor",
+   "Battery"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "multilevel-sensor",
+    "contact-sensor",
+    "battery"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"multilevel-sensor\",\"contact-sensor\",\"battery\"]}]",
+  "category": 10
+ },
+ {
+  "supported": [
+   "Multilevel Sensor",
+   "Binary Sensor",
+   "Battery"
+  ],
+  "values": [
+   {
+    "commandClass": 48,
+    "endpoint": 0,
+    "property": "Water"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "multilevel-sensor",
+    "leak-sensor",
+    "battery"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"multilevel-sensor\",\"leak-sensor\",\"battery\"]}]",
+  "category": 10
+ },
+ {
+  "supported": [
+   "Multilevel Sensor",
+   "Binary Sensor",
+   "Battery"
+  ],
+  "values": [
+   {
+    "commandClass": 48,
+    "endpoint": 0,
+    "property": "Smoke"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "multilevel-sensor",
+    "smoke-sensor",
+    "battery"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"multilevel-sensor\",\"smoke-sensor\",\"battery\"]}]",
+  "category": 10
+ },
+ {
+  "supported": [
+   "Multilevel Sensor",
+   "Binary Sensor",
+   "Battery"
+  ],
+  "values": [
+   {
+    "commandClass": 48,
+    "endpoint": 0,
+    "property": "CO"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "multilevel-sensor",
+    "carbon-monoxide-sensor",
+    "battery"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"multilevel-sensor\",\"carbon-monoxide-sensor\",\"battery\"]}]",
+  "category": 10
+ },
+ {
+  "supported": [
+   "Multilevel Sensor",
+   "Binary Sensor",
+   "Battery"
+  ],
+  "values": [
+   {
+    "commandClass": 48,
+    "endpoint": 0,
+    "property": "CO2"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "multilevel-sensor",
+    "multilevel-sensor",
+    "battery"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"multilevel-sensor\",\"multilevel-sensor\",\"battery\"]}]",
+  "category": 10
+ },
+ {
+  "supported": [
+   "Binary Switch",
+   "Binary Sensor"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "binary-switch",
+    "contact-sensor"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"binary-switch\",\"contact-sensor\"]}]",
+  "category": 8
+ },
+ {
+  "supported": [
+   "Binary Switch",
+   "Binary Sensor"
+  ],
+  "values": [
+   {
+    "commandClass": 48,
+    "endpoint": 0,
+    "property": "Water"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "binary-switch",
+    "leak-sensor"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"binary-switch\",\"leak-sensor\"]}]",
+  "category": 8
+ },
+ {
+  "supported": [
+   "Binary Switch",
+   "Binary Sensor"
+  ],
+  "values": [
+   {
+    "commandClass": 48,
+    "endpoint": 0,
+    "property": "Smoke"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "binary-switch",
+    "smoke-sensor"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"binary-switch\",\"smoke-sensor\"]}]",
+  "category": 8
+ },
+ {
+  "supported": [
+   "Binary Switch",
+   "Binary Sensor"
+  ],
+  "values": [
+   {
+    "commandClass": 48,
+    "endpoint": 0,
+    "property": "CO"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "binary-switch",
+    "carbon-monoxide-sensor"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"binary-switch\",\"carbon-monoxide-sensor\"]}]",
+  "category": 8
+ },
+ {
+  "supported": [
+   "Binary Switch",
+   "Binary Sensor"
+  ],
+  "values": [
+   {
+    "commandClass": 48,
+    "endpoint": 0,
+    "property": "CO2"
+   }
+  ],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "binary-switch",
+    "multilevel-sensor"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"binary-switch\",\"multilevel-sensor\"]}]",
+  "category": 8
+ },
+ {
+  "supported": [
+   "Color Switch"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "color-switch"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"color-switch\"]}]",
+  "category": 5
+ },
+ {
+  "supported": [
+   "Thermostat Mode"
+  ],
+  "values": [],
+  "endpoints": [
+   0
+  ],
+  "kinds": [
+   [
+    "thermostat"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"thermostat\"]}]",
+  "category": 9
+ },
+ {
+  "supported": [
+   "Binary Switch"
+  ],
+  "values": [],
+  "endpoints": [
+   0,
+   1,
+   2
+  ],
+  "kinds": [
+   [],
+   [
+    "binary-switch"
+   ],
+   [
+    "binary-switch"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[]},{\"endpoint\":1,\"features\":[\"binary-switch\"]},{\"endpoint\":2,\"features\":[\"binary-switch\"]}]",
+  "category": 8
+ },
+ {
+  "supported": [
+   "Multilevel Switch",
+   "Battery"
+  ],
+  "values": [],
+  "endpoints": [
+   0,
+   1
+  ],
+  "kinds": [
+   [
+    "battery"
+   ],
+   [
+    "multilevel-switch",
+    "battery"
+   ]
+  ],
+  "signature": "[{\"endpoint\":0,\"features\":[\"battery\"]},{\"endpoint\":1,\"features\":[\"multilevel-switch\",\"battery\"]}]",
+  "category": 5
+ }
+]

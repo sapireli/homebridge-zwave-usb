@@ -63,6 +63,46 @@ class UiServer extends HomebridgePluginUiServer {
       return await this.ipcRequest(`/firmware/abort/${nodeId}`, 'POST');
     });
 
+    this.onRequest('get-node-parameters', async (nodeId) => {
+      return await this.ipcRequest(`/nodes/${nodeId}/parameters`, 'GET');
+    });
+
+    this.onRequest('refresh-node-parameters', async ({ nodeId, identity }) => {
+      return await this.ipcRequest(`/nodes/${nodeId}/parameters/refresh`, 'POST', { identity });
+    });
+
+    this.onRequest('get-node-type', async (nodeId) => {
+      return await this.ipcRequest(`/nodes/${nodeId}/type`, 'GET');
+    });
+
+    this.onRequest('set-node-type', async (request) => {
+      return await this.ipcRequest(`/nodes/${request.nodeId}/type`, 'POST', {
+        primaryKind: request.primaryKind,
+        expectedFingerprint: request.expectedFingerprint,
+        expectedRevision: request.expectedRevision,
+      });
+    });
+
+    this.onRequest('clear-node-type', async (request) => {
+      return await this.ipcRequest(`/nodes/${request.nodeId}/type/clear`, 'POST', {
+        expectedFingerprint: request.expectedFingerprint,
+        expectedRevision: request.expectedRevision,
+      });
+    });
+
+    this.onRequest('acknowledge-type-orphan', async (request) => {
+      return await this.ipcRequest(`/nodes/${request.nodeId}/type/acknowledge`, 'POST', {
+        observationId: request.observationId,
+        expectedFingerprint: request.expectedFingerprint,
+      });
+    });
+
+    this.onRequest('remove-type-override', async (request) => {
+      return await this.ipcRequest(`/nodes/${request.nodeId}/type/remove`, 'POST', {
+        expectedRevision: request.expectedRevision,
+      });
+    });
+
     this.ready();
   }
 
