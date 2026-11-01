@@ -21,8 +21,95 @@ import { ColorSwitchFeature } from '../features/ColorSwitchFeature';
 import { SirenFeature } from '../features/SirenFeature';
 import { multilevelSwitchDrivesCovering } from '../devices/deviceOverrides';
 
+/** Every kind the planner can produce, including the two that can never be primary. */
+export type FeatureKind =
+  | PrimaryKind
+  | 'battery'
+  | 'multilevel-sensor-skip-temperature';
+
+/**
+ * The kinds that can stand as a device's primary type, in the order the primary is chosen.
+ *
+ * This is deliberately not the order the planner pushes kinds in. A device that reports both a
+ * multilevel sensor and a motion sensor is a motion sensor with a temperature reading, not a
+ * thermometer that happens to detect motion, so the notification sensors rank above
+ * `multilevel-sensor` even though the planner pushes that one first.
+ */
+export const PRIMARY_KINDS = [
+  'thermostat',
+  'window-covering',
+  'garage-door',
+  'lock',
+  'color-switch',
+  'multilevel-switch',
+  'binary-switch',
+  'siren',
+  'leak-sensor',
+  'motion-sensor',
+  'contact-sensor',
+  'smoke-sensor',
+  'carbon-monoxide-sensor',
+  'multilevel-sensor',
+  'central-scene',
+] as const;
+
+export type PrimaryKind = (typeof PRIMARY_KINDS)[number];
+
+export function isPrimaryKind(kind: string): kind is PrimaryKind {
+  return (PRIMARY_KINDS as readonly string[]).includes(kind);
+}
+
+/**
+ * One endpoint's plan: the kinds it publishes, in the order they are built, plus which of them
+ * stands as its primary type and which are replaced along with it.
+ */
+export interface EndpointPlan {
+  endpoint: Endpoint;
+  /** Never re-sorted. The order is the order the features are attached in. */
+  effectiveKinds: FeatureKind[];
+  primaryKind?: PrimaryKind;
+  /** The kinds an override removes together. Empty when the endpoint has no primary. */
+  primaryGroup: PrimaryKind[];
+}
+
+export interface PlanOptions {
+  /** Replaces the endpoint's primary group. Ignored when the endpoint has no primary. */
+  primaryOverride?: PrimaryKind;
+}
+
+/**
+ * What each primary kind needs before a device can be published as it.
+ *
+ * Separate from detection on purpose. Detection decides what a device publishes when nobody has
+ * said otherwise, and is broader in places, because a device that reports a command class is
+ * usually the thing that command class describes. Compatibility answers a different question:
+ * whether this feature could drive a working service on this endpoint if a user asked for it.
+ * Each predicate lives beside the feature it speaks for, so it is derived from the values that
+ * feature actually reads rather than restated here.
+ */
+export const PRIMARY_CAPABILITY: Record<
+  PrimaryKind,
+  (node: IZWaveNode, endpoint: Endpoint) => boolean
+> = {
+  thermostat: ThermostatFeature.canBePrimary,
+  'window-covering': WindowCoveringFeature.canBePrimary,
+  'garage-door': GarageDoorFeature.canBePrimary,
+  lock: LockFeature.canBePrimary,
+  'color-switch': ColorSwitchFeature.canBePrimary,
+  'multilevel-switch': MultilevelSwitchFeature.canBePrimary,
+  'binary-switch': BinarySwitchFeature.canBePrimary,
+  siren: SirenFeature.canBePrimary,
+  'leak-sensor': LeakSensorFeature.canBePrimary,
+  'motion-sensor': MotionSensorFeature.canBePrimary,
+  'contact-sensor': ContactSensorFeature.canBePrimary,
+  'smoke-sensor': SmokeSensorFeature.canBePrimary,
+  'carbon-monoxide-sensor': CarbonMonoxideSensorFeature.canBePrimary,
+  'multilevel-sensor': MultilevelSensorFeature.canBePrimary,
+  'central-scene': CentralSceneFeature.canBePrimary,
+};
+
 export class AccessoryFactory {
-  private static readonly FEATURE_CATEGORY_PRIORITY: Array<[string, number]> = [
+  private static readonly FEATURE_CATEGORY_PRIORITY: Array<[FeatureKind, number]> = [
     ['garage-door', 4],
     ['lock', 6],
     ['thermostat', 9],
@@ -143,44 +230,162 @@ export class AccessoryFactory {
       },
     };
 
-  private static getFeaturePlans(
-    node: IZWaveNode,
-  ): Array<{ endpoint: Endpoint; featureKinds: string[] }> {
+  /**
+   * What each of the node's endpoints publishes, and which kind stands as its primary type.
+   *
+   * Detection is unchanged: `planFeatureKinds` decides what a device publishes, exactly as
+   * before, and an override edits that result rather than taking part in deciding it. A node
+   * with no override therefore plans the same kinds in the same order as it always has, which
+   * is what keeps an upgrade from rebuilding and recategorizing accessories that nobody asked
+   * to change.
+   */
+  public static planFeatures(node: IZWaveNode, options: PlanOptions = {}): EndpointPlan[] {
     const endpoints = node.getAllEndpoints();
     const isMultiEndpoint = endpoints.length > 1;
     const handledByEndpoints = this.getHandledByEndpoints(endpoints);
 
-    return endpoints.map((endpoint) => ({
-      endpoint,
-      featureKinds: this.planFeatureKinds(node, endpoint, handledByEndpoints, isMultiEndpoint),
-    }));
+    return endpoints.map((endpoint) => {
+      const detected = this.planFeatureKinds(
+        node,
+        endpoint,
+        handledByEndpoints,
+        isMultiEndpoint,
+      ) as FeatureKind[];
+      const primaryKind = this.selectPrimaryKind(detected);
+      const primaryGroup = this.selectPrimaryGroup(detected, primaryKind);
+      const effectiveKinds = this.applyPrimaryOverride(
+        detected,
+        primaryKind,
+        primaryGroup,
+        options.primaryOverride,
+      );
+
+      return { endpoint, effectiveKinds, primaryKind, primaryGroup };
+    });
   }
 
-  public static getGraphSignature(node: IZWaveNode): string {
-    const graph = this.getFeaturePlans(node).map(({ endpoint, featureKinds }) => ({
-      endpoint: endpoint.index,
-      features: featureKinds,
-    }));
+  /**
+   * Every primary kind this node could be published as, in the primary rule's order.
+   *
+   * Only single-endpoint nodes are answered. A device with several endpoints has a primary per
+   * endpoint, and choosing one type for the node would be choosing which endpoint the node is.
+   */
+  public static compatiblePrimaryKinds(node: IZWaveNode): PrimaryKind[] {
+    const endpoints = node.getAllEndpoints();
+    if (endpoints.length !== 1) {
+      return [];
+    }
 
-    return JSON.stringify(graph);
+    const endpoint = endpoints[0];
+
+    return PRIMARY_KINDS.filter((kind) => PRIMARY_CAPABILITY[kind](node, endpoint));
   }
 
+  /** The first kind present by the primary rule's own order, not by the planner's push order. */
+  private static selectPrimaryKind(kinds: readonly FeatureKind[]): PrimaryKind | undefined {
+    return PRIMARY_KINDS.find((candidate) => kinds.includes(candidate));
+  }
+
+  /**
+   * The kinds an override removes together with the primary.
+   *
+   * Color and brightness share one Lightbulb service today, so replacing the color control
+   * has to take the brightness control with it or a second feature would be left writing to a
+   * service that no longer exists. A thermostat is the opposite case: its suppressed
+   * temperature sensor is not part of it, and is handed back as an ordinary sensor on override.
+   */
+  private static selectPrimaryGroup(
+    kinds: readonly FeatureKind[],
+    primaryKind: PrimaryKind | undefined,
+  ): PrimaryKind[] {
+    if (!primaryKind) {
+      return [];
+    }
+
+    if (primaryKind === 'color-switch' && kinds.includes('multilevel-switch')) {
+      return ['color-switch', 'multilevel-switch'];
+    }
+
+    return [primaryKind];
+  }
+
+  /**
+   * The override takes the position of the first kind it replaces, so the order the features
+   * are attached in is otherwise untouched. A kind identical to the override that appears later
+   * is dropped, because the service would already have been built.
+   */
+  private static applyPrimaryOverride(
+    detected: readonly FeatureKind[],
+    primaryKind: PrimaryKind | undefined,
+    primaryGroup: readonly PrimaryKind[],
+    primaryOverride: PrimaryKind | undefined,
+  ): FeatureKind[] {
+    if (!primaryOverride || !primaryKind || primaryOverride === primaryKind) {
+      return [...detected];
+    }
+
+    const firstReplaced = detected.findIndex((kind) => kind === primaryGroup[0]);
+    if (firstReplaced === -1) {
+      return [...detected];
+    }
+
+    const effective: FeatureKind[] = [];
+    detected.forEach((kind, index) => {
+      if (index === firstReplaced) {
+        effective.push(primaryOverride);
+        return;
+      }
+      if (primaryGroup.includes(kind as PrimaryKind)) {
+        return;
+      }
+      if (kind === primaryOverride) {
+        return;
+      }
+      // The temperature was suppressed only because the thermostat already reported it.
+      if (primaryKind === 'thermostat' && kind === 'multilevel-sensor-skip-temperature') {
+        effective.push('multilevel-sensor');
+        return;
+      }
+      effective.push(kind);
+    });
+
+    return effective;
+  }
+
+  /** The signature of plans already computed, so a build never plans the same node twice. */
+  public static signatureOfPlans(plans: readonly EndpointPlan[]): string {
+    return JSON.stringify(
+      plans.map(({ endpoint, effectiveKinds }) => ({
+        endpoint: endpoint.index,
+        features: effectiveKinds,
+      })),
+    );
+  }
+
+  /**
+   * Builds the accessory from a plan the caller already holds.
+   *
+   * The plan is an argument rather than something made here, because the caller compares its
+   * signature against the cached one to decide whether to build at all. Planning the node again
+   * inside this method would read a node that is still interviewing a second time, and an
+   * accessory built from the second reading would carry a signature describing the first.
+   */
   public static create(
     platform: ZWaveUsbPlatform,
     node: IZWaveNode,
     homeId: number,
+    featurePlans: readonly EndpointPlan[],
   ): ZWaveAccessory {
-    const featurePlans = this.getFeaturePlans(node);
     const accessory = new ZWaveAccessory(
       platform,
       node,
       homeId,
       this.getCategory(featurePlans),
     );
-    const graphSignature = this.getGraphSignature(node);
+    const graphSignature = AccessoryFactory.signatureOfPlans(featurePlans);
 
-    for (const { endpoint, featureKinds } of featurePlans) {
-      this.attachFeatures(platform, accessory, node, endpoint, featureKinds);
+    for (const { endpoint, effectiveKinds } of featurePlans) {
+      this.attachFeatures(platform, accessory, node, endpoint, effectiveKinds);
     }
 
     accessory.setGraphSignature(graphSignature);
@@ -188,10 +393,8 @@ export class AccessoryFactory {
     return accessory;
   }
 
-  private static getCategory(
-    featurePlans: Array<{ endpoint: Endpoint; featureKinds: string[] }>,
-  ): number {
-    const featureKinds = new Set(featurePlans.flatMap(({ featureKinds }) => featureKinds));
+  private static getCategory(featurePlans: readonly EndpointPlan[]): number {
+    const featureKinds = new Set(featurePlans.flatMap(({ effectiveKinds }) => effectiveKinds));
 
     for (const [featureKind, category] of this.FEATURE_CATEGORY_PRIORITY) {
       if (featureKinds.has(featureKind)) {

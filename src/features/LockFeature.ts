@@ -1,12 +1,28 @@
+import { Endpoint } from 'zwave-js';
+import { IZWaveNode } from '../zwave/interfaces';
 import { Service, CharacteristicValue } from 'homebridge';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
-import { BaseFeature } from './ZWaveFeature';
+import { BaseFeature, definedValues, hasValue } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
 /**
  * LockFeature supports both basic 'Lock' CC (76) and 'Door Lock' CC (98/159).
  */
 export class LockFeature extends BaseFeature {
+  /** Door Lock CC wins when the device advertises it, with no fallback to the older Lock CC. */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    if (endpoint.supportsCC(CommandClasses['Door Lock'])) {
+      return (
+        hasValue(values, CommandClasses['Door Lock'], 'currentMode') &&
+        hasValue(values, CommandClasses['Door Lock'], 'targetMode')
+      );
+    }
+
+    return hasValue(values, CommandClasses.Lock, 'locked');
+  }
+
   private service!: Service;
 
   init(): void {

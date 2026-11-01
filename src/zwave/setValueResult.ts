@@ -17,7 +17,7 @@ export interface SetValueOutcome {
  *
  * This only covers delivery. A device that acknowledges a frame at the transport layer and then
  * ignores its contents still yields a successful status, so a write that the device quietly
- * disregards can only be caught afterwards by comparing its reported state against the command.
+ * disregards can only be caught afterward by comparing its reported state against the command.
  */
 export function describeSetValueResult(result: SetValueResult | undefined): SetValueOutcome {
   if (!result || typeof result.status !== 'number') {

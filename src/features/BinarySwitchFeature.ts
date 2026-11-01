@@ -1,9 +1,21 @@
+import { Endpoint } from 'zwave-js';
+import { IZWaveNode } from '../zwave/interfaces';
 import { Service, CharacteristicValue } from 'homebridge';
 import { CommandClasses } from '@zwave-js/core';
-import { BaseFeature } from './ZWaveFeature';
+import { BaseFeature, definedValues, hasValue } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
 export class BinarySwitchFeature extends BaseFeature {
+  /** Reads `currentValue` and writes `targetValue`; without both the switch cannot work. */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    return (
+      hasValue(values, CommandClasses['Binary Switch'], 'currentValue') &&
+      hasValue(values, CommandClasses['Binary Switch'], 'targetValue')
+    );
+  }
+
   private service!: Service;
 
   init(): void {

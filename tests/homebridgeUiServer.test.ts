@@ -219,4 +219,71 @@ describe('homebridge-ui server request wiring', () => {
 
     await expect(serverInstance.ipcRequest('/nodes', 'GET')).rejects.toThrow('Bad Request');
   });
+  it('should forward the device type requests to the IPC endpoints', async () => {
+    const requests = new Map<string, (...args: any[]) => Promise<unknown>>();
+    let serverInstance: { ipcRequest?: jest.Mock } | undefined;
+
+    jest.doMock('@homebridge/plugin-ui-utils', () => {
+      return {
+        HomebridgePluginUiServer: class {
+          homebridgeStoragePath = '/tmp';
+          constructor() {
+            serverInstance = this as { ipcRequest?: jest.Mock };
+          }
+          onRequest(name: string, handler: (...args: any[]) => Promise<unknown>) {
+            requests.set(name, handler);
+          }
+          ready() {
+            return undefined;
+          }
+        },
+      };
+    });
+
+    jest.isolateModules(() => {
+      require('../homebridge-ui/server.js');
+    });
+
+    const ipcRequest = jest.fn().mockResolvedValue({ ok: true });
+    serverInstance!.ipcRequest = ipcRequest;
+    const fingerprint = { manufacturerId: 2748, productType: 2, productId: 16 };
+
+    await requests.get('get-node-type')!(10);
+    await requests.get('set-node-type')!({
+      nodeId: 10,
+      primaryKind: 'window-covering',
+      expectedFingerprint: fingerprint,
+      expectedRevision: 'b41f0c2e',
+    });
+    await requests.get('clear-node-type')!({
+      nodeId: 10,
+      expectedFingerprint: fingerprint,
+      expectedRevision: 'b41f0c2e',
+    });
+    await requests.get('acknowledge-type-orphan')!({
+      nodeId: 10,
+      observationId: 'ob-1',
+      expectedFingerprint: fingerprint,
+    });
+    await requests.get('remove-type-override')!({ nodeId: 10, expectedRevision: 'b41f0c2e' });
+
+    expect(ipcRequest).toHaveBeenNthCalledWith(1, '/nodes/10/type', 'GET');
+    // The node number names the route, so it is not repeated in the body a write carries.
+    expect(ipcRequest).toHaveBeenNthCalledWith(2, '/nodes/10/type', 'POST', {
+      primaryKind: 'window-covering',
+      expectedFingerprint: fingerprint,
+      expectedRevision: 'b41f0c2e',
+    });
+    expect(ipcRequest).toHaveBeenNthCalledWith(3, '/nodes/10/type/clear', 'POST', {
+      expectedFingerprint: fingerprint,
+      expectedRevision: 'b41f0c2e',
+    });
+    expect(ipcRequest).toHaveBeenNthCalledWith(4, '/nodes/10/type/acknowledge', 'POST', {
+      observationId: 'ob-1',
+      expectedFingerprint: fingerprint,
+    });
+    expect(ipcRequest).toHaveBeenNthCalledWith(5, '/nodes/10/type/remove', 'POST', {
+      expectedRevision: 'b41f0c2e',
+    });
+  });
 });

@@ -1,6 +1,8 @@
+import { Endpoint } from 'zwave-js';
+import { IZWaveNode } from '../zwave/interfaces';
 import { Service } from 'homebridge';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
-import { BaseFeature } from './ZWaveFeature';
+import { BaseFeature, definedValues, hasBinarySensor, hasNotification } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
 export const MOTION_CLEAR_TIMEOUT_MS = 30_000;
@@ -9,6 +11,16 @@ export const MOTION_CLEAR_TIMEOUT_MS = 30_000;
  * MotionSensorFeature maps Z-Wave Home Security notifications to HomeKit Motion Sensor.
  */
 export class MotionSensorFeature extends BaseFeature {
+  /** Reads whichever source reports, so either one is enough to drive the service. */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    return (
+      hasNotification(values, 'Home Security', ['Motion sensor status', 'Sensor status', 'Motion status'], true) ||
+      hasBinarySensor(values, 'Motion', 'Any')
+    );
+  }
+
   private service!: Service;
   private motionState: boolean = false;
   private clearTimer?: NodeJS.Timeout;

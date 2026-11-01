@@ -1,6 +1,8 @@
+import { Endpoint } from 'zwave-js';
+import { IZWaveNode } from '../zwave/interfaces';
 import { Service, CharacteristicValue } from 'homebridge';
 import { CommandClasses } from '@zwave-js/core';
-import { BaseFeature } from './ZWaveFeature';
+import { BaseFeature, definedValues, hasValue } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
 /**
@@ -8,6 +10,16 @@ import { ZWaveValueEvent } from '../zwave/interfaces';
  * It tracks brightness locally to ensure Z-Wave 'Restore Previous' (255) works correctly.
  */
 export class MultilevelSwitchFeature extends BaseFeature {
+  /** Drives both on/off and brightness from the one pair of Multilevel Switch values. */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    return (
+      hasValue(values, CommandClasses['Multilevel Switch'], 'currentValue') &&
+      hasValue(values, CommandClasses['Multilevel Switch'], 'targetValue')
+    );
+  }
+
   private service!: Service;
   private lastKnownBrightness = 100; // Default to full brightness
 

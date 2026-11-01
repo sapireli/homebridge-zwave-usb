@@ -12,9 +12,24 @@ const { describeHealStart, healIsRunning,
   firmwareStateOf,
   nextFirmwareRecord,
   describeNodeActions,
+  describeFirmwareCell,
+  firmwareProgressOf,
   describeNodeNotices,
+  typeName,
   withoutFirmwareProgress,
   describeBattery,
+  describeNodeStatus,
+  describeNodeHeader,
+  describeNodeDetail,
+  nodeIdFromReviewLink,
+  nextSectionTab,
+  describeDiagnosticsSection,
+  describeTypePanel,
+  describeTypeForm,
+  describeTypeExceptions,
+  describeWriteRefusal,
+  describeTypeWrite,
+  describeWriteOutcome,
 } = require('../homebridge-ui/public/ui-helpers.js');
 
 describe('homebridge-ui security key helpers', () => {
@@ -265,7 +280,7 @@ describe('homebridge-ui renderDiagnostics', () => {
     const text = renderDiagnostics(full).html.replace(/\s+/g, ' ');
 
     expect(text).toContain(
-      "A route's ACK RSSI and the average ACK RSSI show the signal strength of acknowledgement frames received by the controller.",
+      "A route's ACK RSSI and the average ACK RSSI show the signal strength of acknowledgment frames received by the controller.",
     );
     expect(text).toContain(
       'they describe the first hop, usually the nearest repeater, not the device itself.',
@@ -758,19 +773,18 @@ describe('node action cell', () => {
   const actionsFor = (phase: string | null, version?: string, over = {}) =>
     describeNodeActions(node(over), firmwareStateOf(node(over), phase === null ? null : { phase, version }));
 
-  it('idle shows the five actions as icons, keeping the classes the page delegates on', () => {
+  it('idle shows the actions a node page offers, keeping the classes the page delegates on', () => {
+    // Diagnostics is a section of the node's page rather than a button, so it is not here.
     const result = actionsFor(null);
 
     expect(result.kind).toBe('buttons');
     expect(result.buttons.map((b: any) => b.action)).toEqual([
       'rename-node',
       'refresh-node-info',
-      'node-diagnostics',
       'check-update',
       'remove-node',
     ]);
     expect(result.buttons.map((b: any) => b.variant)).toEqual([
-      'outline-secondary',
       'outline-secondary',
       'outline-secondary',
       'outline-primary',
@@ -781,6 +795,35 @@ describe('node action cell', () => {
       expect(button.label).toBeTruthy();
       expect(button.disabled).toBe(false);
     });
+  });
+
+  it('offers a way into every node but the controller, named for that node', () => {
+    expect(actionsFor(null, undefined, { nodeId: 7 }).open).toEqual({
+      action: 'open-node',
+      label: 'Open node 7',
+      variant: 'outline-secondary',
+      icon: 'open',
+      disabled: false,
+      spinner: false,
+    });
+
+    // It sits beside the group rather than in it, so it is not one of the things done to a node.
+    expect(
+      actionsFor(null, undefined, { nodeId: 7 }).buttons.map((b: any) => b.action),
+    ).not.toContain('open-node');
+    expect(describeNodeActions(node({ nodeId: 1 }), { name: 'idle' }).open).toBeUndefined();
+  });
+
+  it('offers the way in while a firmware update is running', () => {
+    // The row shows progress in place of the group, and a node being updated is one a reader
+    // is more likely to want to look at, not less.
+    const updating = describeNodeActions(
+      node({ nodeId: 7 }),
+      firmwareStateOf(node({ nodeId: 7, firmwareProgress: { percent: 40 } }), null),
+    ) as any;
+
+    expect(updating.kind).toBe('progress');
+    expect(updating.open).toMatchObject({ action: 'open-node', label: 'Open node 7' });
   });
 
   it('marks Refresh Info for the devices that have to be woken first', () => {
@@ -801,13 +844,14 @@ describe('node action cell', () => {
       expect(slot.spinner).toBe(true);
       expect(slot.disabled).toBe(true);
       expect(result.buttons.filter((b: any) => b.disabled)).toHaveLength(1);
-      expect(result.buttons).toHaveLength(5);
+      expect(result.buttons).toHaveLength(4);
     }
   });
 
   it('an available update turns the same slot into a green Update button', () => {
     const result = actionsFor('available', '11.4');
-    const slot = result.buttons[3];
+    // The same slot, found by what it is rather than by where it sits in the group.
+    const slot = result.buttons.find((b: any) => b.icon === 'update');
 
     expect(slot).toMatchObject({
       action: 'start-update',
@@ -816,12 +860,17 @@ describe('node action cell', () => {
       disabled: false,
       spinner: false,
     });
-    expect(result.buttons).toHaveLength(5);
+    expect(result.buttons).toHaveLength(4);
   });
 
   it('a running, finished or failed update replaces the group with a progress bar', () => {
-    const bar = (progress: Record<string, unknown>) =>
-      describeNodeActions(node(), firmwareStateOf(node({ firmwareProgress: progress }), null));
+    const bar = (progress: Record<string, unknown>) => {
+      const { open, active, label, ...rest } = describeNodeActions(
+        node(),
+        firmwareStateOf(node({ firmwareProgress: progress }), null),
+      ) as any;
+      return rest;
+    };
 
     expect(bar({ percent: 37.5 })).toEqual({ kind: 'progress', percent: 38, failed: false });
     expect(bar({ percent: 100, outcome: 'success' })).toEqual({
@@ -870,6 +919,104 @@ describe('node notices', () => {
     ]);
     expect(noticesFor({ homekitState: 'pending-interview' })).toEqual([
       { severity: 'pending', text: 'Not yet in HomeKit; waiting for interview metadata', link: null },
+    ]);
+  });
+
+  it('names the type a node is published as, and every node the decision reaches', () => {
+    expect(noticesFor({ typeOverride: { primaryKind: 'window-covering', sharedWith: [] } })).toEqual([
+      { severity: 'info', text: 'Window Covering, overridden for this hardware', link: null },
+    ]);
+    expect(noticesFor({ typeOverride: { primaryKind: 'garage-door', sharedWith: [8] } })).toEqual([
+      {
+        severity: 'info',
+        text: 'Garage Door, overridden for this hardware (also applies to Node 8)',
+        link: null,
+      },
+    ]);
+    expect(
+      noticesFor({ typeOverride: { primaryKind: 'lock', sharedWith: [8, 11] } }),
+    ).toEqual([
+      {
+        severity: 'info',
+        text: 'Lock, overridden for this hardware (also applies to Nodes 8 and 11)',
+        link: null,
+      },
+    ]);
+    expect(
+      noticesFor({ typeOverride: { primaryKind: 'siren', sharedWith: [8, 11, 12] } }),
+    ).toEqual([
+      {
+        severity: 'info',
+        text: 'Siren, overridden for this hardware (also applies to Nodes 8, 11 and 12)',
+        link: null,
+      },
+    ]);
+  });
+
+  it('sends a node whose decision needs looking at to its own page', () => {
+    const review = { href: '#node-5', text: 'Review' };
+
+    expect(noticesFor({ typeInvalid: true })).toEqual([
+      {
+        severity: 'warning',
+        text: 'Saved type override cannot be applied to this device',
+        link: review,
+      },
+    ]);
+    expect(noticesFor({ typeOrphans: 1 })).toEqual([
+      { severity: 'warning', text: 'A saved type override no longer matches this node', link: review },
+    ]);
+    expect(noticesFor({ typeOrphans: 3 })).toEqual([
+      {
+        severity: 'warning',
+        text: '3 saved type overrides no longer match this node',
+        link: review,
+      },
+    ]);
+    expect(
+      noticesFor({
+        typeRebuildFailed: true,
+        typeOverride: { primaryKind: 'window-covering', sharedWith: [] },
+      })[0],
+    ).toEqual({
+      severity: 'warning',
+      text: 'Window Covering is saved for this hardware but is not published here',
+      link: review,
+    });
+  });
+
+  it('reports a default that could not be restored without naming it', () => {
+    // A node with no override applied belongs on its default, whether the override was
+    // reverted or this node cannot take it. Its own page is where the default is named.
+    expect(noticesFor({ typeRebuildFailed: true })).toEqual([
+      {
+        severity: 'warning',
+        text: 'The default device type could not be restored',
+        link: { href: '#node-5', text: 'Review' },
+      },
+    ]);
+  });
+
+  it('does not take a type name from the object prototype', () => {
+    for (const kind of ['constructor', 'toString', 'hasOwnProperty']) {
+      expect(typeof typeName(kind)).toBe('string');
+    }
+    expect(typeName('constructor')).toBe('Constructor');
+  });
+
+  it('reads the worst of the type news first, and the rest in turn', () => {
+    expect(
+      noticesFor({
+        typeOrphans: 2,
+        typeRebuildFailed: true,
+        typeOverride: { primaryKind: 'thermostat', sharedWith: [] },
+        refreshState: 'refreshing',
+      }).map((notice) => notice.text),
+    ).toEqual([
+      '2 saved type overrides no longer match this node',
+      'Thermostat is saved for this hardware but is not published here',
+      'Refresh in progress',
+      'Thermostat, overridden for this hardware',
     ]);
   });
 
@@ -994,6 +1141,1110 @@ describe('battery indicator', () => {
   });
 });
 
+describe('a node status badge', () => {
+  it('names each status a controller reports and calls anything else unknown', () => {
+    expect([0, 1, 2, 3, 4].map((status) => describeNodeStatus({ status }).text)).toEqual([
+      'Unknown',
+      'Asleep',
+      'Awake',
+      'Dead',
+      'Alive',
+    ]);
+
+    expect(describeNodeStatus({ status: 9 }).text).toBe('Unknown');
+    expect(describeNodeStatus({}).text).toBe('Unknown');
+    expect(describeNodeStatus(undefined).text).toBe('Unknown');
+  });
+
+  it('colors a node that is answering and leaves the rest plain', () => {
+    expect(describeNodeStatus({ status: 4 }).tone).toBe('success');
+    expect(describeNodeStatus({ status: 2 }).tone).toBe('success');
+
+    [0, 1, 3].forEach((status) => expect(describeNodeStatus({ status }).tone).toBe('secondary'));
+  });
+});
+
+describe('a node page header', () => {
+  it('falls back from the name to the label to the number', () => {
+    expect(describeNodeHeader({ nodeId: 5, name: 'Shade', label: 'ZW140' }).name).toBe('Shade');
+    expect(describeNodeHeader({ nodeId: 5, label: 'ZW140' }).name).toBe('ZW140');
+    expect(describeNodeHeader({ nodeId: 5 }).name).toBe('Node 5');
+  });
+
+  it('says when the firmware version has not been reported', () => {
+    expect(describeNodeHeader({ nodeId: 5, firmwareVersion: '1.2' }).firmware).toBe('Firmware 1.2');
+    expect(describeNodeHeader({ nodeId: 5 }).firmware).toBe('Firmware unknown');
+  });
+
+  it('says whether the node has to be woken before it will answer', () => {
+    expect(describeNodeHeader({ nodeId: 5, isListening: true }).listening).toBe('Always listening');
+    expect(describeNodeHeader({ nodeId: 5, isFrequentListening: true }).listening).toBe(
+      'Listens frequently',
+    );
+    expect(describeNodeHeader({ nodeId: 5 }).listening).toBe('Sleeps between reports');
+  });
+
+  it('carries the same badge the list draws', () => {
+    // One table of status names, so the two surfaces cannot come to disagree.
+    const node = { nodeId: 4, status: 3 };
+
+    expect(describeNodeHeader(node).status).toBe(describeNodeStatus(node).text);
+    expect(describeNodeHeader(node).statusTone).toBe(describeNodeStatus(node).tone);
+  });
+});
+
+describe('a node page description', () => {
+  const node = { nodeId: 5, name: 'Shade', status: 4, isListening: true };
+
+  it('offers Rename beside the name and the three controls below it', () => {
+    const detail = describeNodeDetail(node, { name: 'idle' });
+
+    expect(detail.rename.action).toBe('rename-node');
+    expect(detail.controls.map((button: any) => button.action)).toEqual([
+      'refresh-node-info',
+      'check-update',
+      'remove-node',
+    ]);
+  });
+
+  it('leaves Diagnostics and the way in to the places that offer them', () => {
+    // Diagnostics has a section of its own, and the way in is how the reader got here.
+    const actions = describeNodeDetail(node, { name: 'idle' }).controls.map(
+      (button: any) => button.action,
+    );
+
+    expect(actions).not.toContain('node-diagnostics');
+    expect(actions).not.toContain('open-node');
+  });
+
+  it('offers the update in place of the check once one is waiting', () => {
+    const detail = describeNodeDetail(node, { name: 'available', version: '2.0' });
+
+    expect(detail.controls.map((button: any) => button.action)).toEqual([
+      'refresh-node-info',
+      'start-update',
+      'remove-node',
+    ]);
+  });
+
+  it('replaces the controls with progress while an update runs', () => {
+    const detail = describeNodeDetail(node, { name: 'updating', percent: 40 });
+
+    expect(detail.progress).toMatchObject({ percent: 40, failed: false });
+    expect(detail.controls).toEqual([]);
+    expect(detail.rename).toBeNull();
+    expect(describeNodeDetail(node, { name: 'failed', percent: 70 }).progress.failed).toBe(true);
+  });
+
+  it('offers the controller nothing, since nothing here acts on it', () => {
+    const detail = describeNodeDetail({ nodeId: 1 }, { name: 'idle' });
+
+    expect(detail.rename).toBeNull();
+    expect(detail.controls).toEqual([]);
+    expect(detail.progress).toBeNull();
+  });
+
+  it('describes an unchanged node identically, which is what lets a refresh leave it alone', () => {
+    /**
+     * The page compares the description it is given against the one it drew and writes nothing
+     * when they match. A description that differed between two passes over the same node would
+     * defeat that and take the keyboard, and later a half-made choice, with every refresh.
+     */
+    const first = JSON.stringify(describeNodeDetail(node, { name: 'idle' }));
+    const second = JSON.stringify(describeNodeDetail({ ...node }, { name: 'idle' }));
+
+    expect(second).toBe(first);
+  });
+
+  it('describes it differently as soon as anything the page shows has moved', () => {
+    const base = JSON.stringify(describeNodeDetail(node, { name: 'idle' }));
+
+    expect(JSON.stringify(describeNodeDetail({ ...node, status: 3 }, { name: 'idle' }))).not.toBe(
+      base,
+    );
+    expect(JSON.stringify(describeNodeDetail({ ...node, name: 'Blind' }, { name: 'idle' }))).not.toBe(
+      base,
+    );
+    expect(
+      JSON.stringify(describeNodeDetail({ ...node, firmwareVersion: '3.1' }, { name: 'idle' })),
+    ).not.toBe(base);
+    expect(
+      JSON.stringify(describeNodeDetail(node, { name: 'available', version: '2.0' })),
+    ).not.toBe(base);
+  });
+});
+
+describe('a review link', () => {
+  it('reads the node it points at', () => {
+    expect(nodeIdFromReviewLink('#node-7')).toBe('7');
+    expect(nodeIdFromReviewLink('#node-12')).toBe('12');
+  });
+
+  it('refuses anything else, so a link added later is not mistaken for one', () => {
+    ['#node-', '#node-7x', '#nodes-7', '#other', '', null, undefined].forEach((href) =>
+      expect(nodeIdFromReviewLink(href)).toBeNull(),
+    );
+  });
+});
+
+describe('the node page section strip', () => {
+  const sections = ['type', 'diagnostics'];
+
+  it('moves along the strip and wraps at both ends', () => {
+    expect(nextSectionTab(sections, 'type', 'ArrowRight')).toBe('diagnostics');
+    expect(nextSectionTab(sections, 'diagnostics', 'ArrowRight')).toBe('type');
+    expect(nextSectionTab(sections, 'type', 'ArrowLeft')).toBe('diagnostics');
+    expect(nextSectionTab(sections, 'diagnostics', 'ArrowLeft')).toBe('type');
+  });
+
+  it('answers Home and End', () => {
+    expect(nextSectionTab(sections, 'diagnostics', 'Home')).toBe('type');
+    expect(nextSectionTab(sections, 'type', 'End')).toBe('diagnostics');
+  });
+
+  it('leaves every other key to the page', () => {
+    // Tab, Enter and typing have to reach what they normally reach.
+    ['Tab', 'Enter', ' ', 'a', 'ArrowUp', 'Escape'].forEach((key) =>
+      expect(nextSectionTab(sections, 'type', key)).toBeNull(),
+    );
+  });
+
+  it('answers nothing for a section it does not carry', () => {
+    expect(nextSectionTab(sections, 'parameters', 'ArrowRight')).toBeNull();
+  });
+});
+
+describe('the Diagnostics section', () => {
+  it('says it is reading until a report has arrived', () => {
+    expect(describeDiagnosticsSection(undefined)).toEqual({ kind: 'loading' });
+    expect(describeDiagnosticsSection({ loading: true })).toEqual({ kind: 'loading' });
+  });
+
+  it('reports a failure in place of the report rather than beside it', () => {
+    expect(describeDiagnosticsSection({ error: 'The plugin did not answer.' })).toEqual({
+      kind: 'error',
+      text: 'The plugin did not answer.',
+    });
+  });
+
+  it('offers the covering controls only for a covering', () => {
+    expect(describeDiagnosticsSection({ report: { isWindowCovering: false } }).controls).toBeNull();
+    expect(describeDiagnosticsSection({ report: { isWindowCovering: true } }).controls).toEqual({
+      disabled: false,
+      text: '',
+    });
+  });
+
+  it('holds the controls while an operation is running', () => {
+    /**
+     * The section is drawn from this rather than from what is on screen, which is what lets an
+     * operation keep running while the reader changes section or leaves the node and returns.
+     */
+    const running = describeDiagnosticsSection({
+      report: { isWindowCovering: true },
+      covering: { running: true, text: 'Moving to 25%...' },
+    });
+
+    expect(running.controls).toEqual({ disabled: true, text: 'Moving to 25%...' });
+
+    const finished = describeDiagnosticsSection({
+      report: { isWindowCovering: true },
+      covering: { running: false, text: 'Commanded 25% from 0%, now 25%. The covering moved there.' },
+    });
+
+    expect(finished.controls!.disabled).toBe(false);
+  });
+});
+
+describe('the Device type section', () => {
+  const payload = (over: Record<string, unknown> = {}) => ({
+    nodeId: 10,
+    fingerprint: { manufacturerId: 2748, productType: 2, productId: 16 },
+    label: '[SAMPLE SHADE]',
+    multiEndpoint: false,
+    primaryKind: 'window-covering',
+    source: 'registry',
+    defaultKind: 'window-covering',
+    defaultSource: 'registry',
+    registryLabel: 'Springs Window Fashions RSZ1',
+    override: null,
+    store: { readable: true, error: null },
+    rebuildFailure: null,
+    ...over,
+  });
+
+  const rowFor = (label: string, over: Record<string, unknown> = {}) =>
+    describeTypePanel(payload(over)).rows.find((row: any) => row.label === label);
+
+  it('names the type, where it came from, the label and the fingerprint', () => {
+    const { rows } = describeTypePanel(payload());
+
+    expect(rows.map((row: any) => row.label)).toEqual([
+      'Published as',
+      'Source',
+      'Device label',
+      'Hardware fingerprint',
+    ]);
+    expect(rows[0]).toMatchObject({ value: 'Window Covering', chip: 'Verified default' });
+  });
+
+  it('writes the fingerprint as three four-digit words', () => {
+    expect(rowFor('Hardware fingerprint')).toMatchObject({
+      hex: ['0x0ABC', '0x0002', '0x0010'],
+      caption: 'Manufacturer, product type, product',
+    });
+  });
+
+  it('takes the source row from the source, not from the default', () => {
+    /**
+     * A node whose default comes from the registry but which is published as something else
+     * read as "Built-in verified registry", crediting the registry for a type it did not give.
+     */
+    expect(rowFor('Source')).toMatchObject({
+      value: 'Built-in verified registry',
+      detail: 'Springs Window Fashions RSZ1',
+    });
+    expect(rowFor('Source', { source: 'detected' })).toMatchObject({
+      value: 'Detected automatically from the device',
+      detail: null,
+    });
+    expect(rowFor('Source', { source: 'detected', defaultSource: 'registry' })).toMatchObject({
+      value: 'Detected automatically from the device',
+    });
+  });
+
+  it('dates an override and names what it replaced', () => {
+    const source = rowFor('Source', {
+      source: 'override',
+      defaultKind: 'multilevel-switch',
+      override: { primaryKind: 'window-covering', savedAt: '2026-10-12T18:20:00Z' },
+    }) as any;
+
+    expect(source.value).toMatch(/^Your override, saved [A-Z][a-z]{2} \d{1,2}, \d{4}$/);
+    expect(source.detail).toBe('Default for this node: Multilevel Switch');
+
+    // The date is the override's own, not a constant.
+    const later = rowFor('Source', {
+      source: 'override',
+      override: { primaryKind: 'window-covering', savedAt: '2025-03-04T12:00:00Z' },
+    }) as any;
+
+    expect(later.value).not.toBe(source.value);
+  });
+
+  it('names the chip for each source', () => {
+    expect(rowFor('Published as', { source: 'detected' })!.chip).toBe('Detected default');
+    expect(
+      rowFor('Published as', {
+        source: 'override',
+        override: { primaryKind: 'window-covering', savedAt: '2026-10-12T18:20:00Z' },
+      })!.chip,
+    ).toBe('Your override');
+  });
+
+  it('counts a repeated endpoint type rather than writing it out again', () => {
+    const multi = rowFor('Published as', {
+      multiEndpoint: true,
+      primaryKind: null,
+      source: 'detected',
+      endpointTypes: [
+        { endpointIndex: 1, primaryKind: 'garage-door' },
+        { endpointIndex: 2, primaryKind: 'binary-switch' },
+        { endpointIndex: 3, primaryKind: 'binary-switch' },
+      ],
+    });
+
+    expect(multi!.value).toBe('Garage Door, 2 Binary Switches');
+  });
+
+  it('says a device with several functions cannot be overridden', () => {
+    const { notices } = describeTypePanel(
+      payload({ multiEndpoint: true, primaryKind: null, endpointTypes: [] }),
+    );
+
+    expect(notices).toContainEqual({
+      severity: 'info',
+      body: 'This device provides multiple independent functions. Type overrides are not available for this kind of device yet.',
+    });
+  });
+
+  it('keeps the Device label row whether or not the device sent one', () => {
+    /**
+     * The label describes the hardware, not the type, so dropping it when the device had sent
+     * none took a row away without saying anything had been left out.
+     */
+    expect(rowFor('Device label')).toMatchObject({ value: '[SAMPLE SHADE]' });
+    expect(rowFor('Device label', { label: null })).toMatchObject({ value: 'Not reported' });
+  });
+
+  it('says so when a device publishes no type at all', () => {
+    /**
+     * An endpoint whose only function is its battery publishes nothing that can be changed, so
+     * there is no type to name and no source to credit, and the section says why.
+     */
+    const { rows, notices } = describeTypePanel(payload({ primaryKind: null, label: 'ZW-BATT' }));
+
+    expect(rows.map((row: any) => row.label)).toEqual(['Device label', 'Hardware fingerprint']);
+    expect(notices).toContainEqual({
+      severity: 'info',
+      body: 'This device has no HomeKit device type that can be changed.',
+    });
+  });
+
+  it('shows only the fingerprint row before a device has reported one', () => {
+    /**
+     * Nothing is said about what HomeKit publishes: a node waiting for metadata and an
+     * accessory already cached with an unfinished interview both reach this state, and a
+     * missing fingerprint does not tell them apart.
+     */
+    const { rows, notices } = describeTypePanel(
+      payload({ fingerprint: null, primaryKind: null, label: null }),
+    );
+
+    expect(rows).toEqual([
+      { label: 'Hardware fingerprint', value: 'Not reported yet', detail: null },
+    ]);
+    expect(notices).toEqual([
+      { severity: 'info', body: "Available once the device's interview has finished." },
+    ]);
+  });
+
+  it('warns in amber when the saved overrides cannot be read', () => {
+    // The plugin and the device are working; saved configuration is being ignored.
+    const { notices } = describeTypePanel(
+      payload({ store: { readable: false, error: { code: 'wrong-network' } } }),
+    );
+
+    expect(notices[0].severity).toBe('warning');
+    expect(notices[0].heading).toBe('Saved device type overrides are unavailable.');
+    expect(notices[0].body).toContain('belongs to a different Z-Wave network');
+    expect(notices[0].body).not.toContain('undefined');
+  });
+
+  it('has a sentence for every code the store reports', () => {
+    const codes = [
+      'permission-denied',
+      'unreadable',
+      'invalid-json',
+      'unsupported-version',
+      'wrong-network',
+      'invalid-data',
+    ];
+
+    codes.forEach((code) => {
+      const { notices } = describeTypePanel(
+        payload({ store: { readable: false, error: { code } } }),
+      );
+      expect(notices[0].body).toContain('type changes are disabled');
+    });
+  });
+
+  it('relabels the first row when HomeKit is not publishing the saved decision', () => {
+    const saved = describeTypePanel(
+      payload({
+        source: 'override',
+        defaultKind: 'multilevel-switch',
+        override: { primaryKind: 'window-covering', savedAt: '2026-10-12T18:20:00Z' },
+        rebuildFailure: { error: 'HAP refused' },
+      }),
+    );
+
+    expect(saved.rows[0].label).toBe('Saved type');
+    expect(saved.panels[0]).toMatchObject({
+      severity: 'warning',
+      heading: 'The saved type has not been applied.',
+    });
+    expect(saved.panels[0].body).toContain('Window Covering is saved for this hardware');
+    // The exception reached the reader in the toast; the log keeps it.
+    expect(saved.panels[0].body).not.toContain('HAP refused');
+
+    const reverted = describeTypePanel(
+      payload({
+        primaryKind: 'multilevel-switch',
+        source: 'detected',
+        defaultKind: 'multilevel-switch',
+        rebuildFailure: { error: 'HAP refused' },
+      }),
+    );
+
+    expect(reverted.rows[0].label).toBe('Default type');
+    expect(reverted.panels[0].heading).toBe('The default type has not been restored.');
+    expect(reverted.panels[0].body).toContain('Multilevel Switch is the default for this device');
+  });
+});
+
+describe('choosing a device type', () => {
+  const member = (nodeId: number, over: Record<string, unknown> = {}) => ({
+    nodeId,
+    name: `Node ${nodeId} shade`,
+    primaryKind: 'window-covering',
+    defaultKind: 'multilevel-switch',
+    takesOverride: true,
+    ...over,
+  });
+
+  const overridden = (over: Record<string, unknown> = {}) => ({
+    nodeId: 10,
+    fingerprint: { manufacturerId: 2748, productType: 2, productId: 16 },
+    multiEndpoint: false,
+    primaryKind: 'window-covering',
+    source: 'override',
+    defaultKind: 'multilevel-switch',
+    defaultSource: 'detected',
+    options: ['multilevel-switch', 'window-covering'],
+    override: { primaryKind: 'window-covering', savedAt: '2026-10-12T18:20:00Z' },
+    cohort: [member(10), member(11)],
+    cohortRevision: 'abc',
+    store: { readable: true, error: null },
+    rebuildFailure: null,
+    ...over,
+  });
+
+  const plain = (over: Record<string, unknown> = {}) =>
+    overridden({
+      primaryKind: 'multilevel-switch',
+      source: 'detected',
+      override: null,
+      cohort: [member(10, { primaryKind: 'multilevel-switch' })],
+      ...over,
+    });
+
+  it('says who else the choice reaches, before and after an override exists', () => {
+    expect(describeTypeForm(plain(), null).cohort).toMatchObject({
+      heading: 'A type chosen here applies to this hardware, not only to this node.',
+      count: '1 node reports this fingerprint:',
+    });
+
+    expect(describeTypeForm(overridden(), null).cohort).toMatchObject({
+      heading: 'This override is saved for the hardware, not only for this node.',
+      count: '2 nodes report this fingerprint:',
+    });
+  });
+
+  it('marks this node among the others, and names what one of them cannot take', () => {
+    const chips = describeTypeForm(
+      overridden({ cohort: [member(10), member(11, { takesOverride: false })] }),
+      null,
+    ).cohort.chips;
+
+    expect(chips[0]).toMatchObject({ nodeId: 10, thisNode: true, note: null });
+    expect(chips[1]).toMatchObject({
+      nodeId: 11,
+      thisNode: false,
+      note: '(cannot take Window Covering)',
+    });
+  });
+
+  it('offers the current type first, then the node default, then the rest', () => {
+    expect(describeTypeForm(overridden(), null).select).toMatchObject({
+      label: 'Publish this device as',
+      value: 'window-covering',
+    });
+
+    expect(describeTypeForm(overridden(), null).select.options.map((o: any) => o.label)).toEqual([
+      'Window Covering (your override)',
+      'Multilevel Switch (detected default)',
+    ]);
+
+    expect(
+      describeTypeForm(plain({ defaultSource: 'registry', source: 'registry' }), null).select.options.map(
+        (o: any) => o.label,
+      ),
+    ).toEqual(['Multilevel Switch (verified default)', 'Window Covering']);
+  });
+
+  it('keeps the chosen type rather than the published one', () => {
+    // The draft is passed in, so a refresh replaces the payload without touching the choice.
+    const form = describeTypeForm(plain(), 'window-covering');
+
+    expect(form.select.value).toBe('window-covering');
+    expect(form.apply).toMatchObject({ label: 'Apply to 1 node', disabled: false });
+  });
+
+  it('counts the nodes an apply would change, and only those', () => {
+    /**
+     * A chosen type that is also every node's default is the Revert case whatever the count,
+     * so this counts against a third type rather than against the default.
+     */
+    const form = describeTypeForm(
+      overridden({
+        options: ['multilevel-switch', 'window-covering', 'binary-switch'],
+        cohort: [member(10), member(11), member(12, { primaryKind: 'binary-switch' })],
+      }),
+      'binary-switch',
+    );
+
+    expect(form.apply).toMatchObject({ label: 'Apply to 2 nodes', disabled: false });
+  });
+
+  it('refuses an apply that would change nothing', () => {
+    // Mirrors the backend, which refuses a kind equal to the existing override.
+    expect(describeTypeForm(overridden(), 'window-covering').apply).toMatchObject({
+      label: 'Apply',
+      disabled: true,
+      hint: null,
+    });
+  });
+
+  it('sends the reader to Revert when they have picked the default back', () => {
+    expect(describeTypeForm(overridden(), 'multilevel-switch').apply).toMatchObject({
+      label: 'Apply',
+      disabled: true,
+      hint: 'Use Revert to return to the default type.',
+    });
+  });
+
+  it('offers Revert only against an override, and names what it returns to', () => {
+    expect(describeTypeForm(plain(), null).revert).toBeNull();
+
+    expect(describeTypeForm(overridden(), null).revert).toMatchObject({
+      label: 'Revert 2 nodes to Multilevel Switch',
+      disabled: false,
+    });
+
+    expect(
+      describeTypeForm(overridden({ cohort: [member(10)] }), null).revert!.label,
+    ).toBe('Revert 1 node to Multilevel Switch');
+  });
+
+  it('offers no Revert where there is nothing to revert', () => {
+    /**
+     * An override no node in the cohort can take leaves every node on its own default, so a
+     * Revert button would offer an operation over no nodes at all. Removing the override is
+     * the way out of that state, and the invalid panel offers it.
+     */
+    const form = describeTypeForm(
+      overridden({
+        cohort: [
+          member(10, { primaryKind: 'multilevel-switch', takesOverride: false }),
+          member(11, { primaryKind: 'multilevel-switch', takesOverride: false }),
+        ],
+      }),
+      null,
+    );
+
+    expect(form.revert).toBeNull();
+  });
+
+  it('does not name one default when the nodes have different ones', () => {
+    const form = describeTypeForm(
+      overridden({ cohort: [member(10), member(11, { defaultKind: 'binary-switch' })] }),
+      null,
+    );
+
+    expect(form.revert!.label).toBe('Revert 2 nodes to their default types');
+  });
+
+  it('warns about as many accessories as the buttons below it would touch', () => {
+    const one = describeTypeForm(plain(), 'window-covering');
+    expect(one.warning).toContain('on this accessory');
+
+    const many = describeTypeForm(overridden(), 'multilevel-switch');
+    expect(many.warning).toContain('on each affected accessory');
+  });
+
+  it('names no number of accessories when neither button can act', () => {
+    // There is no change to count, and the cohort is not a count of what would change.
+    const resting = describeTypeForm(plain(), null).warning;
+
+    expect(resting).toBe(
+      'Changing a device type replaces its corresponding HomeKit service. Scenes and automations that use that service may need to be set up again.',
+    );
+    expect(resting).not.toContain('accessories');
+  });
+
+  it('marks a type the cohort cannot take, wherever it came from', () => {
+    /**
+     * The current type and this node's own default are listed whether or not the whole cohort
+     * can take them, because they are what the device is and what it would go back to. A mixed
+     * cohort puts either outside the intersection, and the backend refuses one that is.
+     */
+    const form = describeTypeForm(overridden({ options: ['multilevel-switch'] }), null);
+
+    expect(form.select.options).toEqual([
+      { kind: 'window-covering', label: 'Window Covering (your override)', available: false },
+      { kind: 'multilevel-switch', label: 'Multilevel Switch (detected default)', available: true },
+    ]);
+    expect(form.apply).toMatchObject({ label: 'Apply', disabled: true });
+  });
+
+  it('says why a type it is showing cannot be acted on', () => {
+    /**
+     * Not "no longer": a current type or a node's own default can be one the whole cohort was
+     * never able to take, so nothing is claimed about when it stopped being available.
+     */
+    expect(describeTypeForm(overridden({ options: ['multilevel-switch'] }), null).select.note).toBe(
+      'The selected type is not available for every device with this hardware.',
+    );
+    expect(describeTypeForm(overridden(), 'multilevel-switch').select.note).toBeNull();
+    expect(describeTypeForm(overridden({ fingerprint: null }), null).select.note).toBeNull();
+  });
+
+  it('holds a choice a refresh has invalidated instead of silently swapping it', () => {
+    /**
+     * The exact sequence: a type is chosen while the cohort can take it, and the next payload
+     * no longer offers it. Dropping it would leave the select showing its first option while
+     * Apply acted on the one the reader could no longer see.
+     */
+    const chosen = 'window-covering';
+    const before = describeTypeForm(plain(), chosen);
+
+    expect(before.apply).toMatchObject({ disabled: false });
+
+    const after = describeTypeForm(plain({ options: ['multilevel-switch'] }), chosen);
+
+    expect(after.select.value).toBe(chosen);
+    expect(after.select.options.find((option: any) => option.kind === chosen)).toMatchObject({
+      available: false,
+    });
+    expect(after.apply).toMatchObject({ label: 'Apply', disabled: true });
+  });
+
+  it('offers nothing to choose where nothing can be chosen', () => {
+    const states = [
+      overridden({ multiEndpoint: true, primaryKind: null }),
+      overridden({ fingerprint: null }),
+      overridden({ store: { readable: false, error: { code: 'invalid-json' } } }),
+      overridden({ primaryKind: null }),
+    ];
+
+    states.forEach((payload) => {
+      const form = describeTypeForm(payload, null);
+
+      expect(form.select).toMatchObject({ disabled: true, placeholder: 'Not available' });
+      expect(form.select.options).toEqual([]);
+      expect(form.apply).toMatchObject({ label: 'Apply', disabled: true });
+      expect(form.revert).toBeNull();
+      expect(form.cohort).toBeNull();
+    });
+  });
+});
+
+describe('a refused type write', () => {
+  it('sends a reader to the node-gone state when the node has left', () => {
+    expect(describeWriteRefusal('unknown-node')).toEqual({
+      gone: true,
+      text: 'This node is no longer in the network. Nothing was changed.',
+    });
+  });
+
+  it('says what changed under the reader when the hardware or the cohort did', () => {
+    expect(describeWriteRefusal('fingerprint-changed')).toMatchObject({
+      gone: false,
+      text: 'This node now reports different hardware. Nothing was changed.',
+    });
+    expect(describeWriteRefusal('cohort-changed').text).toBe(
+      'The devices that share this hardware changed. Nothing was changed. Review the list and try again.',
+    );
+  });
+
+  it('sends every other refusal back to what the section now reports', () => {
+    /**
+     * The code names a condition the page has already redrawn itself around, so repeating it
+     * as copy would describe the state the reader is looking at. It goes to the log instead.
+     */
+    ['read-only', 'not-overridable', 'incomplete-request', 'something-new', undefined].forEach(
+      (code) =>
+        expect(describeWriteRefusal(code as string)).toEqual({
+          gone: false,
+          text: 'The device type could not be changed. Nothing was changed. Review the updated device information.',
+        }),
+    );
+  });
+
+  it('cannot take a sentence from an inherited property', () => {
+    expect(describeWriteRefusal('toString').text).toContain('could not be changed');
+  });
+});
+
+describe('confirming a type write', () => {
+  const member = (nodeId: number, name: string, over: Record<string, unknown> = {}) => ({
+    nodeId,
+    name,
+    matterActive: false,
+    primaryKind: 'multilevel-switch',
+    defaultKind: 'multilevel-switch',
+    takesOverride: true,
+    ...over,
+  });
+
+  const payload = (over: Record<string, unknown> = {}) => ({
+    nodeId: 10,
+    cohort: [member(10, 'Hallway Shade'), member(11, 'Office Shade')],
+    ...over,
+  });
+
+  it('says it once when every node changes the same way', () => {
+    const dialog = describeTypeWrite(payload(), 'window-covering', 'apply');
+
+    expect(dialog.title).toBe('Change the device type for this hardware?');
+    expect(dialog.lines).toEqual([
+      'Multilevel Switch becomes Window Covering on Node 10 Hallway Shade and Node 11 Office Shade.',
+    ]);
+    expect(dialog.confirmLabel).toBe('Apply');
+  });
+
+  it('takes a line each when they do not', () => {
+    const dialog = describeTypeWrite(
+      payload({ cohort: [member(10, 'Hallway Shade'), member(11, 'Office Shade', { primaryKind: 'binary-switch' })] }),
+      'window-covering',
+      'apply',
+    );
+
+    expect(dialog.lines).toEqual([
+      'Node 10 Hallway Shade: Multilevel Switch becomes Window Covering',
+      'Node 11 Office Shade: Binary Switch becomes Window Covering',
+    ]);
+  });
+
+  it('names no node that would not change', () => {
+    // A cohort node already publishing the chosen type is not touched by the write.
+    const dialog = describeTypeWrite(
+      payload({
+        cohort: [member(10, 'Hallway Shade'), member(11, 'Office Shade', { primaryKind: 'window-covering' })],
+      }),
+      'window-covering',
+      'apply',
+    );
+
+    expect(dialog.lines[0]).toContain('Node 10 Hallway Shade');
+    expect(dialog.lines[0]).not.toContain('Office Shade');
+    expect(dialog.nodeCount).toBe(1);
+  });
+
+  it('asks a different question for a revert', () => {
+    const dialog = describeTypeWrite(
+      payload({
+        cohort: [
+          member(10, 'Hallway Shade', { primaryKind: 'window-covering' }),
+          member(11, 'Office Shade', { primaryKind: 'window-covering' }),
+        ],
+      }),
+      null,
+      'revert',
+    );
+
+    expect(dialog.title).toBe('Revert to the default type?');
+    expect(dialog.confirmLabel).toBe('Revert');
+    expect(dialog.lines).toEqual([
+      'Window Covering becomes Multilevel Switch on Node 10 Hallway Shade and Node 11 Office Shade.',
+    ]);
+  });
+
+  it('discloses the restart for whichever node the write would rebuild', () => {
+    /**
+     * A decision reaches every node sharing the fingerprint. Asking only about the node whose
+     * page is open leaves a reader changing a device that Matter publishes, and that stays as
+     * it was in Alexa until Homebridge restarts, with nothing said about it.
+     */
+    expect(describeTypeWrite(payload(), 'window-covering', 'apply').matter).toBeNull();
+
+    const elsewhere = payload({
+      cohort: [member(10, 'Hallway Shade'), member(11, 'Office Shade', { matterActive: true })],
+    });
+
+    expect(describeTypeWrite(elsewhere, 'window-covering', 'apply').matter).toBe(
+      'Matter controllers, including Alexa, show the new type after Homebridge restarts.',
+    );
+  });
+
+  it('says nothing about a restart for a node the write would not touch', () => {
+    // A cohort node already publishing the chosen type is not rebuilt, so nothing about it
+    // changes in Matter either.
+    const settled = payload({
+      cohort: [
+        member(10, 'Hallway Shade'),
+        member(11, 'Office Shade', { matterActive: true, primaryKind: 'window-covering' }),
+      ],
+    });
+
+    expect(describeTypeWrite(settled, 'window-covering', 'apply').matter).toBeNull();
+  });
+
+  it('counts the accessories the write would rebuild', () => {
+    const one = describeTypeWrite(
+      payload({ cohort: [member(10, 'Hallway Shade')] }),
+      'window-covering',
+      'apply',
+    );
+
+    expect(one.warning).toContain('on this accessory');
+    expect(describeTypeWrite(payload(), 'window-covering', 'apply').warning).toContain(
+      'on each affected accessory',
+    );
+  });
+});
+
+describe('what a type write did', () => {
+  const cohort = [
+    { nodeId: 10, name: 'Hallway Shade' },
+    { nodeId: 11, name: 'Office Shade' },
+  ];
+
+  it('counts what it rebuilt', () => {
+    expect(
+      describeWriteOutcome({ rebuilt: [10], failed: [] }, 'window-covering', cohort, 'apply'),
+    ).toEqual({ type: 'success', lines: ['Device type changed on 1 node.'] });
+    expect(
+      describeWriteOutcome({ rebuilt: [10, 11], failed: [] }, 'window-covering', cohort, 'apply')
+        .lines[0],
+    ).toBe('Device type changed on 2 nodes.');
+  });
+
+  it('gives each node HomeKit would not take its own line and its own reason', () => {
+    /**
+     * Two nodes failing for different reasons is two things to know, and the nodes are named
+     * the way the dialog that asked about them named them.
+     */
+    const outcome = describeWriteOutcome(
+      {
+        rebuilt: [],
+        failed: [
+          { nodeId: 11, error: 'HAP refused' },
+          { nodeId: 10, error: 'timed out' },
+        ],
+      },
+      'window-covering',
+      cohort,
+      'apply',
+    );
+
+    expect(outcome.type).toBe('error');
+    expect(outcome.lines).toEqual([
+      'Window Covering was saved for this hardware, but HomeKit could not update Node 10 Hallway Shade: timed out. Restart Homebridge to try again.',
+      'Window Covering was saved for this hardware, but HomeKit could not update Node 11 Office Shade: HAP refused. Restart Homebridge to try again.',
+    ]);
+  });
+
+  it('says what a revert did, rather than what an apply would have', () => {
+    // Nothing was saved by a revert: the override was removed.
+    const outcome = describeWriteOutcome(
+      { rebuilt: [], failed: [{ nodeId: 11, error: 'HAP refused' }] },
+      'multilevel-switch',
+      cohort,
+      'revert',
+    );
+
+    expect(outcome.lines).toEqual([
+      'The override was removed, but HomeKit could not restore the default type on Node 11 Office Shade: HAP refused. Restart Homebridge to try again.',
+    ]);
+  });
+
+  it('still names a node the cohort no longer knows', () => {
+    const outcome = describeWriteOutcome(
+      { rebuilt: [], failed: [{ nodeId: 12, error: 'boom' }] },
+      'window-covering',
+      cohort,
+      'apply',
+    );
+
+    expect(outcome.lines[0]).toContain('could not update Node 12: boom');
+  });
+});
+
+describe('an override that no longer fits', () => {
+  const payload = (over: Record<string, unknown> = {}) => ({
+    nodeId: 8,
+    fingerprint: { manufacturerId: 881, productType: 4, productId: 2 },
+    primaryKind: 'motion-sensor',
+    orphans: [],
+    invalid: null,
+    ...over,
+  });
+
+  const invalid = (appliedTo: { nodeId: number; name: string }[]) =>
+    describeTypeExceptions(payload({ invalid: { primaryKind: 'window-covering', appliedTo } }))
+      .invalid;
+
+  it('names the type this device cannot take, and who still has it', () => {
+    const panel = invalid([
+      { nodeId: 5, name: "Nico's Shade" },
+      { nodeId: 11, name: 'Office Shade' },
+    ])!;
+
+    expect(panel.heading).toBe('Your saved override cannot be applied to this device');
+    expect(panel.body).toBe(
+      'This device reports the same hardware fingerprint, but it cannot take Window Covering, so the saved override does not apply here. The override is still applied to:',
+    );
+    expect(panel.chips).toEqual([
+      { nodeId: 5, name: "Nico's Shade" },
+      { nodeId: 11, name: 'Office Shade' },
+    ]);
+    expect(panel.manage).toMatchObject({ nodeId: 5, text: "Manage it from Node 5 Nico's Shade" });
+    expect(panel.remove).toBeNull();
+  });
+
+  it('introduces no list when there is nobody to list', () => {
+    // The closing sentence of the body introduces the chips, and an override applied to
+    // nothing is removed rather than read about somewhere else.
+    const panel = invalid([])!;
+
+    expect(panel.body).toBe(
+      'This device reports the same hardware fingerprint, but it cannot take Window Covering, so the saved override does not apply here.',
+    );
+    expect(panel.chips).toEqual([]);
+    expect(panel.manage).toBeNull();
+    expect(panel.remove).toMatchObject({ label: 'Remove saved override' });
+  });
+
+  it('leaves the choice to the node that has the override', () => {
+    const elsewhere = { primaryKind: 'window-covering', appliedTo: [{ nodeId: 5, name: 'Shade' }] };
+    const nowhere = { primaryKind: 'window-covering', appliedTo: [] };
+
+    expect(
+      describeTypeForm(payload({ invalid: elsewhere, options: ['motion-sensor'], cohort: [] }), null)
+        .select.disabled,
+    ).toBe(true);
+    expect(
+      describeTypeForm(payload({ invalid: nowhere, options: ['motion-sensor'], cohort: [] }), null)
+        .select.disabled,
+    ).toBe(false);
+  });
+
+  it('shows what the override was saved for beside what the node reports now', () => {
+    const [orphan] = describeTypeExceptions(
+      payload({
+        orphans: [
+          {
+            observationId: 'obs-1',
+            fingerprint: { manufacturerId: 2748, productType: 2, productId: 16 },
+            primaryKind: 'window-covering',
+            appliedAt: '2026-10-12T18:20:00Z',
+            orphanedAt: '2026-10-20T10:00:00Z',
+          },
+        ],
+      }),
+    ).orphans;
+
+    expect(orphan.heading).toBe('A saved override no longer matches this node');
+    expect(orphan.body).toContain('Z-Wave reuses node numbers after a device is removed');
+    expect(orphan.savedFor).toMatchObject({
+      title: 'Override saved for',
+      hex: ['0x0ABC', '0x0002', '0x0010'],
+      type: 'Window Covering',
+    });
+    expect(orphan.nowReports).toMatchObject({
+      title: 'Node 8 now reports',
+      hex: ['0x0371', '0x0004', '0x0002'],
+      type: 'Motion Sensor',
+    });
+    expect(orphan.acknowledge).toBe('Acknowledge hardware change');
+    expect(orphan.canAcknowledge).toBe(true);
+  });
+
+  it('cannot acknowledge against a fingerprint the node is not reporting', () => {
+    /**
+     * The acknowledgement is answered against what the node reports now, so a re-interview
+     * that has left it without a fingerprint leaves nothing to send. The section already says
+     * the interview has to finish first.
+     */
+    const { orphans } = describeTypeExceptions(
+      payload({
+        fingerprint: null,
+        orphans: [{ observationId: 'obs-1', fingerprint: null, primaryKind: null, appliedAt: null }],
+      }),
+    );
+
+    expect(orphans[0].canAcknowledge).toBe(false);
+  });
+
+  it('says that a removal and an acknowledgement happened', () => {
+    expect(describeWriteOutcome({}, null, [], 'remove').lines).toEqual([
+      'Saved override removed.',
+    ]);
+    expect(describeWriteOutcome({}, null, [], 'acknowledge').lines).toEqual([
+      'Hardware change acknowledged.',
+    ]);
+    expect(describeWriteOutcome({}, null, [], 'remove').type).toBe('success');
+  });
+
+  it('keeps each observation answerable on its own', () => {
+    const { orphans } = describeTypeExceptions(
+      payload({
+        orphans: [
+          { observationId: 'obs-1', fingerprint: null, primaryKind: null, appliedAt: null },
+          { observationId: 'obs-2', fingerprint: null, primaryKind: null, appliedAt: null },
+        ],
+      }),
+    );
+
+    expect(orphans.map((orphan: any) => orphan.observationId)).toEqual(['obs-1', 'obs-2']);
+  });
+
+  it('asks before removing an override, and says it changes nothing', () => {
+    expect(describeTypeWrite({ nodeId: 8 }, 'window-covering', 'remove')).toMatchObject({
+      title: 'Remove this saved override?',
+      lines: [
+        'Window Covering is no longer applied to any device, so removing it changes nothing in HomeKit.',
+      ],
+      confirmLabel: 'Remove',
+      warning: null,
+      matter: null,
+    });
+  });
+});
+
+describe('the Firmware column', () => {
+  it('reports the version, and says so when there is none', () => {
+    expect(describeFirmwareCell({ firmwareVersion: '11.2' }, { name: 'idle' })).toEqual({
+      version: '11.2',
+      progress: null,
+    });
+    expect(describeFirmwareCell({}, { name: 'idle' }).version).toBe('Unknown');
+  });
+
+  it('carries the progress of an update that is running, finished or failed', () => {
+    expect(describeFirmwareCell({}, { name: 'updating', percent: 40 }).progress).toMatchObject({
+      percent: 40,
+      failed: false,
+    });
+    expect(describeFirmwareCell({}, { name: 'completed', percent: 100 }).progress).toMatchObject({
+      percent: 100,
+      failed: false,
+    });
+    expect(describeFirmwareCell({}, { name: 'failed', percent: 70 }).progress).toMatchObject({
+      percent: 70,
+      failed: true,
+    });
+  });
+
+  it('says an update is still moving only while it is', () => {
+    /**
+     * A bar that goes on animating once an update has finished or failed reports it as still
+     * running, which is the one thing the bar is there to say.
+     */
+    expect(firmwareProgressOf({ name: 'updating', percent: 40 })!.active).toBe(true);
+    expect(firmwareProgressOf({ name: 'completed', percent: 100 })!.active).toBe(false);
+    expect(firmwareProgressOf({ name: 'failed', percent: 70 })!.active).toBe(false);
+  });
+
+  it('names the bar with the same sentence the notice beside it carries', () => {
+    expect(firmwareProgressOf({ name: 'updating' })!.label).toBe('Updating firmware');
+    expect(firmwareProgressOf({ name: 'completed' })!.label).toBe('Firmware update completed');
+    expect(firmwareProgressOf({ name: 'failed' })!.label).toBe('Firmware update failed');
+  });
+
+  it('describes the node page bar the same way it describes the row one', () => {
+    const state = { name: 'failed', percent: 70 };
+
+    expect(describeNodeDetail({ nodeId: 5 }, state).progress).toEqual(firmwareProgressOf(state));
+    expect(describeNodeActions({ nodeId: 5 }, state)).toMatchObject(firmwareProgressOf(state)!);
+  });
+
+  it('brings a percentage the driver did not give back into range', () => {
+    expect(describeFirmwareCell({}, { name: 'updating', percent: 140 }).progress!.percent).toBe(100);
+    expect(describeFirmwareCell({}, { name: 'updating', percent: -5 }).progress!.percent).toBe(0);
+    expect(describeFirmwareCell({}, { name: 'updating' }).progress!.percent).toBe(0);
+  });
+
+  it('says nothing about progress while nothing is happening', () => {
+    ['idle', 'checking', 'available', 'starting'].forEach((name) =>
+      expect(describeFirmwareCell({}, { name }).progress).toBeNull(),
+    );
+    expect(describeFirmwareCell({}, null).progress).toBeNull();
+  });
+});
+
 describe('management page integration', () => {
   it('has valid inline JavaScript and one instance of each modal', () => {
     const fs = require('fs');
@@ -1002,7 +2253,7 @@ describe('management page integration', () => {
     const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
     expect(scripts.length).toBeGreaterThan(0);
     for (const match of scripts) expect(() => new Function(match[1])).not.toThrow();
-    for (const id of ['diagnosticsModal', 'removeNodeModal', 'renameModal', 'confirmModal']) {
+    for (const id of ['typeWriteModal', 'removeNodeModal', 'renameModal', 'confirmModal']) {
       expect(html.match(new RegExp(`id="${id}"`, 'g'))).toHaveLength(1);
     }
   });
@@ -1157,11 +2408,12 @@ describe('management page integration', () => {
     });
   });
 
-  it('heads the action column "Actions" and leaves the status cell to the badge', () => {
+  it('heads the last column "Details" and leaves the status cell to the badge', () => {
+    // The column is a way into each node now, not a row of things to do to it.
     const html = readPage();
 
-    expect(html).toMatch(/<th[^>]*>Actions<\/th>/);
-    expect(html).not.toMatch(/<th[^>]*>Action<\/th>/);
+    expect(html).toMatch(/<th[^>]*>Details<\/th>/);
+    expect(html).not.toMatch(/<th[^>]*>Actions?<\/th>/);
     // The status texts live in the notice line now, so their lookup tables are gone from here.
     expect(html).not.toContain('refreshStateMap');
     expect(html).not.toContain('homeKitStateMap');
@@ -1220,13 +2472,32 @@ describe('management page integration', () => {
     expect(html).toMatch(/\.tip::after\s*\{[^}]*letter-spacing:\s*normal/);
   });
 
-  it('centers every tooltip on its own button, with no button singled out', () => {
-    // One rule for all five; the last button no longer anchors its tooltip differently.
+  it('centers a tooltip on its button, except where that would reach past the table', () => {
     const html = readPage();
 
     expect(html).toMatch(/\.tip::after\s*\{[^}]*left:\s*50%/);
     expect(html).toMatch(/\.tip::after\s*\{[^}]*transform:\s*translateX\(-50%\)/);
-    expect(html).not.toContain(':last-child::after');
+
+    // The way in, and the last of the group beside it, hang theirs from the right edge.
+    expect(html).toMatch(
+      /\.node-action-cell > \.tip:last-child::after,\s*\.node-action-cell \.btn-group \.tip:last-child::after\s*\{[^}]*right:\s*0/,
+    );
+  });
+
+  it('keeps a tooltip out of the layout until it is read', () => {
+    /**
+     * An invisible tooltip that is still laid out counts toward the table's scrollable width,
+     * which is the measurement the action column has to pass, so hiding one by opacity alone
+     * puts the column over the limit while showing nothing.
+     */
+    const html = readPage();
+
+    expect(html).toMatch(/\.tip::after\s*\{[^}]*display:\s*none/);
+    expect(html).not.toMatch(/\.tip::after\s*\{[^}]*opacity:/);
+    expect(html).toMatch(/\.tip:hover::after,\s*\.tip:focus-visible::after\s*\{\s*display:\s*block/);
+    expect(html).toMatch(
+      /max-width: 575\.98px\)\s*\{\s*\.tip::after,\s*\.tip:hover::after,\s*\.tip:focus-visible::after\s*\{\s*display:\s*none/,
+    );
   });
 
   it('stops the settings modal lending its own tooltip to anything on the page', () => {
@@ -1304,8 +2575,8 @@ describe('management page integration', () => {
 
   it('puts the battery beside the name without disturbing the rename field', () => {
     /**
-     * The rename dialog prefills from the name cell's text, so the indicator has to contribute
-     * none: it is an SVG inside a span, written against the name with no space between them.
+     * The indicator carries no text of its own: it is an SVG inside a span, written against the
+     * name with no space between them, so the cell reads as the name and nothing else.
      */
     const html = readPage();
 
@@ -1319,8 +2590,688 @@ describe('management page integration', () => {
   it('escapes every node-supplied value it writes into the row', () => {
     const script = [...readPage().matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)![1] as string;
 
-    for (const written of ['notice.text', 'button.label', 'nodeName', "node.firmwareVersion || 'Unknown'"]) {
+    for (const written of ['notice.text', 'button.label', 'nodeName', 'cell.version']) {
       expect(script).toContain(`uiHelpers.escapeHtml(${written})`);
     }
+  });
+
+  const lastScript = () =>
+    [...readPage().matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)![1] as string;
+
+  /** The body of a top-level `const name = ... };` in the page's inline script. */
+  const declaration = (name: string) => {
+    const match = new RegExp(`const ${name} = [\\s\\S]*?\\n      \\};`).exec(lastScript());
+    expect(match).not.toBeNull();
+    return match![0];
+  };
+
+  it('draws both surfaces from one repaint', () => {
+    /**
+     * Check Update and the firmware flow change what the page knows and then redraw. Redrawing
+     * the table alone left an open node page showing the state the node was in before the click
+     * until the next refresh, and showing nothing at all while a dialog held that refresh off.
+     */
+    const repaint = declaration('rerenderNodes');
+
+    expect(repaint).toContain('renderNodes(lastNodes)');
+    expect(repaint).toContain('renderNodeDetail()');
+  });
+
+  it('redraws a node page only when its description has changed', () => {
+    /**
+     * The five-second refresh has to keep the view current without resetting what the reader is
+     * part way through. Comparing the description against the one already drawn means an
+     * unchanged node touches no DOM at all, so focus stays where it was put.
+     */
+    const script = lastScript();
+
+    expect(script).toContain('const signature = JSON.stringify(detail);');
+    expect(script).toContain('if (signature === detailDrawn) return;');
+    expect(declaration('openNodeDetail')).toContain('detailDrawn = null;');
+    expect(declaration('closeNodeDetail')).toContain('detailDrawn = null;');
+  });
+
+  it('returns the list to where the reader left it', () => {
+    expect(declaration('openNodeDetail')).toContain('listScroll = scrollOffset();');
+    expect(declaration('closeNodeDetail')).toContain('window.scrollTo(0, listScroll);');
+  });
+
+  it('remembers that position only on the way in from the list', () => {
+    /**
+     * A node opened from another node's page would otherwise record the page's own offset,
+     * which is zero, and back would land at the top of a list the reader had scrolled.
+     */
+    expect(declaration('openNodeDetail')).toContain(
+      'if (detailNodeId === null) listScroll = scrollOffset();',
+    );
+  });
+
+  it('carries the keyboard across the navigation', () => {
+    /**
+     * The control that was clicked goes away with the surface it sits on, so without this the
+     * keyboard is left on the document body at the top of the page, both on the way in and on
+     * the way back.
+     */
+    expect(declaration('openNodeDetail')).toContain(
+      "document.getElementById('backToNodes').focus({ preventScroll: true });",
+    );
+
+    const close = declaration('closeNodeDetail');
+    expect(close).toContain("button.getAttribute('data-nodeid') === String(leaving)");
+    expect(close).toContain("(wayIn || document.getElementById('nodeListTitle')).focus(");
+  });
+
+  it('lands the keyboard on something that says where it is', () => {
+    /**
+     * Each of the three places focus is sent carries a name of its own: the back link and the
+     * list heading their own text, and the way-in button the label the row already gives it.
+     * None of them is a container, and none is redrawn, so a refresh cannot take focus off one.
+     */
+    const html = readPage();
+
+    /**
+     * The chevron is decoration. Left in the name, it reads as "left single quotation mark, All
+     * nodes", and it is the one of the three names the page writes rather than reuses.
+     */
+    expect(html).toContain(
+      '<a href="#" class="node-detail-back" id="backToNodes"><span aria-hidden="true">&lsaquo;</span> All nodes</a>',
+    );
+    expect(html).toContain('<h5 id="nodeListTitle" tabindex="-1">Z-Wave Node Maintenance</h5>');
+    expect(html).toMatch(/id="nodeDetail"(?![^>]*tabindex)/);
+    expect(html).toMatch(/id="nodeList"(?![^>]*tabindex)/);
+
+    // The way-in button's name is the one the row renders for it.
+    expect(describeNodeActions(node({ nodeId: 5 }), { name: 'idle' }).open).toMatchObject({
+      action: 'open-node',
+      label: 'Open node 5',
+    });
+  });
+
+  it('says on the node page that a refresh did not answer', () => {
+    /**
+     * The list can give its rows over to the message. The node page is showing one node, so it
+     * keeps what it has and says above it that this is no longer current, rather than going on
+     * presenting stale readings as if they had just arrived.
+     */
+    const load = declaration('loadNodes');
+
+    expect(load).toContain("showNodeError('Plugin not responding. Is it running?')");
+    expect(load).toContain('showNodeError(err.message)');
+    expect(load).toContain("showNodeError('')");
+  });
+
+  it('keeps one table of status names between the list and the node page', () => {
+    const html = readPage();
+
+    expect(html).toContain('uiHelpers.describeNodeStatus(node)');
+    ['Asleep', 'Awake', 'Dead', 'Alive'].forEach((status) =>
+      expect(html).not.toContain(`'${status}'`),
+    );
+  });
+
+  it('answers an action and a review link wherever either is drawn', () => {
+    const script = lastScript();
+
+    ['nodeTableBody', 'nodeDetail'].forEach((id) => {
+      expect(script).toContain(`getElementById('${id}').addEventListener('click', handleNodeAction)`);
+      expect(script).toContain(`getElementById('${id}').addEventListener('click', handleReviewLink)`);
+    });
+  });
+
+  it('takes the name for a rename from what the plugin reported', () => {
+    /**
+     * Both surfaces draw the name, and only one is on screen, so reading it back out of the
+     * document found whichever cell came first rather than the one that was clicked.
+     */
+    const script = lastScript();
+
+    expect(script).toContain('const named = lastNodes.find');
+    expect(script).not.toContain('node-name-${nodeId}');
+  });
+
+  it('gives the section strip the semantics of a strip of tabs', () => {
+    const html = readPage();
+
+    expect(html).toMatch(/id="nodeSections"[^>]*role="tablist"/);
+    ['nodeSectionType', 'nodeSectionDiagnostics'].forEach((panel) => {
+      expect(html).toMatch(new RegExp(`id="${panel}Tab"[\\s\\S]{0,120}aria-controls="${panel}"`));
+      expect(html).toMatch(new RegExp(`id="${panel}"[\\s\\S]{0,120}aria-labelledby="${panel}Tab"`));
+    });
+
+    // One stop for the strip, which moves with the selection, rather than one stop per tab.
+    const select = declaration('selectNodeSection');
+    expect(select).toContain("tab.setAttribute('aria-selected', chosen ? 'true' : 'false');");
+    expect(select).toContain('tab.tabIndex = chosen ? 0 : -1;');
+  });
+
+  it('opens a node on Device type, whichever section was last read', () => {
+    expect(declaration('openNodeDetail')).toContain("selectNodeSection('type');");
+  });
+
+  it('reads the diagnostics again each time the reader comes to the section', () => {
+    /**
+     * A rebuild, an interview or a repair changes what the report would say, and a request
+     * that failed once has to be allowed to succeed, so a report read earlier is not the
+     * answer for ever. Only a request already running is not repeated, and nothing polls.
+     */
+    const load = declaration('loadDiagnosticsSection');
+
+    expect(load).toContain('if (state.loading) return;');
+    expect(load).not.toContain('if (state.report || state.error || state.loading) {');
+    expect(load).toContain('state.error = null;');
+    expect(declaration('selectNodeSection')).toContain('loadDiagnosticsSection();');
+  });
+
+  it('takes the sections away with a node that has left', () => {
+    /**
+     * Z-Wave gives a node number away again, so controls that move a motor must not sit in the
+     * page waiting for whatever device takes this number next. Requirement 7 asks for the
+     * sentence, the back link and no controls, which is what emptying them leaves.
+     */
+    const away = declaration('showNodeSections');
+
+    // What it held goes; what it is made of stays, so it can be drawn into again.
+    expect(away).toContain('panel.innerHTML = SECTION_SKELETON.get(section.panel)');
+    expect(away).toContain("strip.style.display = present ? '' : 'none';");
+    expect(declaration('markNodeGone')).toContain('showNodeSections(false);');
+  });
+
+  it('treats a node that has gone as gone until the reader opens one again', () => {
+    /**
+     * Z-Wave gives a node number away again, so a later list carrying it is not necessarily
+     * this device coming back. Redrawing the page around whatever now answers would put a
+     * reader who was last told the node had gone in front of different hardware.
+     */
+    expect(declaration('renderNodeDetail')).toContain('if (!host || detailGone) return;');
+    expect(declaration('markNodeGone')).toContain('detailGone = true;');
+    expect(declaration('openNodeDetail')).toContain('detailGone = false;');
+    expect(declaration('renderDiagnosticsSection')).toContain('if (detailGone) return;');
+  });
+
+  it('carries the keyboard off the controls it is about to remove', () => {
+    /**
+     * Read before anything is rewritten: once the controls are gone the keyboard is already on
+     * the document body and there is nothing left to ask. The sentence is announced as well,
+     * so a reader who was in the controls is told why they have been taken away.
+     */
+    const gone = declaration('markNodeGone');
+
+    expect(gone).toContain('const hadFocus = detail.contains(document.activeElement);');
+    expect(gone).toContain("document.getElementById('backToNodes').focus({ preventScroll: true });");
+    expect(gone).toContain('role="status"');
+    expect(gone.indexOf('const hadFocus')).toBeLessThan(gone.indexOf('host.innerHTML ='));
+  });
+
+  it('settles every section it opens, including one with nothing in it yet', () => {
+    // The section shown first is reachable from the strip whether or not it has content.
+    expect(declaration('selectNodeSection')).toContain('settlePanelFocus(panel);');
+  });
+
+  it('counts only a control someone could actually reach', () => {
+    /**
+     * A panel takes the keyboard when nothing in it can. Counting disabled controls would make
+     * a dead end of every covering with an operation running, and of every Device type state
+     * that cannot be edited, which is exactly where the panel has to be reachable.
+     */
+    const script = lastScript();
+
+    expect(script).toContain('button:not([disabled])');
+    expect(script).toContain('select:not([disabled])');
+    expect(declaration('settlePanelFocus')).toContain(
+      'panel.tabIndex = panel.querySelector(PANEL_FOCUSABLE) ? -1 : 0;',
+    );
+  });
+
+  it('says how Stop is meant to be tested', () => {
+    // It answers movement started elsewhere; it does not cancel a test this page started.
+    expect(readPage()).toContain(
+      'To test Stop, start the covering from another controller or its remote, then select Stop while it is moving.',
+    );
+  });
+
+  it('keeps the covering generation per node, away from the dialog counter', () => {
+    /**
+     * `hideModals` bumps the shared counter, so sharing it would drop the result of a move
+     * started on the node page the moment the reader opened and cancelled Rename, leaving the
+     * controls disabled with nothing coming to enable them.
+     */
+    const script = lastScript();
+
+    expect(script).toContain('const generation = (state.coveringRun || 0) + 1;');
+    expect(script).toContain('if (generation !== state.coveringRun) return;');
+  });
+
+  it('leaves nothing of the dialog the Diagnostics section replaced', () => {
+    /**
+     * The dialog and the row icon that opened it went together, once the section was doing the
+     * work. What drove the covering from inside the dialog went with them.
+     */
+    const html = readPage();
+
+    ['diagnosticsModal', 'diagnosticsBody', 'closeDiagnostics', 'positionTestRow'].forEach((id) =>
+      expect(html).not.toContain(id),
+    );
+    expect(html).not.toContain('runCoveringControl');
+  });
+
+  it('offers nothing in the row but the way into the node', () => {
+    /**
+     * Every control that acts on a node is on the node's own page, so none is offered twice
+     * and the list reads as an overview. A node mid-update shows how far it has got beside
+     * its firmware version, where a reader scanning for it is already looking.
+     */
+    const cell = declaration('actionCellHtml');
+
+    expect(cell).toContain('actionButtonHtml(nodeId, actions.open)');
+    expect(cell).not.toContain('actions.buttons');
+    expect(cell).not.toContain("actions.kind === 'progress'");
+    expect(lastScript()).toContain('uiHelpers.describeFirmwareCell(node, firmwareState)');
+  });
+
+  it('reads the device type when the reader comes to the section', () => {
+    const load = declaration('loadTypeSection');
+
+    expect(load).toContain('if (state.loading) return;');
+    expect(load).toContain("window.homebridge.request('get-node-type', nodeId)");
+    expect(declaration('selectNodeSection')).toContain('loadTypeSection();');
+  });
+
+  it('settles the Device type panel after drawing it', () => {
+    // Its read-only states hold nothing focusable, which is where the panel has to take focus.
+    expect(declaration('renderTypeSection')).toContain('settlePanelFocus(host);');
+  });
+
+  it('draws the Device type rows from the helper rather than deciding for itself', () => {
+    const script = lastScript();
+
+    expect(script).toContain('uiHelpers.describeTypePanel(state.payload)');
+    expect(script).toContain('uiHelpers.describeTypeExceptions(state.payload)');
+    // Written across lines by the formatter, so matched on the pieces rather than the line.
+    expect(script).toMatch(/panel\.panels\s*\.?\s*\n?\s*\.map\(typeCalloutHtml\)/);
+    expect(script).toMatch(/panel\.notices\s*\n?\s*\.map\(typeCalloutHtml\)/);
+    expect(script).toMatch(/panel\.rows\.map\(typeRowHtml\)/);
+  });
+
+  it('escapes every value the plugin supplies for those rows', () => {
+    const script = lastScript();
+
+    ['row.label', 'row.value', 'row.chip', 'under', 'callout.heading', 'callout.body'].forEach(
+      (written) => expect(script).toContain(`uiHelpers.escapeHtml(${written})`),
+    );
+  });
+
+  it('discards a reading a write has already answered for', () => {
+    /**
+     * The five-second refresh means a read is often in flight when a write lands. One started
+     * before the write describes the node as it was, so applying it when it arrives puts back
+     * what the reader has just changed.
+     */
+    const load = declaration('loadTypeSection');
+    const write = declaration('runTypeWrite');
+
+    expect(load).toContain('const generation = typeGenerationOf(nodeId);');
+    expect(load).toContain('if (generation === typeGenerationOf(nodeId)) {');
+    expect(write).toContain('supersedeTypeReads(nodeId);');
+
+    // Read before the request, not after it, or every read would look current.
+    expect(load.indexOf('const generation = typeGenerationOf(nodeId);')).toBeLessThan(
+      load.indexOf("await window.homebridge.request('get-node-type', nodeId)"),
+    );
+
+    // A failure that a write has answered for is dropped the same way a payload is.
+    expect(load).toContain('state.error = err.message;');
+    expect(load.split('if (generation === typeGenerationOf(nodeId)) {').length - 1).toBe(2);
+  });
+
+  it('keeps the device type current while the section is open', () => {
+    /**
+     * The payload describes what the plugin holds now, not a measurement taken once, so a node
+     * that finished interviewing, a rebuild that recovered, or a write made in another window
+     * would otherwise sit unreported for as long as the section stayed open.
+     */
+    const load = declaration('loadNodes');
+
+    expect(load).toContain(
+      "if (detailNodeId !== null && !detailGone && nodeSection === 'type') {",
+    );
+    expect(load).toContain('loadTypeSection();');
+
+    // The radio report is a reading, not a view of current state, so it is not asked for here.
+    expect(load).not.toContain('loadDiagnosticsSection();');
+  });
+
+  it('reserves the interrupting role for a warning', () => {
+    /**
+     * Waiting for an interview and having several endpoints are ordinary facts about a device.
+     * Read over whatever the reader is doing, they would be an interruption saying nothing has
+     * gone wrong.
+     */
+    const script = lastScript();
+
+    expect(script).toContain("callout.severity === 'warning' ? 'alert' : 'status'");
+  });
+
+  it('keeps the live region out of the panel it redraws', () => {
+    /**
+     * A region recreated on every render announces a sentence that has not changed. This one
+     * is written once in the markup and its text is set only when the sentence differs from
+     * the one it is already carrying, so a choice invalidated by a refresh is announced and a
+     * choice that was unavailable when the page was drawn is not.
+     */
+    const html = readPage();
+
+    expect(html).toMatch(/id="typeAnnounce"[^>]*role="status"[^>]*aria-live="polite"/);
+    expect(html).not.toMatch(/nodeSectionType[^>]*>\s*<div id="typeAnnounce"/);
+
+    const render = declaration('renderTypeSection');
+    expect(render).toContain('if (note !== typeNoteSaid) {');
+    expect(render).toContain("document.getElementById('typeAnnounce').textContent = note;");
+  });
+
+  it('reads the sentence to anyone who focuses the select', () => {
+    expect(readPage()).toContain('aria-describedby="typeSelectNote"');
+  });
+
+  it('cannot offer a type the cohort will not take', () => {
+    // The option stays visible so the choice is still the one on screen, but not selectable.
+    expect(readPage()).toContain("${option.available ? '' : ' disabled'}");
+  });
+
+  it('writes against the state the dialog was composed from', () => {
+    /**
+     * The plugin recomputes everything from its own state and refuses the write if either the
+     * fingerprint or the cohort has moved, so a page that has gone stale cannot act on what it
+     * is still showing.
+     */
+    const write = declaration('runTypeWrite');
+
+    const body = declaration('typeWriteBody');
+
+    expect(body).toContain('expectedFingerprint: payload.fingerprint');
+    expect(body).toContain('expectedRevision: payload.cohortRevision');
+    expect(write).toContain('TYPE_WRITE_ROUTES[action]');
+    expect(lastScript()).toContain("apply: 'set-node-type'");
+    expect(lastScript()).toContain("revert: 'clear-node-type'");
+  });
+
+  it('holds both buttons and the list while a write is running', () => {
+    const script = lastScript();
+
+    expect(script).toContain('typeWriteRunning = true;');
+    expect(script).toContain("form.apply.disabled || typeWriteRunning ? ' disabled' : ''");
+    expect(script).toContain("form.revert.disabled || typeWriteRunning ? ' disabled' : ''");
+    expect(script).toContain("form.select.disabled || typeWriteRunning ? ' disabled' : ''");
+  });
+
+  it('takes a reader to the node-gone state when the write says the node has left', () => {
+    const write = declaration('runTypeWrite');
+
+    expect(write).toContain('uiHelpers.describeWriteRefusal(outcome.refusal)');
+    expect(write).toContain('if (refusal.gone && String(detailNodeId) === String(nodeId)) {');
+    expect(write).toContain('markNodeGone();');
+  });
+
+  it('forgets a choice once it has been written, and on the way into a node', () => {
+    expect(declaration('runTypeWrite')).toContain('typeDrafts.delete(String(nodeId));');
+    expect(declaration('openNodeDetail')).toContain('typeDrafts.delete(String(nodeId));');
+  });
+
+  it('ties a choice to the hardware it was made against', () => {
+    /**
+     * Z-Wave reuses node numbers, and a fingerprint can change under a node being
+     * re-interviewed, so a choice held by node number alone could be applied to a different
+     * device that happens to accept it.
+     */
+    const held = declaration('draftFor');
+
+    expect(held).toContain(
+      "if (held.fingerprint !== uiHelpers.fingerprintKey(payload && payload.fingerprint)) {",
+    );
+    expect(held).toContain('typeDrafts.delete(String(nodeId));');
+    expect(lastScript()).toContain('fingerprint: uiHelpers.fingerprintKey(');
+  });
+
+  it('forgets the choice after a refusal as well as after a write', () => {
+    // A refused write was composed against something that has since moved.
+    const write = declaration('runTypeWrite');
+    const refusalAt = write.indexOf('outcome.refusal');
+
+    expect(write.indexOf('typeDrafts.delete(String(nodeId));')).toBeLessThan(refusalAt);
+  });
+
+  it('puts the keyboard back on the control that replaced the one it was on', () => {
+    const render = declaration('renderTypeSection');
+
+    expect(render).toContain('const mark = focusKeyIn(formHost);');
+    expect(render).toContain('if (mark) {');
+    expect(render).toContain('restoreSectionFocus(formHost, mark);');
+    expect(declaration('focusKeyIn')).toContain("return active.getAttribute('data-focus-key');");
+
+    // Read before the control is replaced, put back after: the other order has nothing to ask.
+    const redraw = render.slice(render.indexOf('formHost.innerHTML = typeFormHtml('));
+
+    expect(render.indexOf('const mark = focusKeyIn(formHost);')).toBeLessThan(
+      render.indexOf('formHost.innerHTML = typeFormHtml('),
+    );
+    expect(redraw).toContain('restoreSectionFocus(formHost, mark);');
+  });
+
+  it('draws what the plugin reports apart from what is being decided', () => {
+    /**
+     * One host for both meant that changing the selection rewrote the plugin's own callouts,
+     * recreating their live regions and announcing again what had not changed.
+     */
+    const html = readPage();
+
+    expect(html).toContain('<div id="typePanelRows"></div>');
+    expect(html).toContain('<div id="typeFormHost"></div>');
+
+    const render = declaration('renderTypeSection');
+    expect(render).toContain('if (panelSignature !== typePanelDrawn) {');
+    expect(render).toContain('if (formSignature !== typeFormDrawn) {');
+  });
+
+  it("keeps the form callouts out of the live regions", () => {
+    // The cohort callout and the rebuild warning explain the form; they do not report events.
+    const form = declaration('typeFormHtml');
+
+    expect(form).not.toContain('role="status"');
+    expect(form).not.toContain('role="alert"');
+  });
+
+  it('remembers the first sentence without saying it', () => {
+    /**
+     * A selection that was already unavailable when the page opened is read from the select's
+     * own description. Only one that becomes unavailable under the reader is announced.
+     */
+    const render = declaration('renderTypeSection');
+
+    expect(render).toContain('if (typeNoteSaid === null) {');
+    expect(render).toContain('} else if (note !== typeNoteSaid) {');
+    expect(declaration('clearTypeAnnounce')).toContain('typeNoteSaid = null;');
+  });
+
+  it('leaves an emptied section able to be drawn into again', () => {
+    /**
+     * The Device type section is two hosts, one for what the plugin reports and one for the
+     * decision. Emptying the section itself took them with it, and the next node opened found
+     * nothing to draw into.
+     */
+    const away = declaration('showNodeSections');
+
+    expect(away).toContain("panel.innerHTML = SECTION_SKELETON.get(section.panel) || '';");
+    expect(away).not.toContain("panel.innerHTML = '';");
+
+    // Read from the markup rather than written out again, so the two cannot drift apart.
+    expect(lastScript()).toContain('const SECTION_SKELETON = new Map(');
+  });
+
+  it('does not drop the keyboard, or keep talking, when the form goes', () => {
+    /**
+     * A reading that fails removes the control the keyboard is on just as surely as a redraw
+     * replaces it, and the sentence under the select goes with the select. Reading the mark
+     * only in the branch that redraws left the reader on the document body with the region
+     * still carrying a sentence about a form that was no longer there.
+     */
+    const render = declaration('renderTypeSection');
+    const mark = render.indexOf('const mark = focusKeyIn(formHost);');
+    const branch = render.indexOf('if (!state.payload || state.error) {');
+
+    expect(mark).toBeGreaterThan(-1);
+    expect(mark).toBeLessThan(branch);
+
+    const errorBranch = render.slice(branch, render.indexOf('} else {', branch));
+    expect(errorBranch).toContain("formHost.innerHTML = '';");
+    expect(errorBranch).toContain('clearTypeAnnounce();');
+    expect(errorBranch).toContain('restoreSectionFocus(formHost, mark);');
+  });
+
+  it('takes the form away with a reading that failed', () => {
+    /**
+     * The report half says the refresh failed while the form went on offering buttons built
+     * from the payload before it, which a reader could still press.
+     */
+    const render = declaration('renderTypeSection');
+    const formSignature = render.slice(render.indexOf('const formSignature'));
+
+    expect(formSignature.slice(0, 120)).toContain("state.error || ''");
+    expect(render).toContain("formHost.innerHTML = '';");
+  });
+
+  it('has somewhere to put the keyboard when the control will not take it', () => {
+    /**
+     * A refresh can disable the button focus was on, and a disabled control does not take it,
+     * so without somewhere else to go the reader is dropped to the document body.
+     */
+    const restore = declaration('restoreSectionFocus');
+
+    expect(restore).toContain('byFocusKey(host, key)');
+    expect(restore).toContain("formHost.querySelector('#typeSelect')");
+    expect(restore).toContain("document.getElementById('nodeSectionType')");
+    expect(restore).toContain("document.getElementById('backToNodes')");
+    expect(declaration('canTakeFocus')).toContain('!element.disabled');
+  });
+
+  it('says nothing about the node a reader has left', () => {
+    const script = lastScript();
+
+    expect(declaration('openNodeDetail')).toContain('clearTypeAnnounce();');
+    expect(declaration('closeNodeDetail')).toContain('clearTypeAnnounce();');
+    expect(declaration('showNodeSections')).toContain('clearTypeAnnounce();');
+    expect(script).toContain("if (region) region.textContent = '';");
+  });
+
+  it('reads and restores the keyboard in the half that reports the node too', () => {
+    /**
+     * That half carries Manage, Remove and Acknowledge now, and the five-second refresh
+     * redraws it, so a reader using one of them would be dropped out of it.
+     */
+    const render = declaration('renderTypeSection');
+
+    expect(render).toContain('const panelKey = focusKeyIn(rows);');
+    expect(render).toContain('restoreSectionFocus(rows, panelKey);');
+    expect(render.indexOf('const panelKey = focusKeyIn(rows);')).toBeLessThan(
+      render.indexOf('rows.innerHTML'),
+    );
+  });
+
+  it('gives every control in the section a key it can be found by again', () => {
+    const script = lastScript();
+
+    ['select', 'apply', 'revert', 'manage', 'remove-override'].forEach((key) =>
+      expect(script).toContain(`data-focus-key="${key}"`),
+    );
+    // One per observation, since a node can carry more than one.
+    expect(script).toContain('data-focus-key="ack:${uiHelpers.escapeHtml(');
+  });
+
+  it('acknowledges a hardware change without asking first', () => {
+    /**
+     * Acknowledging says nothing is wrong and changes nothing in HomeKit, so there is nothing
+     * to confirm. It carries the observation it answers, and the fingerprint it was read for.
+     */
+    const script = lastScript();
+
+    expect(script).toContain("if (button.classList.contains('type-acknowledge')) {");
+    expect(script).toContain("observationId: button.getAttribute('data-observation')");
+    expect(declaration('typeWriteBody')).toContain(
+      'return { nodeId, observationId, expectedFingerprint: payload.fingerprint };',
+    );
+    expect(lastScript()).toContain("acknowledge: 'acknowledge-type-orphan'");
+  });
+
+  it('asks before removing an override, and sends the revision it read', () => {
+    const script = lastScript();
+
+    expect(script).toContain("? 'remove'");
+    expect(declaration('typeWriteBody')).toContain(
+      'return { nodeId, expectedRevision: payload.cohortRevision };',
+    );
+    expect(lastScript()).toContain("remove: 'remove-type-override'");
+  });
+
+  it('answers every write it was asked for', () => {
+    /**
+     * A panel going away is useful, but it is not something a screen reader reports, and with
+     * several panels left standing it is not obvious which one went.
+     */
+    const write = declaration('runTypeWrite');
+
+    expect(write).toContain('uiHelpers.describeWriteOutcome(');
+    expect(write).not.toContain("} else if (action === 'apply' || action === 'revert') {");
+  });
+
+  it('allows one write at a time', () => {
+    /**
+     * A second would be composed against state the first has moved, and two answers arriving
+     * out of order would redraw the section from the older one.
+     */
+    expect(declaration('runTypeWrite')).toContain('if (!write || typeWriteRunning) return;');
+  });
+
+  it('holds the panel buttons while a write runs, like the form ones', () => {
+    const script = lastScript();
+    const render = declaration('renderTypeSection');
+
+    const panelSignature = render.slice(
+      render.indexOf('const panelSignature'),
+      render.indexOf('if (panelSignature !== typePanelDrawn)'),
+    );
+
+    expect(panelSignature).toContain('${typeWriteRunning}');
+    expect(script).toContain("data-focus-key=\"remove-override\"${typeWriteRunning ? ' disabled' : ''}");
+    expect(script).toContain("typeWriteRunning || !orphan.canAcknowledge ? ' disabled' : ''");
+  });
+
+  it('draws no warning in a dialog that has none', () => {
+    expect(declaration('openTypeWriteDialog')).toContain('dialog.warning');
+    expect(declaration('openTypeWriteDialog')).toContain("? `<p class=\"mb-1 mt-2\">");
+  });
+
+  it('draws one bar, and draws its movement from whether anything is moving', () => {
+    const bar = declaration('progressBarHtml');
+
+    expect(bar).toContain("progress.active ? ' progress-bar-animated' : ''");
+    expect(bar).toContain("progress.failed ? ' bg-danger' : ''");
+    expect(bar).toContain('aria-valuemin="0"');
+    expect(bar).toContain('aria-valuemax="100"');
+    expect(bar).toContain('aria-valuenow="${\n            progress.percent\n          }"');
+    expect(bar).toContain('aria-label="${uiHelpers.escapeHtml(');
+
+    // Both places that show one use it, so neither can drift from the other.
+    const script = lastScript();
+    expect(script).toContain('progressBarHtml(cell.progress, 14)');
+    expect(script).toContain('progressBarHtml(detail.progress, 20)');
+    expect(script.match(/progress-bar-animated/g)).toHaveLength(1);
+  });
+
+  it('keeps no icon for a control the page no longer has', () => {
+    /**
+     * The route is still how the Diagnostics section reads a report. What went with the dialog
+     * is the button that used to open it, and the icon drawn on that button.
+     */
+    expect(NODE_ICONS.diagnostics).toBeUndefined();
+    expect(lastScript()).not.toContain("classList.contains('node-diagnostics')");
+    expect(readPage()).toContain("request('node-diagnostics', nodeId)");
   });
 });

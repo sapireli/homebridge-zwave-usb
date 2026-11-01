@@ -239,7 +239,7 @@ describe('RSZ1 accessory migration', () => {
   });
 
   const migrate = () => {
-    const accessory = AccessoryFactory.create(platform, node, HOME_ID);
+    const accessory = AccessoryFactory.create(platform, node, HOME_ID, AccessoryFactory.planFeatures(node));
     accessory.initialize({ removeSupersededServices: true });
     return accessory;
   };
@@ -338,7 +338,7 @@ describe('RSZ1 accessory migration', () => {
     const servicesAfterFirstRun = cached.services.length;
 
     // A restart re-runs the same path against the already migrated cache entry.
-    const second = AccessoryFactory.create(platform, node, HOME_ID);
+    const second = AccessoryFactory.create(platform, node, HOME_ID, AccessoryFactory.planFeatures(node));
     second.initialize({ removeSupersededServices: true });
 
     expect(cached.services).toHaveLength(servicesAfterFirstRun);
@@ -366,7 +366,7 @@ describe('RSZ1 accessory migration', () => {
     migrate();
     (node as unknown as { manufacturerId?: number }).manufacturerId = undefined;
 
-    const rebuilt = AccessoryFactory.create(platform, node, HOME_ID);
+    const rebuilt = AccessoryFactory.create(platform, node, HOME_ID, AccessoryFactory.planFeatures(node));
     rebuilt.initialize({ removeSupersededServices: true });
 
     const lightbulbs = cached.services.filter((s) => s.UUID === SERVICE_UUIDS.Lightbulb);
@@ -394,7 +394,7 @@ describe('RSZ1 accessory migration', () => {
 
     const strandedLightbulb = cached.services.find((s) => s.UUID === SERVICE_UUIDS.Lightbulb)!;
 
-    const accessory = AccessoryFactory.create(platform, node, HOME_ID);
+    const accessory = AccessoryFactory.create(platform, node, HOME_ID, AccessoryFactory.planFeatures(node));
     accessory.initialize({ removeSupersededServices: true });
 
     expect(cached.services).toContain(strandedLightbulb);

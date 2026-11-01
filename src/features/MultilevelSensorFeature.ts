@@ -1,12 +1,38 @@
+import { Endpoint } from 'zwave-js';
+import { IZWaveNode } from '../zwave/interfaces';
 import { Service } from 'homebridge';
 import { CommandClasses, NodeStatus } from '@zwave-js/core';
-import { BaseFeature } from './ZWaveFeature';
+import { BaseFeature, definedValues, hasValue } from './ZWaveFeature';
 import { ZWaveValueEvent } from '../zwave/interfaces';
 
 /**
  * MultilevelSensorFeature handles environmental sensors (Temp, Humidity, light).
  */
 export class MultilevelSensorFeature extends BaseFeature {
+  /** The sensor types this feature builds a service for. */
+  private static readonly SERVICED_TYPES = [
+    'Air temperature',
+    'Humidity',
+    'Illuminance',
+    'Ultraviolet',
+    'Carbon dioxide (CO2) level',
+    'Volatile Organic Compound level',
+    'Particulate Matter 2.5',
+  ];
+
+  /**
+   * A Binary Sensor CO2 value does not qualify, even though detection maps one to this kind:
+   * the feature builds services only from Multilevel Sensor types, so such a device would get
+   * the feature and no service at all. See the known issue in the item 13 handoff.
+   */
+  public static canBePrimary(node: IZWaveNode, endpoint: Endpoint): boolean {
+    const values = definedValues(node, endpoint.index);
+
+    return MultilevelSensorFeature.SERVICED_TYPES.some((type) =>
+      hasValue(values, CommandClasses['Multilevel Sensor'], type),
+    );
+  }
+
   private tempService: Service | undefined;
   private humidityService: Service | undefined;
   private lightService: Service | undefined;
