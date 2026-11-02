@@ -83,7 +83,10 @@ export class CentralSceneFeature extends BaseFeature {
             }) as number);
 
       if (sceneId !== undefined && keyAttribute !== undefined) {
-        this.platform.log.info(`Central Scene event: Scene ${sceneId}, Action ${keyAttribute}`);
+        this.platform.log.debug(
+          `Node ${this.node.nodeId} endpoint ${this.endpoint.index} central scene event: ` +
+            `scene ${sceneId}, action ${keyAttribute}`,
+        );
         this.triggerButton(sceneId, keyAttribute);
       }
     }

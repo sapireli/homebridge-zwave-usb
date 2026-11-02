@@ -559,7 +559,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   }
 
   configureAccessory(accessory: PlatformAccessory) {
-    this.log.info('Loading accessory from cache:', accessory.displayName);
+    this.log.debug('Loading accessory from cache:', accessory.displayName);
     this.accessories.push(accessory);
   }
 
@@ -599,7 +599,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   }
 
   private handleNodeAdded(node: IZWaveNode) {
-    this.log.info(`Node ${node.nodeId} added to the network. Waiting for interview to complete...`);
+    this.log.debug(`Node ${node.nodeId} added; waiting for the interview to complete`);
     this.syncNodeAccessory(node);
   }
 
@@ -625,7 +625,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
   private syncNodeAccessory(node: IZWaveNode) {
     // Skip Node 1 (the controller itself) as it's handled by ControllerAccessory
     if (Number(node.nodeId) === 1) {
-      this.log.info(
+      this.log.debug(
         'System: Controller node (Node 1) identified. Skipping generic accessory creation.',
       );
       return;
@@ -1219,7 +1219,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
 
   private handleNodeRemoved(node: IZWaveNode) {
     this.refreshStates.delete(node.nodeId);
-    this.log.info(`Node ${node.nodeId} removed`);
+    this.log.debug(`Node ${node.nodeId} removed`);
 
     const homeId = this.zwaveController?.homeId;
     const liveAccessory = this.zwaveAccessories.get(node.nodeId);

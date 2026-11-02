@@ -1,4 +1,4 @@
-const { HomebridgePluginUiServer } = require('@homebridge/plugin-ui-utils');
+const { HomebridgePluginUiServer, RequestError } = require('@homebridge/plugin-ui-utils');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -71,8 +71,16 @@ class UiServer extends HomebridgePluginUiServer {
     const portFile = path.join(storagePath, 'homebridge-zwave-usb.port');
 
     if (!fs.existsSync(portFile)) {
-      console.error(`IPC Port file not found at: ${portFile}`);
-      throw new Error('Plugin IPC server not found. Is the plugin running?');
+      /**
+       * The page polls, and on a restart it will ask before the plugin has finished starting.
+       * That is ordinary and it corrects itself on the next ask, so it is answered rather than
+       * thrown: an ordinary throw is printed by the UI server with its whole stack, which puts
+       * a seven-line trace in the log for a condition that resolves in a second.
+       */
+      throw new RequestError('The plugin is not accepting requests yet. It may still be starting.', {
+        reason: 'ipc-unavailable',
+        portFile,
+      });
     }
 
     const port = parseInt(fs.readFileSync(portFile, 'utf8'), 10);

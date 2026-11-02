@@ -392,6 +392,26 @@ describe('ControllerAccessory', () => {
     expect(mockController.startHealing).toHaveBeenCalledTimes(1);
   });
 
+  it('follows the controller quietly, since the controller already reported', () => {
+    // These handlers move a HomeKit switch to match a transition the Z-Wave controller has
+    // already announced. Reporting the same transition a second time says nothing new.
+    (mockPlatform.log.info as jest.Mock).mockClear();
+
+    mockController.emit('inclusion started');
+    mockController.emit('inclusion stopped');
+    mockController.emit('exclusion started');
+    mockController.emit('exclusion stopped');
+    mockController.emit('heal network stopped', 'cancelled');
+
+    const written = (mockPlatform.log.info as jest.Mock).mock.calls.flat().join('\n');
+    expect(written).not.toContain('Controller event:');
+
+    const debugged = (mockPlatform.log.debug as jest.Mock).mock.calls.flat().join('\n');
+    expect(debugged).toContain('Controller event: Inclusion Started');
+    expect(debugged).toContain('Controller event: Exclusion Started');
+    expect(debugged).toContain('Controller event: Heal Network cancelled');
+  });
+
   it('should update status on controller events', () => {
     mockController.emit('status updated', 'Testing Status');
     const statusService = (accessory as any).statusService;

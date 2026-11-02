@@ -138,6 +138,29 @@ describe('CentralSceneFeature', () => {
     );
   });
 
+  it('records a button press at debug, saying which button it was', () => {
+    // A wall remote reports on every press. At info it fills the log of anybody who owns one,
+    // and the line it filled it with did not say which device had been pressed.
+    node.getValueMetadata.mockReturnValue({ states: { '1': 'Button 1' } });
+    feature.init();
+
+    node.getValue.mockImplementation((vid: any) => (vid.property === 'keyAttribute' ? 0 : undefined));
+
+    feature.update({
+      commandClass: CommandClasses['Central Scene'],
+      endpoint: 0,
+      property: 'scene',
+      newValue: 1,
+    });
+
+    const written = (platform.log.info as jest.Mock).mock.calls.flat().join('\n');
+    expect(written).not.toContain('central scene');
+    expect(written).not.toContain('Central Scene event');
+
+    const debugged = (platform.log.debug as jest.Mock).mock.calls.flat().join('\n');
+    expect(debugged).toContain('Node 8 endpoint 0 central scene event: scene 1, action 0');
+  });
+
   it('should trigger DOUBLE_PRESS on Key Double Pressed (3)', () => {
     node.getValueMetadata.mockReturnValue({ states: { '1': 'Button 1' } });
     feature.init();

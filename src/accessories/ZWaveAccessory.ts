@@ -85,7 +85,7 @@ export class ZWaveAccessory {
       const legacyUuid = this.platform.api.hap.uuid.generate(pattern);
       if (this.platform.accessories.find((a) => a.UUID === legacyUuid)) {
         this.platform.log.info(
-          `Adopting legacy UUID for Node ${this.node.nodeId} to preserve automations: ${legacyUuid}`,
+          `Keeping the existing HomeKit identity for Node ${this.node.nodeId} so its automations survive`,
         );
         uuid = legacyUuid;
         break;
@@ -105,7 +105,7 @@ export class ZWaveAccessory {
     if (existingAccessory) {
       this.platformAccessory = existingAccessory;
     } else {
-      this.platform.log.info(`Creating new accessory for ${nodeName} (UUID: ${uuid})`);
+      this.platform.log.info(`Creating a new accessory for ${nodeName}`);
       this.platformAccessory = new this.platform.api.platformAccessory(
         nodeName,
         uuid,
