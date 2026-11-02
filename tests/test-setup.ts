@@ -40,10 +40,16 @@ jest.mock('zwave-js', () => {
       Default: 0,
     },
     /**
-     * Mirrors zwave-js's SetValueStatus and setValueFailed. The real module is deliberately not
-     * loaded here: it requires Node 20 and this suite still runs on 18, so pulling it in would
-     * couple the tests to a runtime the plugin's own engines field still claims to support.
+     * The command class value definitions are the real ones. Whether a value carries a
+     * credential is read from them at runtime, so a stub here would make the plugin treat
+     * every value as unrecognized and withhold all of them, with the tests still passing.
+     * Resolved on call rather than at setup, so only the tests that ask for it pay to load it.
      */
+    getCCValues: (...args: unknown[]) =>
+      (jest.requireActual('zwave-js') as { getCCValues: (...a: unknown[]) => unknown }).getCCValues(
+        ...args,
+      ),
+    /** Mirrors zwave-js's SetValueStatus and setValueFailed. */
     SetValueStatus: {
       0: 'NoDeviceSupport',
       1: 'Working',

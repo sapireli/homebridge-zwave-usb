@@ -1110,4 +1110,44 @@ describe('ZWaveController (Direct Mode)', () => {
       );
     });
   });
+
+  describe('setS2Pin', () => {
+    /**
+     * Where a PIN entered through the HomeKit characteristic arrives. The watched file does not
+     * come this way: it is read and resolved against the waiting inclusion directly.
+     *
+     * The PIN is an inclusion credential printed on the device, and the Homebridge log is a file
+     * people paste into bug reports, so the value must not appear in any line.
+     */
+    const everythingLogged = () =>
+      [log.info, log.warn, log.error, log.debug]
+        .flatMap((level) => level.mock.calls)
+        .flat()
+        .map((entry: unknown) => String(entry))
+        .join('\n');
+
+    it.each(['54321', '00123', '00000'])('keeps %s out of every line', (pin) => {
+      controller = new ZWaveController(log, '/dev/ttyACM0');
+
+      controller.setS2Pin(pin);
+
+      expect(everythingLogged()).not.toContain(pin);
+    });
+
+    it('says that a PIN arrived, without saying what it was', () => {
+      controller = new ZWaveController(log, '/dev/ttyACM0');
+
+      controller.setS2Pin('98765');
+
+      expect(log.info).toHaveBeenCalledWith('[S2] PIN input received.');
+    });
+
+    it('still records the PIN for the inclusion that is waiting on it', () => {
+      controller = new ZWaveController(log, '/dev/ttyACM0');
+
+      controller.setS2Pin(' 13579 ');
+
+      expect((controller as unknown as { pendingS2Pin?: string }).pendingS2Pin).toBe('13579');
+    });
+  });
 });

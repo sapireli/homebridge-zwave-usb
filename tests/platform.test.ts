@@ -2070,4 +2070,112 @@ describe('ZWaveUsbPlatform', () => {
       expect(body.error).toContain('Controller');
     });
   });
+
+  describe('credentials in the debug value payload', () => {
+    const KEYPAD_CODE = '8675309';
+    const PREVIOUS_CODE = '1234567';
+
+    /**
+     * Drives a value event the way the controller does and returns everything written to the
+     * log, at every level, so an assertion about what was not written cannot be satisfied by a
+     * line that went somewhere else.
+     */
+    const driveValueEvent = (args: Record<string, unknown>) => {
+      const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() } as any;
+      const config: PlatformConfig = {
+        platform: PLATFORM_NAME,
+        name: 'Z-Wave USB',
+        serialPort: '/dev/null',
+        debug: true,
+      };
+
+      const platform = new ZWaveUsbPlatform(log, config, api);
+      const controller = (platform as any).zwaveController;
+      controller.emit('value updated', { nodeId: 7 }, args);
+
+      const written = (['debug', 'info', 'warn', 'error'] as const)
+        .flatMap((level) => log[level].mock.calls.map((call: unknown[]) => call.join(' ')))
+        .join('\n');
+
+      return written;
+    };
+
+    it('withholds a keypad code while still saying which one changed', () => {
+      const written = driveValueEvent({
+        commandClass: CommandClasses['User Code'],
+        endpoint: 0,
+        property: 'userCode',
+        propertyKey: 3,
+        newValue: KEYPAD_CODE,
+        prevValue: PREVIOUS_CODE,
+      });
+
+      expect(written).not.toContain(KEYPAD_CODE);
+      expect(written).not.toContain(PREVIOUS_CODE);
+      expect(written).toContain('[redacted]');
+      // The diagnosis survives: the reader still learns which slot on which node changed.
+      expect(written).toContain('userCode');
+      expect(written).toContain('"propertyKey":3');
+      expect(written).toContain('Node 7');
+    });
+
+    it('withholds a keypad code delivered as a buffer', () => {
+      // A device may report the code as bytes, which the serializer would otherwise hex-encode.
+      const written = driveValueEvent({
+        commandClass: CommandClasses['User Code'],
+        endpoint: 0,
+        property: 'userCode',
+        propertyKey: 1,
+        newValue: Buffer.from(KEYPAD_CODE, 'utf8'),
+        prevValue: undefined,
+      });
+
+      expect(written).not.toContain(KEYPAD_CODE);
+      expect(written).not.toContain(Buffer.from(KEYPAD_CODE, 'utf8').toString('hex'));
+      expect(written).toContain('[redacted]');
+    });
+
+    it('withholds the admin code', () => {
+      const written = driveValueEvent({
+        commandClass: CommandClasses['User Code'],
+        endpoint: 0,
+        property: 'adminCode',
+        newValue: KEYPAD_CODE,
+        prevValue: PREVIOUS_CODE,
+      });
+
+      expect(written).not.toContain(KEYPAD_CODE);
+      expect(written).not.toContain(PREVIOUS_CODE);
+      expect(written).toContain('[redacted]');
+    });
+
+    it('leaves an ordinary device value readable', () => {
+      // Without this, a lookup that answered secret for everything would pass every
+      // assertion above while making the payload useless.
+      const written = driveValueEvent({
+        commandClass: CommandClasses['Binary Switch'],
+        endpoint: 0,
+        property: 'currentValue',
+        newValue: true,
+        prevValue: false,
+      });
+
+      expect(written).toContain('"newValue":true');
+      expect(written).toContain('"prevValue":false');
+      expect(written).not.toContain('[redacted]');
+    });
+
+    it('withholds a value it cannot place', () => {
+      const written = driveValueEvent({
+        commandClass: 0xff,
+        endpoint: 0,
+        property: 'somethingNobodyDefined',
+        newValue: 'opaque',
+        prevValue: 'also opaque',
+      });
+
+      expect(written).not.toContain('opaque');
+      expect(written).toContain('[redacted]');
+    });
+  });
 });

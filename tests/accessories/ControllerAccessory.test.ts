@@ -456,6 +456,45 @@ describe('ControllerAccessory', () => {
     expect(mockPlatform.log.warn).toHaveBeenCalled();
   });
 
+  describe('the S2 PIN never reaches the log', () => {
+    /**
+     * The PIN is an inclusion credential printed on the device, and the Homebridge log is a file
+     * people paste into bug reports. Every value submitted through the characteristic is checked
+     * against every line the accessory wrote, whether the value was accepted or refused.
+     */
+    const everythingLogged = () =>
+      (['info', 'warn', 'error', 'debug'] as const)
+        .flatMap((level) => mockPlatform.log[level].mock.calls)
+        .flat()
+        .map((entry: unknown) => String(entry))
+        .join('\n');
+
+    it.each([
+      ['an ordinary value', 54321, '54321'],
+      ['a value that needs padding', 123, '00123'],
+      ['a value of zero', 0, '00000'],
+    ])('keeps %s out of every line', (_name, submitted, padded) => {
+      jest.useFakeTimers();
+      const onSetHandler = (accessory as any).pinChar.onSet.mock.calls[0][0];
+
+      onSetHandler(submitted);
+
+      expect(mockController.setS2Pin).toHaveBeenCalledWith(padded);
+      const logged = everythingLogged();
+      expect(logged).not.toContain(padded);
+      expect(logged).not.toContain(String(submitted));
+    });
+
+    it('keeps a refused value out of every line', () => {
+      const onSetHandler = (accessory as any).pinChar.onSet.mock.calls[0][0];
+
+      onSetHandler(100000);
+
+      expect(mockController.setS2Pin).not.toHaveBeenCalled();
+      expect(everythingLogged()).not.toContain('100000');
+    });
+  });
+
   it('should skip controller cache repair once the migration version is recorded', () => {
     const existingAccessory = new mockPlatform.api.platformAccessory();
     existingAccessory.UUID = 'homebridge-zwave-usb-controller-305419896';
