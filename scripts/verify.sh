@@ -28,7 +28,7 @@ grep -q "UUID generation string" src/accessories/ZWaveAccessory.ts || (echo "Err
 
 echo -e "\n--- Verifying Connection & Best Practices ---"
 grep -q "softReset: false" src/zwave/ZWaveController.ts || (echo "Error: softReset should be false in ZWaveController.ts"; exit 1)
-grep -q "forceConsole: true" src/zwave/ZWaveController.ts || (echo "Error: forceConsole should be true in ZWaveController.ts"; exit 1)
+grep -q "forceConsole: !!this.options.debug" src/zwave/ZWaveController.ts || (echo "Error: forceConsole should follow the debug option in ZWaveController.ts"; exit 1)
 grep -q "cacheDir: path.join(storagePath" src/zwave/ZWaveController.ts || (echo "Error: storagePath not used for cache in ZWaveController.ts"; exit 1)
 
 echo -e "\n--- Verifying Z-Wave Manager & PIN System ---"
