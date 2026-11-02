@@ -643,7 +643,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
       if (existing) {
         if (node.ready && !existing.isInitialized()) {
           /**
-           * The accessory was materialised from the HomeKit cache before the interview finished,
+           * The accessory was materialized from the HomeKit cache before the interview finished,
            * so its services still describe whatever the previous run believed the node to be.
            * Building the graph again replaces the stored signature, which is why the reconcile
            * has to be requested here rather than inferred from a later comparison.

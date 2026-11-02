@@ -18,7 +18,7 @@ const MANUFACTURER_SPECIFIC_SERIAL_NUMBER_TYPE = 1;
 /**
  * How long a route rebuild may go without reporting progress before it is treated as wedged.
  * This is an inactivity timeout rather than a total-runtime cap: a large network can legitimately
- * take much longer than any fixed budget, and cancelling a rebuild that is still working would
+ * take much longer than any fixed budget, and canceling a rebuild that is still working would
  * leave nodes with stale routes.
  */
 const REBUILD_ROUTES_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
@@ -132,7 +132,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
           },
           'rebuild routes progress': (progress: ReadonlyMap<number, RebuildRoutesStatus>) => {
             /**
-             * Only a heal this plugin started counts. Cancelling one leaves the library's task
+             * Only a heal this plugin started counts. Canceling one leaves the library's task
              * briefly alive, and it emits a last progress event on its way out; treating that as
              * evidence of a running rebuild would revive a heal the user had just stopped.
              */
@@ -150,7 +150,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
           },
           'rebuild routes done': (result: ReadonlyMap<number, RebuildRoutesStatus>) => {
             /**
-             * A cancelled rebuild can outlive the stop that was supposed to end it, and it
+             * A canceled rebuild can outlive the stop that was supposed to end it, and it
              * finishes against a progress map the driver already cleared. Reporting that as a
              * completion would announce a fabricated 100%, which is what this handler exists
              * to stop doing.
@@ -915,7 +915,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
       return false;
     } finally {
       /**
-       * The library reports nothing when a rebuild is cancelled, so the lifecycle is closed
+       * The library reports nothing when a rebuild is canceled, so the lifecycle is closed
        * optimistically here. Only announce it if one was actually running: an OFF write against
        * an idle switch, or a mutex path, must not look like a cancellation.
        */
@@ -929,7 +929,7 @@ export class ZWaveController extends EventEmitter implements IZWaveController {
   }
 
   /**
-   * Reports how a heal ended and then returns the status to idle, so a cancelled or timed-out
+   * Reports how a heal ended and then returns the status to idle, so a canceled or timed-out
    * heal does not leave its last progress count on the characteristic indefinitely.
    *
    * The pending reset belongs to the heal that ended. A new heal started inside the window

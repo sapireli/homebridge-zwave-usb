@@ -457,7 +457,7 @@ export class MatterAccessories {
 
     /**
      * Checked here rather than only after the call, because a removal that arrives while the
-     * descriptors are being built would otherwise be dispatched anyway and undone afterwards.
+     * descriptors are being built would otherwise be dispatched anyway and undone afterward.
      * The undo is not a reliable answer: bridged unregistration is dispatched as an event of
      * its own, so it can be handled before the registration it is meant to cancel. Not sending
      * the work at all is the only part of this the plugin controls.

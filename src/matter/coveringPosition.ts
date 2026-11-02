@@ -5,7 +5,7 @@
  * closed. Matter's LiftPercent100ths is how far it is closed, in hundredths of a percent: the
  * spec has UpOrOpen set the target to 0.00%, and 10000 is fully closed.
  *
- * Getting this backwards makes "close the shades" open them, so the conversion lives here on its
+ * Getting this backward makes "close the shades" open them, so the conversion lives here on its
  * own and is covered by tests.
  */
 

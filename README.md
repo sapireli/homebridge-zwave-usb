@@ -83,7 +83,7 @@ Air quality still uses the host's core Good/Poor/Unknown categories: Excellent/G
 and Fair/Inferior/Poor map to Poor. Optional finer enum grades fail Homebridge 2.4's pre-plugin
 cache restoration; the raw readings preserve the quantitative data.
 
-Homebridge dispatches bridged Matter registration and removal without a downstream acknowledgement.
+Homebridge dispatches bridged Matter registration and removal without a downstream acknowledgment.
 The plugin prevents duplicate offers and reclaims cached endpoints at startup, but cannot detect
 all server-side refusals. A live endpoint's service structure is retained until the next restart
 if a device's capabilities change. Automated tests cover the plugin lifecycle and endpoint

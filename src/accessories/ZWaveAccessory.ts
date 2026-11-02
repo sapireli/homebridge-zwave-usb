@@ -202,7 +202,7 @@ export class ZWaveAccessory {
      * silent root over a child that is reporting would show the device as having no battery
      * while HomeKit shows its battery service.
      *
-     * Reading them all first and choosing afterwards looks equivalent and is not. A read can
+     * Reading them all first and choosing afterward looks equivalent and is not. A read can
      * throw, so one failing endpoint would discard a perfectly good reading taken from an
      * earlier one, and the page would quietly show no battery for a device that was reporting.
      * An endpoint reached before any usable answer is a different matter, and is left to throw

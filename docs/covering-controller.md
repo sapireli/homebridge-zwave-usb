@@ -44,7 +44,7 @@ late result is ignored without any cancellation logic.
 
 Events: `Init`, `HomeKitMove`, `HomeKitStop`, `DispatchTick`, `WriteSettled`, `ValueReport`, `PollSettled`, `ReconcileTick`,
 `Teardown`. Effects: `Write`, `Poll`, `ArmReconcileTimer`, `ArmDispatchTimer`, `SettleRequest`, `Log`. There is no effect for
-publishing and none for cancelling a timer.
+publishing and none for canceling a timer.
 
 Every request HomeKit makes is settled exactly once (`accepted`, `superseded` by a newer one, or `refused`). A refused
 write leaves the command that was already being followed untouched.
@@ -70,7 +70,7 @@ An accepted command is followed with a poll every two seconds (`RECONCILE_INTERV
 
 Progress is a move's verified position getting closer to its target than it has been, counting the verified position the
 move started from when there was one (from a poll or a trusted device report; an echo does not count), so a covering that
-moves away from its target, or back towards where it began, earns nothing. Each time it happens the 60 second deadline moves to 60 seconds from then, up to the ceiling, so a
+moves away from its target, or back toward where it began, earns nothing. Each time it happens the 60 second deadline moves to 60 seconds from then, up to the ceiling, so a
 covering of any travel time is followed while it is getting closer, and one that wanders or stops getting closer is given up on
 60 seconds after its last progress. A stop gets no extension: it should come to rest within a few seconds.
 

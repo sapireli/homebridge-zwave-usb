@@ -641,10 +641,10 @@ export class ControllerAccessory {
        * Stopping inclusion or exclusion is a real round trip to the controller, and HomeKit
        * delivers writes without waiting for the previous one, so the user can turn the switch
        * back off while this sequence is suspended. Starting the rebuild anyway would run the
-       * very thing they just cancelled.
+       * very thing they just canceled.
        */
       if (generation !== this.healGeneration) {
-        this.platform.log.info('Heal Network was cancelled before it started; not starting it.');
+        this.platform.log.info('Heal Network was canceled before it started; not starting it.');
         return;
       }
 
@@ -652,7 +652,7 @@ export class ControllerAccessory {
       const started = await this.controller.startHealing();
 
       if (generation !== this.healGeneration) {
-        this.platform.log.info('Heal Network was cancelled while starting; stopping it again.');
+        this.platform.log.info('Heal Network was canceled while starting; stopping it again.');
         await this.controller.stopHealing();
         return;
       }
