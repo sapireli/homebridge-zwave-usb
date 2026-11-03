@@ -467,10 +467,19 @@
 
     if (state.name === 'updating' || state.name === 'completed' || state.name === 'failed') {
       const reported = Math.round(Number(state.percent));
+      const notice = FIRMWARE_NOTICES[state.name];
       return {
         kind: 'progress',
         percent: Number.isFinite(reported) ? Math.min(100, Math.max(0, reported)) : 0,
         failed: state.name === 'failed',
+        /**
+         * Whether the update is still going, which is what the bar's movement reports. Without
+         * it a finished update and a running one arrive here the same way, and the bar goes on
+         * moving after there is nothing left to report.
+         */
+        running: state.name === 'updating',
+        /** Named from the sentence beside it, so the two cannot come to say different things. */
+        name: notice ? notice.text : '',
       };
     }
 
