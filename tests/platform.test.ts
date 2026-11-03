@@ -1064,6 +1064,250 @@ describe('ZWaveUsbPlatform', () => {
     }
   });
 
+  /**
+   * What the replacement paths reach for on the platform. Declared so the tests below can read
+   * the registry and drive a node without casting at every use.
+   */
+  interface PlatformInternals {
+    zwaveAccessories: Map<number, unknown>;
+    matterAccessories: { add: (accessory: unknown) => void };
+    zwaveController: { homeId?: number };
+    handleNodeReady: (node: unknown) => void;
+  }
+
+  /**
+   * One node's worth of replacement machinery: a platform, a way to drive a node through it,
+   * and the registry read back. `ready` returns whatever escaped instead of throwing, because
+   * every test here asserts that nothing does.
+   */
+  const replacementRig = () => {
+    const log = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    const config: PlatformConfig = {
+      platform: PLATFORM_NAME,
+      name: 'Z-Wave USB',
+      serialPort: '/dev/null',
+    };
+    const platform = new ZWaveUsbPlatform(log as unknown as Logger, config, api);
+    const inner = platform as unknown as PlatformInternals;
+    const matterAdd = jest.fn();
+    inner.zwaveController.homeId = 100;
+    inner.matterAccessories.add = matterAdd;
+
+    return {
+      log,
+      matterAdd,
+      register: (nodeId: number, wrapper: unknown) => inner.zwaveAccessories.set(nodeId, wrapper),
+      registered: (nodeId: number) => inner.zwaveAccessories.get(nodeId),
+      isRegistered: (nodeId: number) => inner.zwaveAccessories.has(nodeId),
+      ready: (node: unknown): unknown => {
+        try {
+          inner.handleNodeReady(node);
+        } catch (err) {
+          return err;
+        }
+        return undefined;
+      },
+    };
+  };
+
+  const replacementNode = (nodeId = 5) => ({
+    nodeId,
+    name: 'Hallway Shade',
+    deviceConfig: { label: 'RSZ1', manufacturer: 'Springs Window Fashions' },
+    ready: true,
+    status: 4,
+    getDefinedValueIDs: jest.fn().mockReturnValue([]),
+    getAllEndpoints: jest
+      .fn()
+      .mockReturnValue([{ index: 0, supportsCC: jest.fn().mockReturnValue(false) }]),
+    getValueMetadata: jest.fn(),
+    getValue: jest.fn(),
+    supportsCC: jest.fn().mockReturnValue(false),
+  });
+
+  /** A wrapper restored from the HomeKit cache, before or after its interview finished. */
+  const cachedWrapper = (initialized: boolean, stop: () => void = () => undefined) => ({
+    isInitialized: jest.fn().mockReturnValue(initialized),
+    getGraphSignature: jest.fn().mockReturnValue('cached-graph'),
+    stop: jest.fn(stop),
+    updateNode: jest.fn(),
+    refresh: jest.fn(),
+  });
+
+  /** A freshly built wrapper, optionally one that cannot finish initializing. */
+  const builtWrapper = (initialize: () => void = () => undefined) => ({
+    initialize: jest.fn(initialize),
+    stop: jest.fn(),
+    refresh: jest.fn(),
+  });
+
+  const throwing = (message: string) => () => {
+    throw new Error(message);
+  };
+
+  const buildsInto = (wrapper: unknown) =>
+    jest
+      .spyOn(AccessoryFactory, 'create')
+      .mockReturnValue(wrapper as ReturnType<typeof AccessoryFactory.create>);
+
+  const failsToBuild = () =>
+    jest.spyOn(AccessoryFactory, 'create').mockImplementation(throwing('classification failed'));
+
+  /** The message logged at `level` that names this node, if any. */
+  const mentioning = (calls: unknown[][], nodeId: number) =>
+    calls.filter(([first]) => typeof first === 'string' && first.includes(`Node ${nodeId}`));
+
+  describe('replacing the accessory a node is published through', () => {
+    /**
+     * The map holds an accessory prepared for the stage the node is at, or no entry at all.
+     * Nothing that fails on the way there is left registered, and nothing escapes into the
+     * listener that asked for the node.
+     */
+    it('drops the candidate when it cannot be created', () => {
+      const rig = replacementRig();
+      const existing = cachedWrapper(false);
+      rig.register(5, existing);
+      const create = failsToBuild();
+
+      try {
+        const escaped = rig.ready(replacementNode());
+
+        expect(existing.stop).toHaveBeenCalled();
+        expect(rig.isRegistered(5)).toBe(false);
+        expect(rig.matterAdd).not.toHaveBeenCalled();
+        expect(escaped).toBeUndefined();
+        expect(mentioning(rig.log.error.mock.calls, 5)).toHaveLength(1);
+      } finally {
+        create.mockRestore();
+      }
+    });
+
+    it('drops the candidate when it cannot finish initializing', () => {
+      const rig = replacementRig();
+      rig.register(5, cachedWrapper(false));
+      const hydrated = builtWrapper(throwing('initialization failed'));
+      const create = buildsInto(hydrated);
+
+      try {
+        const escaped = rig.ready(replacementNode());
+
+        expect(hydrated.initialize).toHaveBeenCalled();
+        expect(rig.isRegistered(5)).toBe(false);
+        expect(rig.matterAdd).not.toHaveBeenCalled();
+        expect(escaped).toBeUndefined();
+        expect(mentioning(rig.log.error.mock.calls, 5)).toHaveLength(1);
+      } finally {
+        create.mockRestore();
+      }
+    });
+
+    it('drops the candidate when a first build cannot finish initializing', () => {
+      const rig = replacementRig();
+      const created = builtWrapper(throwing('initialization failed'));
+      const create = buildsInto(created);
+
+      try {
+        const escaped = rig.ready(replacementNode());
+
+        expect(created.initialize).toHaveBeenCalled();
+        expect(rig.isRegistered(5)).toBe(false);
+        expect(rig.matterAdd).not.toHaveBeenCalled();
+        expect(escaped).toBeUndefined();
+      } finally {
+        create.mockRestore();
+      }
+    });
+
+    it('drops the candidate when a reconcile cannot be created', () => {
+      const rig = replacementRig();
+      const existing = cachedWrapper(true);
+      rig.register(5, existing);
+      const graph = jest.spyOn(AccessoryFactory, 'getGraphSignature').mockReturnValue('new-graph');
+      const create = failsToBuild();
+
+      try {
+        const escaped = rig.ready(replacementNode());
+
+        expect(existing.stop).toHaveBeenCalled();
+        expect(rig.isRegistered(5)).toBe(false);
+        expect(rig.matterAdd).not.toHaveBeenCalled();
+        expect(escaped).toBeUndefined();
+      } finally {
+        create.mockRestore();
+        graph.mockRestore();
+      }
+    });
+
+    /**
+     * Features are stopped one after another, so an accessory that threw on the way down may
+     * still be listening. A replacement built now would answer for the node alongside it.
+     */
+    it('keeps the old accessory and builds nothing when it cannot be stopped', () => {
+      const rig = replacementRig();
+      const existing = cachedWrapper(false);
+      // Throws once, as a transient failure would, so shutdown can still stop it afterwards.
+      existing.stop.mockImplementationOnce(throwing('stop failed'));
+      rig.register(5, existing);
+      const create = buildsInto(builtWrapper());
+
+      try {
+        const escaped = rig.ready(replacementNode());
+
+        expect(create).not.toHaveBeenCalled();
+        expect(rig.registered(5)).toBe(existing);
+        expect(rig.matterAdd).not.toHaveBeenCalled();
+        expect(escaped).toBeUndefined();
+        expect(mentioning(rig.log.error.mock.calls, 5)).toHaveLength(1);
+      } finally {
+        create.mockRestore();
+      }
+    });
+
+    it('leaves the accessory registered when offering it to Matter throws', () => {
+      const rig = replacementRig();
+      const hydrated = builtWrapper();
+      rig.matterAdd.mockImplementation(throwing('matter registration failed'));
+      const create = buildsInto(hydrated);
+
+      try {
+        const escaped = rig.ready(replacementNode());
+
+        expect(rig.registered(5)).toBe(hydrated);
+        expect(escaped).toBeUndefined();
+        expect(mentioning(rig.log.warn.mock.calls, 5)).toHaveLength(1);
+        expect(rig.log.error).not.toHaveBeenCalled();
+      } finally {
+        create.mockRestore();
+      }
+    });
+
+    it('keeps registering the remaining nodes when one of them cannot be built', () => {
+      const rig = replacementRig();
+      const first = builtWrapper();
+      const third = builtWrapper();
+      const create = jest
+        .spyOn(AccessoryFactory, 'create')
+        .mockImplementation((_platform, node) => {
+          if (node.nodeId === 5) {
+            throw new Error('classification failed');
+          }
+          return (node.nodeId === 4 ? first : third) as ReturnType<typeof AccessoryFactory.create>;
+        });
+
+      try {
+        // The shape of the startup inventory walk: one call per node, in order.
+        const escaped = [4, 5, 6].map((nodeId) => rig.ready(replacementNode(nodeId)));
+
+        expect(escaped.every((err) => err === undefined)).toBe(true);
+        expect(rig.registered(4)).toBe(first);
+        expect(rig.isRegistered(5)).toBe(false);
+        expect(rig.registered(6)).toBe(third);
+      } finally {
+        create.mockRestore();
+      }
+    });
+  });
+
   it('should reconcile the service graph when first building a ready node from cache', () => {
     const log = {
       debug: jest.fn(),
