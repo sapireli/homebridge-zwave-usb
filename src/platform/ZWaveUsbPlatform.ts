@@ -649,11 +649,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
            * Building the graph again replaces the stored signature, which is why the reconcile
            * has to be requested here rather than inferred from a later comparison.
            */
-          existing.stop();
-          const hydratedAccessory = AccessoryFactory.create(this, node, homeId);
-          this.zwaveAccessories.set(node.nodeId, hydratedAccessory);
-          hydratedAccessory.initialize({ removeSupersededServices: true });
-          this.matterAccessories.add(hydratedAccessory);
+          this.buildAccessory(node, homeId, existing, { removeSupersededServices: true });
           return;
         }
 
@@ -666,11 +662,7 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           this.log.info(
             `Rebuilding accessory graph for Node ${node.nodeId} after capability change was detected.`,
           );
-          existing.stop();
-          const reconciledAccessory = AccessoryFactory.create(this, node, homeId);
-          this.zwaveAccessories.set(node.nodeId, reconciledAccessory);
-          reconciledAccessory.initialize({ pruneUnmanagedServices: true });
-          this.matterAccessories.add(reconciledAccessory);
+          this.buildAccessory(node, homeId, existing, { pruneUnmanagedServices: true });
           return;
         }
 
@@ -699,21 +691,95 @@ export class ZWaveUsbPlatform implements DynamicPlatformPlugin {
           `Refreshing cached accessory for Node ${node.nodeId} before interview completion so HomeKit can surface fault state.`,
         );
       }
-      const accessory = AccessoryFactory.create(this, node, homeId);
+      /**
+       * A cached accessory can still carry services from a previous plugin version whose
+       * classification differed, so the graph is reconciled as part of the first build. A node
+       * that is not ready yet has no graph to reconcile, so it is only refreshed.
+       */
+      this.buildAccessory(
+        node,
+        homeId,
+        undefined,
+        node.ready ? { removeSupersededServices: true } : undefined,
+      );
+    } finally {
+      this.discoveryInFlight.delete(node.nodeId);
+    }
+  }
+
+  /**
+   * Builds the accessory a node is published through, replacing whatever was registered for it.
+   *
+   * The sequence is held in one place because it was written out at three call sites, and a
+   * failure part way through left the node registered behind a wrapper that had been stopped,
+   * or one whose services were never built. The error also escaped into the listener that asked
+   * for the node, which during startup discovery abandoned every node still to be walked.
+   *
+   * When this returns, the map holds an accessory prepared for the stage the node is at, a
+   * ready one having finished initializing and an unready cached one having been refreshed, or
+   * it holds no entry for that node and the next event builds one again.
+   *
+   * @param previous the wrapper being replaced, stopped before the new one is built
+   * @param initializeOptions how to reconcile the service graph, or undefined to only refresh
+   */
+  private buildAccessory(
+    node: IZWaveNode,
+    homeId: number,
+    previous: ZWaveAccessory | undefined,
+    initializeOptions?: { pruneUnmanagedServices?: boolean; removeSupersededServices?: boolean },
+  ): void {
+    if (previous) {
+      try {
+        previous.stop();
+      } catch (err) {
+        /**
+         * Features are stopped one after another with nothing holding a failure part way
+         * through, so an accessory that could not be stopped may still have live listeners on
+         * the node. Building a replacement would leave two of them answering for it, so the one
+         * already registered stays, and the next event for the node tries again.
+         */
+        this.log.error(`Could not stop the accessory for Node ${node.nodeId}:`, err);
+        return;
+      }
+    }
+
+    // Dropped before the build, so a failure to create cannot leave the stopped one in charge.
+    this.zwaveAccessories.delete(node.nodeId);
+
+    let accessory: ZWaveAccessory | undefined;
+    try {
+      accessory = AccessoryFactory.create(this, node, homeId);
       this.zwaveAccessories.set(node.nodeId, accessory);
 
-      if (node.ready) {
-        /**
-         * A cached accessory can still carry services from a previous plugin version whose
-         * classification differed, so the graph is reconciled as part of the first build.
-         */
-        accessory.initialize({ removeSupersededServices: true });
-        this.matterAccessories.add(accessory);
+      if (initializeOptions) {
+        accessory.initialize(initializeOptions);
       } else {
         accessory.refresh();
       }
-    } finally {
-      this.discoveryInFlight.delete(node.nodeId);
+    } catch (err) {
+      this.zwaveAccessories.delete(node.nodeId);
+      if (accessory) {
+        try {
+          accessory.stop();
+        } catch {
+          // Clearing up must not replace the failure that caused it.
+        }
+      }
+      this.log.error(`Could not build the accessory for Node ${node.nodeId}:`, err);
+      return;
+    }
+
+    if (initializeOptions) {
+      /**
+       * Matter is offered the accessory only once HomeKit holds it, and a registration failure
+       * is reported rather than undone. The accessory is live either way, and only its Matter
+       * side is missing.
+       */
+      try {
+        this.matterAccessories.add(accessory);
+      } catch (err) {
+        this.log.warn(`Could not offer Node ${node.nodeId} to Matter:`, err);
+      }
     }
   }
 
