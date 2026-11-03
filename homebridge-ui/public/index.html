@@ -576,9 +576,14 @@
         if (actions.kind === 'progress') {
           return `
                 <div class="progress" style="height: 20px;">
-                  <div class="progress-bar progress-bar-striped progress-bar-animated${
+                  <div class="progress-bar progress-bar-striped${
+                    actions.running ? ' progress-bar-animated' : ''
+                  }${
                     actions.failed ? ' bg-danger' : ''
-                  }" role="progressbar" style="width: ${actions.percent}%">${actions.percent}%</div>
+                  }" role="progressbar" aria-label="${uiHelpers.escapeHtml(
+                    actions.name,
+                  )}" aria-valuenow="${actions.percent}" aria-valuemin="0" aria-valuemax="100"
+                    style="width: ${actions.percent}%">${actions.percent}%</div>
                 </div>
               `;
         }

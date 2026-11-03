@@ -823,17 +823,58 @@ describe('node action cell', () => {
     const bar = (progress: Record<string, unknown>) =>
       describeNodeActions(node(), firmwareStateOf(node({ firmwareProgress: progress }), null));
 
-    expect(bar({ percent: 37.5 })).toEqual({ kind: 'progress', percent: 38, failed: false });
+    expect(bar({ percent: 37.5 })).toEqual({
+      kind: 'progress',
+      percent: 38,
+      failed: false,
+      running: true,
+      name: 'Updating firmware',
+    });
     expect(bar({ percent: 100, outcome: 'success' })).toEqual({
       kind: 'progress',
       percent: 100,
       failed: false,
+      running: false,
+      name: 'Firmware update completed',
     });
     expect(bar({ percent: 100, outcome: 'failure' })).toEqual({
       kind: 'progress',
       percent: 100,
       failed: true,
+      running: false,
+      name: 'Firmware update failed',
     });
+  });
+
+  it('names the bar with the same sentence the notice beside it carries', () => {
+    const named = (progress: Record<string, unknown>) => {
+      const state = firmwareStateOf(node({ firmwareProgress: progress }), null);
+      const notices = describeNodeNotices(node({ firmwareProgress: progress }), state);
+      return {
+        bar: describeNodeActions(node(), state).name,
+        notice: notices.map((entry: { text: string }) => entry.text),
+      };
+    };
+
+    for (const progress of [
+      { percent: 40 },
+      { percent: 100, outcome: 'success' },
+      { percent: 100, outcome: 'failure' },
+    ]) {
+      const { bar, notice } = named(progress);
+      expect(notice).toContain(bar);
+    }
+  });
+
+  it('keeps the reported value inside the range the bar advertises', () => {
+    const percentOf = (progress: Record<string, unknown>) =>
+      describeNodeActions(node(), firmwareStateOf(node({ firmwareProgress: progress }), null))
+        .percent;
+
+    expect(percentOf({ percent: -10 })).toBe(0);
+    expect(percentOf({ percent: 140 })).toBe(100);
+    expect(percentOf({ percent: Number.NaN })).toBe(0);
+    expect(percentOf({ percent: 'not a number' })).toBe(0);
   });
 
   it('leaves the controller row without actions', () => {
@@ -1115,6 +1156,49 @@ describe('management page integration', () => {
     const path = require('path');
     return fs.readFileSync(path.join(__dirname, '../homebridge-ui/public/index.html'), 'utf8');
   };
+
+  it('draws the firmware bar from the state the descriptor carries', () => {
+    const template = readPage().match(
+      /if \(actions\.kind === 'progress'\) \{\s*return `([\s\S]*?)`;/,
+    );
+    expect(template).not.toBeNull();
+
+    const render = new Function('actions', 'uiHelpers', 'return `' + template![1] + '`;') as (
+      actions: unknown,
+      helpers: unknown,
+    ) => string;
+
+    const barFor = (progress: Record<string, unknown>) =>
+      render(
+        describeNodeActions(
+          { nodeId: 5 },
+          firmwareStateOf({ nodeId: 5, firmwareProgress: progress }, null),
+        ),
+        { escapeHtml },
+      );
+
+    const running = barFor({ percent: 40 });
+    const completed = barFor({ percent: 100, outcome: 'success' });
+    const failed = barFor({ percent: 100, outcome: 'failure' });
+
+    expect(running).toContain('progress-bar-animated');
+    expect(completed).not.toContain('progress-bar-animated');
+    expect(failed).not.toContain('progress-bar-animated');
+    expect(failed).toContain('bg-danger');
+    expect(completed).not.toContain('bg-danger');
+
+    const cases: Array<[string, string, number]> = [
+      [running, 'Updating firmware', 40],
+      [completed, 'Firmware update completed', 100],
+      [failed, 'Firmware update failed', 100],
+    ];
+    for (const [bar, name, percent] of cases) {
+      expect(bar).toContain(`aria-label="${name}"`);
+      expect(bar).toContain(`aria-valuenow="${percent}"`);
+      expect(bar).toContain('aria-valuemin="0"');
+      expect(bar).toContain('aria-valuemax="100"');
+    }
+  });
 
   describe('when the node list asks the plugin for nodes', () => {
     /**
